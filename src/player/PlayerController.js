@@ -40,10 +40,21 @@ export class PlayerController {
     this.dragging = false;
     this.freeMode = false; // set once the player has entered the forest
     this.pointer = null; // last cursor position over the view
+    this.exitY = 0; // -1 / 1 while the cursor is past the top / bottom edge
     this.edgeX = 0; this.edgeY = 0;
     const stopDrag = () => { this.dragging = false; this.dom.style.cursor = ''; };
-    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); this.pointer = null; });
-    document.documentElement.addEventListener('mouseleave', () => { this.pointer = null; });
+    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); this.pointer = null; this.exitY = 0; });
+    // Above and below the page sit the browser bars and the taskbar, so the
+    // cursor leaves the page there instead of stopping at the screen edge:
+    // keep tilting that way (pitch is clamped, so it simply stops at the
+    // limit). Leaving through the sides stops turning.
+    document.documentElement.addEventListener('mouseleave', (e) => {
+      const was = this.pointer;
+      this.pointer = null;
+      if (!was) return;
+      const h = window.innerHeight;
+      this.exitY = e.clientY <= 0 ? -1 : e.clientY >= h - 1 ? 1 : 0;
+    });
     dom.addEventListener('contextmenu', (e) => e.preventDefault());
     dom.addEventListener('mousedown', (e) => {
       if (e.button !== 2 || !this.active) return;
@@ -55,6 +66,7 @@ export class PlayerController {
     document.addEventListener('mousemove', (e) => {
       // over menus / buttons the edges must not turn the view
       this.pointer = e.target === dom ? { x: e.clientX, y: e.clientY } : null;
+      this.exitY = 0;
       if (!this.dragging) return;
       if (!(e.buttons & 2)) { stopDrag(); return; } // button released outside the window
       const mx = clamp(e.movementX, -250, 250), my = clamp(e.movementY, -250, 250);
@@ -80,11 +92,11 @@ export class PlayerController {
         return Math.sign(t) * t * t;
       };
       ex = edge(p.x, w); ey = edge(p.y, h);
-    }
+    } else if (this.active && !this.dragging) ey = this.exitY;
     this.edgeX = damp(this.edgeX, ex, 10, dt);
     this.edgeY = damp(this.edgeY, ey, 10, dt);
     this.yaw -= this.edgeX * 1.9 * this.sensitivity * dt;
-    this.pitch = clamp(this.pitch - this.edgeY * 0.9 * this.sensitivity * dt, -1.45, 1.45);
+    this.pitch = clamp(this.pitch - this.edgeY * 1.3 * this.sensitivity * dt, -1.45, 1.45);
   }
 
   surfaceAt(x, z) {
