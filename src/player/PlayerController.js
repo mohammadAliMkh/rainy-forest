@@ -24,6 +24,10 @@ export class PlayerController {
     this.walkSpeed = 1.9;
     this.runSpeed = 4.6;
     this.keys = new Set();
+    // on-screen controls (phones): analog stick, run toggle
+    this.touchMode = false;
+    this.touchMove = { x: 0, z: 0 };
+    this.touchRun = false;
     this.bobPhase = 0;
     this.stepIndex = 0;
     this.onStep = null;
@@ -69,11 +73,15 @@ export class PlayerController {
       this.exitY = 0;
       if (!this.dragging) return;
       if (!(e.buttons & 2)) { stopDrag(); return; } // button released outside the window
-      const mx = clamp(e.movementX, -250, 250), my = clamp(e.movementY, -250, 250);
-      const k = 0.0042 * this.sensitivity;
-      this.yaw -= mx * k;
-      this.pitch = clamp(this.pitch - my * k, -1.45, 1.45);
+      this.look(clamp(e.movementX, -250, 250), clamp(e.movementY, -250, 250), 0.0042);
     });
+  }
+
+  // turn the view by a pointer / finger movement in pixels
+  look(dx, dy, k) {
+    k *= this.sensitivity;
+    this.yaw -= dx * k;
+    this.pitch = clamp(this.pitch - dy * k, -1.45, 1.45);
   }
 
   get active() { return this.debug || this.freeMode; }
@@ -84,7 +92,7 @@ export class PlayerController {
   edgeTurn(dt) {
     let ex = 0, ey = 0;
     const p = this.pointer;
-    if (this.active && !this.dragging && p) {
+    if (this.active && !this.dragging && p && !this.touchMode) {
       const w = window.innerWidth, h = window.innerHeight;
       const m = Math.max(28, Math.min(w, h) * 0.06);
       const edge = (v, size) => {
@@ -92,7 +100,7 @@ export class PlayerController {
         return Math.sign(t) * t * t;
       };
       ex = edge(p.x, w); ey = edge(p.y, h);
-    } else if (this.active && !this.dragging) ey = this.exitY;
+    } else if (this.active && !this.dragging && !this.touchMode) ey = this.exitY;
     this.edgeX = damp(this.edgeX, ex, 10, dt);
     this.edgeY = damp(this.edgeY, ey, 10, dt);
     this.yaw -= this.edgeX * 1.9 * this.sensitivity * dt;
@@ -115,17 +123,19 @@ export class PlayerController {
       // arrow keys / Q-E turn the view (alternative to the mouse)
       const turn = (k.has('ArrowLeft') || k.has('KeyQ') ? 1 : 0) - (k.has('ArrowRight') || k.has('KeyE') ? 1 : 0);
       this.yaw += turn * 1.8 * dt;
-      this.running = k.has('ShiftLeft') || k.has('ShiftRight');
+      fx += this.touchMove.x;
+      fz += this.touchMove.z;
+      this.running = k.has('ShiftLeft') || k.has('ShiftRight') || this.touchRun;
     } else this.running = false;
     this.edgeTurn(dt);
     const len = Math.hypot(fx, fz);
-    if (len > 0) { fx /= len; fz /= len; }
+    if (len > 1) { fx /= len; fz /= len; } // keyboard diagonals; the stick stays analog
     const sp = this.running ? this.runSpeed : this.walkSpeed;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     // forward = (-sin, -cos), right = (cos, -sin)
     const tvx = (-sy * fz + cy * fx) * sp;
     const tvz = (-cy * fz - sy * fx) * sp;
-    const lambda = len > 0 ? 8 : 6;
+    const lambda = len > 0.05 ? 8 : 6;
     this.vx = damp(this.vx, tvx, lambda, dt);
     this.vz = damp(this.vz, tvz, lambda, dt);
 
