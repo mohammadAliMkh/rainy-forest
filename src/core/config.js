@@ -63,10 +63,13 @@ export const DAY = {
   startHour: 7.2,
 };
 
-// renderScale = absolute pixel ratio (1 = one rendered pixel per CSS pixel).
-// "high" is for a dedicated GPU; "medium" is tuned for typical laptop iGPUs.
+// renderScale = starting pixel ratio (1 = one rendered pixel per CSS pixel);
+// in automatic mode the resolution then floats between minScale and maxScale
+// to hold a smooth frame rate. "high" suits a dedicated (even older) GPU,
+// "medium" typical laptop iGPUs, "ultra" recent dedicated GPUs.
 export const QUALITY_PRESETS = {
-  low: { renderScale: 0.6, msaa: 0, fxaa: true, shadows: false, shadowSize: 1024, bloom: false, reflections: false, richFoliage: false, treeHiDist: 30, vegDist: 30, mistCount: 28 },
-  medium: { renderScale: 0.75, msaa: 0, fxaa: true, shadows: false, shadowSize: 1024, bloom: true, reflections: true, reflectionSize: 256, reflectEvery: 3, richFoliage: false, treeHiDist: 42, vegDist: 36, mistCount: 36 },
-  high: { renderScale: 1.0, msaa: 4, fxaa: false, shadows: true, shadowSize: 2048, bloom: true, reflections: true, reflectionSize: 512, reflectEvery: 1, richFoliage: true, treeHiDist: 62, vegDist: 70, mistCount: 56 },
+  low: { renderScale: 0.6, minScale: 0.45, maxScale: 0.75, msaa: 0, fxaa: true, shadows: false, shadowSize: 1024, bloom: false, reflections: false, richFoliage: false, treeHiDist: 30, vegDist: 30, mistCount: 28, texDetail: 1 },
+  medium: { renderScale: 0.75, minScale: 0.55, maxScale: 1.0, msaa: 0, fxaa: true, shadows: false, shadowSize: 1024, bloom: true, reflections: true, reflectionSize: 256, reflectEvery: 3, richFoliage: false, treeHiDist: 42, vegDist: 36, mistCount: 36, texDetail: 1 },
+  high: { renderScale: 1.0, minScale: 0.7, maxScale: 1.25, msaa: 4, fxaa: false, shadows: true, shadowSize: 2048, bloom: true, reflections: true, reflectionSize: 512, reflectEvery: 1, richFoliage: true, treeHiDist: 62, vegDist: 70, mistCount: 56, texDetail: 2 },
+  ultra: { renderScale: 1.25, minScale: 0.85, maxScale: 1.5, msaa: 4, fxaa: false, shadows: true, shadowSize: 4096, bloom: true, reflections: true, reflectionSize: 1024, reflectEvery: 1, richFoliage: true, treeHiDist: 85, vegDist: 95, mistCount: 72, texDetail: 2 },
 };

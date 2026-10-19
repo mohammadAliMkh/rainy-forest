@@ -148,23 +148,26 @@ export function createNoiseTexture(S = 128) {
 }
 
 // ---------------------------------------------------------------------------
-export function createTextures() {
+// detail: 1 = normal, 2 = double resolution for the ground & trail (used on
+// strong GPUs; vector details are drawn in the same 512 px layout, scaled)
+export function createTextures({ detail = 1 } = {}) {
   const T = {};
+  const D = detail;
 
   // ---------------- Forest floor ----------------
   {
-    const S = 512;
-    const c = makeCanvas(S);
+    const S = 512, P = S * D;
+    const c = makeCanvas(P);
     const ctx = c.getContext('2d');
     const n = tileNoise(11);
-    const img = ctx.createImageData(S, S);
-    for (let y = 0; y < S; y++) {
-      for (let x = 0; x < S; x++) {
-        const u = x / S, v = y / S;
-        const f = fbmTile(n, u, v, 6, 5);
+    const img = ctx.createImageData(P, P);
+    for (let y = 0; y < P; y++) {
+      for (let x = 0; x < P; x++) {
+        const u = x / P, v = y / P;
+        const f = fbmTile(n, u, v, 6, 5 + (D > 1 ? 1 : 0));
         const m = fbmTile(n, u + 0.37, v + 0.71, 3, 4);
         const moss = Math.min(1, Math.max(0, (m - 0.48) * 4));
-        const i = (y * S + x) * 4;
+        const i = (y * P + x) * 4;
         const soil = [72 + f * 46, 56 + f * 36, 40 + f * 24];
         const mossC = [62 + f * 46, 88 + f * 58, 34 + f * 22];
         img.data[i] = soil[0] * (1 - moss) + mossC[0] * moss;
@@ -174,6 +177,7 @@ export function createTextures() {
       }
     }
     ctx.putImageData(img, 0, 0);
+    ctx.setTransform(D, 0, 0, D, 0, 0);
     const r = mulberry32(5);
     // conifer needles
     for (let i = 0; i < 2600; i++) {
@@ -235,22 +239,22 @@ export function createTextures() {
       });
     }
     T.ground = toTexture(c);
-    T.groundNormal = toTexture(normalFromHeight(heightFromCanvas(c), S, S, 3.5), { srgb: false });
+    T.groundNormal = toTexture(normalFromHeight(heightFromCanvas(c), P, P, 3.5 * D), { srgb: false });
   }
 
   // ---------------- Mud (path) ----------------
   {
-    const S = 512;
-    const c = makeCanvas(S);
+    const S = 512, P = S * D;
+    const c = makeCanvas(P);
     const ctx = c.getContext('2d');
     const n = tileNoise(23);
-    const img = ctx.createImageData(S, S);
-    for (let y = 0; y < S; y++) {
-      for (let x = 0; x < S; x++) {
-        const u = x / S, v = y / S;
-        const f = fbmTile(n, u, v, 8, 5);
+    const img = ctx.createImageData(P, P);
+    for (let y = 0; y < P; y++) {
+      for (let x = 0; x < P; x++) {
+        const u = x / P, v = y / P;
+        const f = fbmTile(n, u, v, 8, 5 + (D > 1 ? 1 : 0));
         const g = fbmTile(n, u + 0.5, v + 0.2, 2, 3);
-        const i = (y * S + x) * 4;
+        const i = (y * P + x) * 4;
         const k = 0.75 + g * 0.5;
         img.data[i] = (62 + f * 40) * k;
         img.data[i + 1] = (52 + f * 32) * k;
@@ -259,6 +263,7 @@ export function createTextures() {
       }
     }
     ctx.putImageData(img, 0, 0);
+    ctx.setTransform(D, 0, 0, D, 0, 0);
     const r = mulberry32(8);
     for (let i = 0; i < 260; i++) {
       const x = r() * S, y = r() * S, rad = 0.8 + r() * 2.6;
@@ -282,7 +287,7 @@ export function createTextures() {
       });
     }
     T.mud = toTexture(c);
-    T.mudNormal = toTexture(normalFromHeight(heightFromCanvas(c), S, S, 2.5), { srgb: false });
+    T.mudNormal = toTexture(normalFromHeight(heightFromCanvas(c), P, P, 2.5 * D), { srgb: false });
   }
 
   // ---------------- Bark ----------------
