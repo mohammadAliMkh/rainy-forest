@@ -163,7 +163,7 @@ async function build() {
     entered = true;
     ui.hideStart();
     player.freeMode = true;
-    setTimeout(() => ui.toast('نگاه: کلیک راست را نگه دارید و موس را بکشید · تنظیمات: Esc', 5000), 900);
+    setTimeout(() => ui.toast('نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc', 6000), 900);
   });
   ui.on('resume', () => { ui.hidePause(); player.freeMode = true; });
   window.addEventListener('keydown', (e) => {
