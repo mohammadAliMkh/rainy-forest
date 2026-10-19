@@ -9,14 +9,13 @@ import { Dog } from '../creatures/Dog.js';
 import { Patrol } from '../vehicles/Patrol.js';
 import { Hornet } from '../vehicles/Hornet.js';
 import { Smoke } from './Fire.js';
+import { INTRO } from '../people/introScript.js';
 
 // The camp in front of the cabin: four friends in warm clothes sitting on
 // logs and stumps around the fire drinking tea, Luna lying beside her owner,
 // a kettle with a teapot on top warming at the fire, a crate with a tray of
 // tea things, Amir's Patrol parked beside the cabin and the Hornet on its
 // side stand. Built before the forest so its colliders keep trees away.
-
-const GREETING = 'بیا داداش گلم، بیا بشین کنار ما یه چای نبات بزنیم؛ زیر این آب و هوا بد می‌چسبه. بیا بیا بشین، غریبگی نکن.';
 
 export class Camp {
   constructor(T, terrain, collision) {
@@ -228,34 +227,115 @@ export class Camp {
 
   addTo(scene) { scene.add(this.group); }
 
-  // hooks set by main: play a voice line at a position (returns its length
-  // in seconds, or null without a recording) and show a subtitle
-  // onVoice(key, position) / onSubtitle(text, ms)
+  // hooks set by main:
+  //   onVoice(key, position) -> { duration, level() } | null (no recording)
+  //   onSubtitle(text, ms), onDuck(on) (lower the ambience during speech)
+
+  _startIntro() {
+    this.seq = { i: -1, t: 0, gap: 0, dur: 0, voice: null, played: 0 };
+    this.onDuck?.(true);
+    this._nextStep();
+  }
+
+  _nextStep() {
+    const s = this.seq;
+    const owner = this.gathering.byName('owner');
+    while (++s.i < INTRO.length) {
+      const step = INTRO[s.i];
+      const v = this.onVoice?.(step.key, owner.headPos) ?? null;
+      if (!v) continue; // no recording for this step (yet)
+      Object.assign(s, { voice: v, t: 0, gap: 0, dur: v.duration });
+      s.played++;
+      this.gathering.say('owner', v.duration + 0.2);
+      this.gathering.focus = step.focus;
+      if (step.text) this.onSubtitle?.(step.text, (v.duration + 0.6) * 1000);
+      return;
+    }
+    // finished (or nothing could be played: show the welcome as text only)
+    if (!s.played && INTRO[0]) {
+      this.gathering.say('owner', 6);
+      this.onSubtitle?.(INTRO[0].text, 7000);
+    }
+    this.seq = null;
+    this.gathering.focus = null;
+    this.onDuck?.(false);
+  }
+
+  // name tags that fade in above whoever is being introduced
+  _makeLabels() {
+    this.labels = new Map();
+    const make = (key, text) => {
+      if (!text) return;
+      const c = document.createElement('canvas');
+      c.width = 512; c.height = 128;
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const draw = () => {
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, 512, 128);
+        ctx.font = '700 58px Vazirmatn, Tahoma, sans-serif';
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const w = Math.min(500, ctx.measureText(text).width + 70);
+        ctx.fillStyle = 'rgba(10, 14, 16, 0.6)';
+        ctx.beginPath();
+        ctx.roundRect(256 - w / 2, 14, w, 100, 50);
+        ctx.fill();
+        ctx.fillStyle = '#f4c38a';
+        ctx.fillText(text, 256, 66);
+        tex.needsUpdate = true;
+      };
+      draw();
+      document.fonts?.load('700 58px Vazirmatn').then(draw).catch(() => {});
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, fog: false, opacity: 0 }));
+      sprite.scale.set(0.9, 0.225, 1);
+      sprite.renderOrder = 20;
+      sprite.visible = false;
+      this.group.add(sprite);
+      this.labels.set(key, sprite);
+    };
+    for (const p of this.gathering.people) make(p.seat.key, p.spec.name);
+    make('luna', 'لونا');
+  }
+
+  _updateLabels(dt, camera) {
+    if (!this.labels) this._makeLabels();
+    for (const [key, sprite] of this.labels) {
+      const on = this.gathering.focus === key;
+      const m = sprite.material;
+      m.opacity = damp(m.opacity, on ? 1 : 0, 5, dt);
+      sprite.visible = m.opacity > 0.01;
+      if (!sprite.visible) continue;
+      const head = key === 'luna' ? this.dog.headWorld : this.gathering.byName(key).headPos;
+      sprite.position.copy(head).add(new THREE.Vector3(0, key === 'luna' ? 0.35 : 0.42, 0));
+      void camera;
+    }
+  }
 
   update(dt, time, camera, env, windStrength) {
-    // the owner invites the player over when they walk up to the fire
+    // the owner welcomes the player and introduces everyone, in his voice
     {
       const cam = camera.position;
       const d = Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z);
-      if (d < 5.2 && !this._invited) {
-        this._invited = true;
-        const owner = this.gathering.byName('owner');
-        this.voice = this.onVoice?.('owner_greeting', owner.headPos) ?? null;
-        const dur = this.voice ? this.voice.duration : 5.5;
-        this.gathering.say('owner', dur + 0.3);
-        this.onSubtitle?.(GREETING, (dur + 1) * 1000);
+      if (d < 5.2 && !this._invited) { this._invited = true; this._startIntro(); }
+      if (d > 14 && !this.seq) this._invited = false;
+      if (this.seq) {
+        // next line a moment after the audio really finished (frame-rate independent)
+        this.seq.t += dt;
+        if (this.seq.voice.done) this.seq.gap += dt;
+        if (this.seq.gap > 0.7) this._nextStep();
       }
-      if (d > 14) this._invited = false;
     }
     this.gathering.update(dt, time, camera);
     // lip sync from the recording's loudness while it plays
     {
       const h = this.gathering.byName('owner').h;
-      if (this.voice && this.gathering.line) {
-        const lv = this.voice.level();
-        h.voiceLevel = damp(h.voiceLevel ?? 0, Math.min(1, lv * 1.4), 18, dt);
-      } else { h.voiceLevel = null; this.voice = null; }
+      const v = this.seq?.voice;
+      if (v) h.voiceLevel = damp(h.voiceLevel ?? 0, Math.min(1, v.level() * 1.4), 18, dt);
+      else h.voiceLevel = null;
     }
+    this._updateLabels(dt, camera);
     // Luna: watches the player when close, otherwise whoever is talking
     const cam = camera.position;
     const d = Math.hypot(cam.x - this.dog.root.position.x, cam.z - this.dog.root.position.z);
@@ -264,7 +344,8 @@ export class Camp {
     const speaker = this.gathering.people[this.gathering.speaker];
     const look = near > 0.2 ? cam : speaker.seat.key === 'owner' ? owner.headPos : speaker.headPos;
     this._dogExcite = damp(this._dogExcite ?? 0, Math.max(near, owner.pet * 0.6), 1.5, dt);
-    this.dog.update(dt, look, this._dogExcite);
+    const lunaFocus = this.gathering.focus === 'luna';
+    this.dog.update(dt, lunaFocus ? cam : look, lunaFocus ? 1 : this._dogExcite);
     this.steam.material.uniforms.uLight.value = env ? env.ambientLevel * 0.9 + 0.1 : 1;
     this.steam.update(dt, time, windStrength);
   }
