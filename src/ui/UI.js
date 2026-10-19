@@ -12,14 +12,15 @@ export class UI {
       muted: false,
       daySpeed: 3600,
       sensitivity: 1,
-      quality: 'medium',
+      quality: 'auto',
+      qualityV: 2,
       showFps: false,
     };
-    // phones start on the light preset (the adaptive check can lower it further)
-    if (window.matchMedia?.('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) this.settings.quality = 'low';
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
       if (saved) this.settings = { ...this.settings, ...saved, volumes: { ...this.settings.volumes, ...(saved.volumes || {}) } };
+      // older saves stored the then-default "medium": switch them to automatic
+      if (saved && saved.qualityV !== 2) { this.settings.quality = 'auto'; this.settings.qualityV = 2; }
     } catch { /* storage unavailable */ }
     this.handlers = {};
   }
@@ -66,6 +67,13 @@ export class UI {
   }
 
   setFps(text) { $('fps').textContent = text; }
+
+  // label of the "automatic" option shows the level it picked right now
+  setAutoQualityLabel(levelName) {
+    const names = { low: 'پایین', medium: 'متوسط', high: 'بالا', ultra: 'خیلی بالا' };
+    const opt = document.querySelector('#quality option[value="auto"]');
+    if (opt) opt.textContent = `خودکار (الان: ${names[levelName] || levelName})`;
+  }
 
   bind() {
     const s = this.settings;

@@ -71,7 +71,8 @@ export class Renderer {
 
   setQuality(q) {
     const r = this.renderer;
-    r.setPixelRatio(q.renderScale >= 1 ? Math.min(window.devicePixelRatio, 1.25) : q.renderScale);
+    this.quality = q;
+    r.setPixelRatio(this.clampScale(q.renderScale));
     r.shadowMap.enabled = q.shadows;
     this.bloomEnabled = q.bloom;
     if (this.bloom) this.bloom.enabled = q.bloom;
@@ -84,6 +85,21 @@ export class Renderer {
     this.resize();
     // force material recompile for shadow toggles
     this.scene?.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => (m.needsUpdate = true)); });
+  }
+
+  clampScale(s) {
+    const q = this.quality;
+    return q ? Math.min(q.maxScale, Math.max(q.minScale, s)) : s;
+  }
+
+  // dynamic resolution: change only the pixel ratio (cheap compared with a
+  // full quality switch); returns the ratio actually applied
+  setScale(s) {
+    const pr = this.clampScale(s);
+    if (Math.abs(pr - this.renderer.getPixelRatio()) < 0.01) return pr;
+    this.renderer.setPixelRatio(pr);
+    this.resize();
+    return pr;
   }
 
   resize() {

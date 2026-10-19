@@ -3,6 +3,7 @@ import './style.css';
 import { installFogChunks } from './core/shaderPatches.js';
 import { QUALITY_PRESETS, FIRE } from './core/config.js';
 import { Renderer } from './core/Renderer.js';
+import { detectGpu, TIERS } from './core/gpuTier.js';
 import { createTextures, setMaxAnisotropy } from './world/textures.js';
 import { Terrain } from './world/Terrain.js';
 import { Forest } from './world/Forest.js';
@@ -50,7 +51,10 @@ async function build() {
   const step = async (p, text) => { ui.setLoading(p, text); steps.push(text); await nextFrame(); };
 
   await step(0.05, 'نقاشی بافت‌ها: پوست درخت، خاک خیس، خزه و برگ‌ها…');
-  const T = createTextures();
+  // pick the starting quality from the GPU the browser runs on
+  const gpu = detectGpu(renderer.renderer);
+  let autoMode = ui.settings.quality === 'auto' || !QUALITY_PRESETS[ui.settings.quality];
+  const T = createTextures({ detail: QUALITY_PRESETS[autoMode ? gpu.tier : ui.settings.quality].texDetail });
 
   await step(0.2, 'شکل دادن زمین و مسیر جنگلی…');
   const terrain = new Terrain(T);
@@ -127,7 +131,7 @@ async function build() {
   renderer.setupComposer(scene, camera);
 
   // ---------- quality ----------
-  let qualityName = ui.settings.quality;
+  let qualityName = autoMode ? gpu.tier : ui.settings.quality;
   const applyQuality = (name) => {
     qualityName = name;
     const q = QUALITY_PRESETS[name] || QUALITY_PRESETS.high;
@@ -142,12 +146,49 @@ async function build() {
     vegetation.setQuality(q);
     puddles.setReflections(q.reflections, q.reflectionSize, q.reflectEvery || 1);
     mist.setCount(q.mistCount);
+    syncPixelRatio();
+  };
+  const syncPixelRatio = () => {
     const pr = renderer.renderer.getPixelRatio();
     rain.setPixelRatio(pr);
     mist.setPixelRatio(pr);
     fire.sparks.material.uniforms.uPixel.value = pr;
   };
   applyQuality(qualityName);
+  if (autoMode) ui.setAutoQualityLabel(qualityName);
+
+  // Automatic quality: the resolution floats with the measured frame rate;
+  // the whole level only changes when resolution alone can't keep up (or
+  // there is clear headroom). Never goes more than one level above the GPU
+  // guess, nor back up to a level it already had to leave.
+  const gov = { t0: 0, frames: 0, holdUntil: 0, highStreak: 0, ceiling: Math.min(TIERS.length - 1, TIERS.indexOf(gpu.tier) + 1) };
+  gov.reset = (hold = 3) => { gov.t0 = 0; gov.frames = 0; gov.holdUntil = performance.now() + hold * 1000; gov.highStreak = 0; };
+  const setLevel = (name) => {
+    applyQuality(name);
+    ui.setAutoQualityLabel(name);
+    gov.reset(4);
+  };
+  const governor = (now) => {
+    if (now < gov.holdUntil) return;
+    if (!gov.t0) { gov.t0 = now; gov.frames = 0; return; }
+    gov.frames++;
+    if (now - gov.t0 < 2000) return;
+    const fps = (gov.frames * 1000) / (now - gov.t0);
+    gov.t0 = now; gov.frames = 0;
+    const q = QUALITY_PRESETS[qualityName];
+    const i = TIERS.indexOf(qualityName);
+    const pr = renderer.renderer.getPixelRatio();
+    if (fps < 32) {
+      gov.highStreak = 0;
+      if (pr > q.minScale + 0.01) { renderer.setScale(pr - (fps < 22 ? 0.2 : 0.1)); syncPixelRatio(); gov.reset(1); }
+      else if (i > 0) { gov.ceiling = Math.min(gov.ceiling, i - 1); setLevel(TIERS[i - 1]); }
+    } else if (fps > 55) {
+      if (++gov.highStreak < 2) return;
+      gov.highStreak = 0;
+      if (pr < q.maxScale - 0.01) { renderer.setScale(pr + 0.1); syncPixelRatio(); gov.reset(1); }
+      else if (i < gov.ceiling) setLevel(TIERS[i + 1]);
+    } else gov.highStreak = 0;
+  };
 
   // ---------- settings wiring ----------
   const s = ui.settings;
@@ -160,7 +201,13 @@ async function build() {
   ui.on('time', (h) => { day.setHour(h); refreshEnv(); });
   ui.on('daySpeed', (v) => { day.cycleSeconds = v; });
   ui.on('sensitivity', (v) => { player.sensitivity = v; });
-  ui.on('quality', (q) => applyQuality(q));
+  ui.on('quality', (q) => {
+    autoMode = q === 'auto';
+    const level = autoMode ? gpu.tier : q;
+    applyQuality(level);
+    if (autoMode) ui.setAutoQualityLabel(level);
+    gov.reset();
+  });
 
   let entered = false;
   const menuOpen = () => !document.getElementById('pause').classList.contains('hidden');
@@ -236,7 +283,7 @@ async function build() {
 
   // ---------- main loop ----------
   const clock = new THREE.Clock();
-  let time = 0, envTimer = 0, fpsAcc = 0, fpsFrames = 0, perfAcc = 0, perfFrames = 0, perfChecked = false, playTime = 0;
+  let time = 0, envTimer = 0, fpsAcc = 0, fpsFrames = 0;
   const frame = (forcedDt) => {
     const dt = forcedDt ?? Math.min(clock.getDelta(), 0.05);
     time += dt;
@@ -265,27 +312,16 @@ async function build() {
     renderer.render(time);
 
     // fps + adaptive quality during the first seconds of play
-    fpsAcc += dt; fpsFrames++;
-    if (fpsAcc > 0.5) {
-      ui.setFps(`${Math.round(fpsFrames / fpsAcc)} FPS · ${day.timeString}`);
+    const nowMs = performance.now();
+    if (!fpsAcc) fpsAcc = nowMs;
+    fpsFrames++;
+    if (nowMs - fpsAcc > 500) {
+      ui.setFps(`${Math.round((fpsFrames * 1000) / (nowMs - fpsAcc))} FPS · ${day.timeString}`);
       ui.setClock(day.timeString, day.hour);
-      fpsAcc = 0; fpsFrames = 0;
+      fpsAcc = nowMs; fpsFrames = 0;
     }
-    if (entered && !perfChecked) {
-      playTime += dt;
-      if (playTime > 2) { perfAcc += dt; perfFrames++; }
-      if (playTime > 8) {
-        perfChecked = true;
-        const fps = perfFrames / perfAcc;
-        if (fps < 28 && qualityName !== 'low') {
-          const next = qualityName === 'high' ? 'medium' : 'low';
-          applyQuality(next);
-          ui.settings.quality = next;
-          document.getElementById('quality').value = next;
-          ui.toast('برای روان‌تر شدن، کیفیت گرافیک خودکار کمی پایین آمد (قابل تغییر در Esc)', 5000);
-        }
-      }
-    }
+    if (entered && autoMode && !menuOpen() && !document.hidden) governor(performance.now());
+    else gov.reset(1);
   };
   const loop = () => {
     requestAnimationFrame(loop);
@@ -297,7 +333,7 @@ async function build() {
   setTimeout(() => { ui.hideLoading(); ui.showStart(); }, 250);
 
   if (DEBUG) {
-    window.forest = { frame, THREE, frustum, scene, camera, renderer, player, day, sound, world, deer, wildlife, fire, cabin, camp, forest, vegetation, rain, mist, puddles, terrain, applyQuality, FIRE };
+    window.forest = { frame, THREE, frustum, scene, camera, renderer, gpu, gov, player, day, sound, world, deer, wildlife, fire, cabin, camp, forest, vegetation, rain, mist, puddles, terrain, applyQuality, FIRE };
   }
 }
 
