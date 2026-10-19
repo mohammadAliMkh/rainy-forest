@@ -1,0 +1,8 @@
+{
+  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used.",
+  "rain_loop": "",
+  "roof_rain_loop": "",
+  "wind_loop": "",
+  "fire_loop": "",
+  "birds": []
+}

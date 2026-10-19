@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>جنگل بارانی | قدم زدن سه‌بعدی در جنگل مه‌آلود</title>
+    <meta name="description" content="یک جنگل سه‌بعدی تعاملی در مرورگر: باران ریز، مه میان درختان، کلبه چوبی، آتش گرم، آهوها و صدای سه‌بعدی طبیعت. بدون نصب، مستقیم در مرورگر." />
+    <meta name="keywords" content="جنگل سه بعدی, جنگل بارانی, طبیعت مجازی, Three.js, rainy forest, 3D forest" />
+    <meta name="theme-color" content="#0b0f12" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="جنگل بارانی" />
+    <meta property="og:description" content="قدم زدن اول‌شخص در یک جنگل سه‌بعدی بارانی با کلبه چوبی، آتش و صدای سه‌بعدی." />
+    <meta property="og:locale" content="fa_IR" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- Loading -->
+    <div id="loading" class="overlay">
+      <div class="loading-box">
+        <div class="loading-title">در حال ساختن جنگل…</div>
+        <div class="bar"><div id="loading-bar"></div></div>
+        <div id="loading-step" class="loading-step"></div>
+      </div>
+    </div>
+
+    <!-- Start screen -->
+    <div id="start" class="overlay hidden">
+      <div class="panel start-panel">
+        <h1>جنگل بارانی</h1>
+        <p class="subtitle">باران ریز، مه میان درختان، کلبه‌ای چوبی و آتشی گرم</p>
+        <button id="enter-btn" class="primary">ورود به جنگل</button>
+        <div class="controls">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>حرکت</span></div>
+          <div><kbd>موس</kbd><span>نگاه کردن به اطراف</span></div>
+          <div><kbd>کلیک راست + کشیدن</kbd><span>چرخاندن دید (بدون قفل موس)</span></div>
+          <div><kbd>Q</kbd><kbd>E</kbd><span>چرخش به چپ و راست با کیبورد</span></div>
+          <div><kbd>Shift</kbd><span>دویدن</span></div>
+          <div><kbd>Esc</kbd><span>آزاد کردن موس و تنظیمات</span></div>
+          <div><kbd>M</kbd><span>قطع و وصل صدا</span></div>
+        </div>
+        <p class="hint">برای تجربه بهتر از هدفون استفاده کنید؛ صداها سه‌بعدی هستند.</p>
+      </div>
+    </div>
+
+    <!-- Pause / settings -->
+    <div id="pause" class="overlay hidden">
+      <div class="panel settings-panel">
+        <h2>تنظیمات</h2>
+
+        <section>
+          <h3>صدا</h3>
+          <label class="row"><span>صدای کلی</span><input type="range" id="vol-master" min="0" max="1" step="0.01" /></label>
+          <label class="row"><span>باران</span><input type="range" id="vol-rain" min="0" max="1" step="0.01" /></label>
+          <label class="row"><span>باد و برگ‌ها</span><input type="range" id="vol-wind" min="0" max="1" step="0.01" /></label>
+          <label class="row"><span>آتش</span><input type="range" id="vol-fire" min="0" max="1" step="0.01" /></label>
+          <label class="row"><span>پرندگان و حیوانات</span><input type="range" id="vol-wildlife" min="0" max="1" step="0.01" /></label>
+          <label class="row"><span>صدای قدم‌ها</span><input type="range" id="vol-steps" min="0" max="1" step="0.01" /></label>
+          <label class="row check"><span>قطع صدا</span><input type="checkbox" id="mute" /></label>
+        </section>
+
+        <section>
+          <h3>زمان</h3>
+          <label class="row"><span>ساعت روز <b id="clock">07:12</b></span><input type="range" id="time-of-day" min="0" max="23.99" step="0.01" /></label>
+          <label class="row"><span>سرعت گذر زمان</span>
+            <select id="day-speed">
+              <option value="3600">یک شبانه‌روز در ۱ ساعت</option>
+              <option value="1200">یک شبانه‌روز در ۲۰ دقیقه</option>
+              <option value="300">یک شبانه‌روز در ۵ دقیقه</option>
+              <option value="0">توقف زمان</option>
+            </select>
+          </label>
+        </section>
+
+        <section>
+          <h3>کنترل و گرافیک</h3>
+          <label class="row"><span>حساسیت موس</span><input type="range" id="sensitivity" min="0.3" max="2.5" step="0.05" /></label>
+          <label class="row"><span>کیفیت گرافیک</span>
+            <select id="quality">
+              <option value="high">بالا</option>
+              <option value="medium">متوسط</option>
+              <option value="low">پایین</option>
+            </select>
+          </label>
+          <label class="row check"><span>نمایش FPS</span><input type="checkbox" id="show-fps" /></label>
+        </section>
+
+        <button id="resume-btn" class="primary">ادامه</button>
+        <div id="lock-msg" class="lock-msg"></div>
+      </div>
+    </div>
+
+    <button id="mute-btn" class="mute-btn" title="قطع و وصل صدا (M)" aria-label="قطع و وصل صدا">
+      <svg class="icon-on" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+      <svg class="icon-off" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6"/><path d="M22 9l-5 6"/></svg>
+    </button>
+
+    <div id="toast" class="toast"></div>
+    <div id="fps" class="fps hidden"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
