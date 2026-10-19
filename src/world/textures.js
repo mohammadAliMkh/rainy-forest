@@ -7,13 +7,13 @@ import { mulberry32 } from '../utils/noise.js';
 let maxAniso = 4;
 export function setMaxAnisotropy(v) { maxAniso = Math.min(8, v); }
 
-function makeCanvas(w, h = w) {
+export function makeCanvas(w, h = w) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   return c;
 }
 
-function toTexture(canvas, { repeat = 1, srgb = true, wrap = true } = {}) {
+export function toTexture(canvas, { repeat = 1, srgb = true, wrap = true } = {}) {
   const t = new THREE.CanvasTexture(canvas);
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   if (wrap) {
@@ -28,7 +28,7 @@ function toTexture(canvas, { repeat = 1, srgb = true, wrap = true } = {}) {
 }
 
 // Tileable value noise (period in lattice cells) + fbm
-function tileNoise(seed) {
+export function tileNoise(seed) {
   const rand = mulberry32(seed);
   const N = 256;
   const table = new Float32Array(N * N);
@@ -48,7 +48,7 @@ function tileNoise(seed) {
   return fn;
 }
 
-function fbmTile(noise, u, v, basePeriod, octaves = 5) {
+export function fbmTile(noise, u, v, basePeriod, octaves = 5) {
   let sum = 0, amp = 0.5, norm = 0, period = basePeriod;
   for (let o = 0; o < octaves; o++) {
     sum += amp * noise(u * period, v * period, period);
@@ -60,7 +60,7 @@ function fbmTile(noise, u, v, basePeriod, octaves = 5) {
 }
 
 // Anisotropic tileable fbm (separate lattice period per axis)
-function fbmTile2(noise, u, v, px, py, octaves = 5) {
+export function fbmTile2(noise, u, v, px, py, octaves = 5) {
   let sum = 0, amp = 0.5, norm = 0;
   for (let o = 0; o < octaves; o++) {
     const m = 1 << o;
@@ -79,7 +79,7 @@ function fbmTile2(noise, u, v, px, py, octaves = 5) {
   return sum / norm;
 }
 
-function normalFromHeight(height, w, h, strength = 2) {
+export function normalFromHeight(height, w, h, strength = 2) {
   const c = makeCanvas(w, h);
   const ctx = c.getContext('2d');
   const img = ctx.createImageData(w, h);
@@ -103,7 +103,7 @@ function normalFromHeight(height, w, h, strength = 2) {
   return c;
 }
 
-function heightFromCanvas(canvas) {
+export function heightFromCanvas(canvas) {
   const ctx = canvas.getContext('2d');
   const { width: w, height: h } = canvas;
   const d = ctx.getImageData(0, 0, w, h).data;

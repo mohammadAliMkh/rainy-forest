@@ -130,7 +130,7 @@ export class PlayerController {
     this.vz = damp(this.vz, tvz, lambda, dt);
 
     const p = { x: this.x + this.vx * dt, z: this.z + this.vz * dt };
-    this.collision.resolve(p, 0.38);
+    if (!this.noclip) this.collision.resolve(p, 0.38);
     // stay inside the forest
     const r = Math.hypot(p.x, p.z);
     if (r > WORLD.playableRadius) { p.x *= WORLD.playableRadius / r; p.z *= WORLD.playableRadius / r; }
@@ -154,7 +154,7 @@ export class PlayerController {
     const sway = Math.sin(this.bobPhase) * 0.012 * Math.min(1, moveK);
 
     this.groundY = this.terrain.heightAt(this.x, this.z);
-    this.y = damp(this.y, this.groundY + 1.68, 12, dt);
+    this.y = damp(this.y, this.groundY + 1.68 + (this.eyeOffset || 0), 12, dt);
 
     // tiny breathing motion when standing still
     this.idleT += dt;

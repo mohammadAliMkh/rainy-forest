@@ -24,6 +24,21 @@ export const CABIN = {
 // Campfire sits in front of the cabin at a safe distance from the walls
 export const FIRE = { x: 1.2, z: -14.3 };
 
+// The friends' camp around the fire (offsets relative to FIRE), Amir's
+// Patrol parked beside the cabin and the Hornet on its side stand.
+export const CAMP = {
+  seats: [
+    { key: 'owner', dx: -1.6, dz: -1.0, seat: 'stump', lean: 0.16 },
+    { key: 'amin', dx: 0.3, dz: -1.9, seat: 'stump', lean: 0.1 },
+    { key: 'amir', dx: 1.9, dz: -0.5, seat: 'log', lean: 0.2, kneeSpread: 0.16, waves: true },
+    { key: 'alireza', dx: 1.45, dz: 1.3, seat: 'log', lean: 0.08 },
+  ],
+  kettleAngle: -2.2,          // around the fire ring (radians, x = cos, z = sin)
+  crate: { dx: 1.55, dz: -1.65, rot: 0.6 },
+  car: { x: 9.4, z: -17.4, yaw: -0.38 },
+  bike: { x: 5.9, z: -13.4, yaw: -Math.PI / 2 + 0.3 },
+};
+
 // Control points of the narrow trail (x, z). It comes out of the far forest,
 // passes the spawn point and ends at the campfire in front of the cabin.
 export const PATH_POINTS = [
