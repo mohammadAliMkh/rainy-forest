@@ -22,6 +22,7 @@ import { CollisionWorld } from './player/Collision.js';
 import { PlayerController } from './player/PlayerController.js';
 import { Soundscape } from './audio/Soundscape.js';
 import { UI } from './ui/UI.js';
+import { TouchControls, isTouchFirst } from './ui/TouchControls.js';
 
 installFogChunks();
 
@@ -162,19 +163,35 @@ async function build() {
   ui.on('quality', (q) => applyQuality(q));
 
   let entered = false;
+  const menuOpen = () => !document.getElementById('pause').classList.contains('hidden');
+  const openMenu = () => { player.freeMode = false; player.keys.clear(); touch.show(false); ui.showPause(''); };
+  const closeMenu = () => { ui.hidePause(); player.freeMode = true; touch.show(true); };
+  // phones / tablets: joystick + drag-to-look + buttons instead of keys & mouse
+  const touch = new TouchControls(player, renderer.domElement, { onMenu: openMenu });
+  touch.onEnable = () => { if (entered && !menuOpen()) touch.show(true); };
+  if (isTouchFirst()) touch.enable();
+
   ui.on('enter', async () => {
     try { await sound.start(); } catch (e) { console.warn('Audio failed to start', e); }
     entered = true;
     ui.hideStart();
     player.freeMode = true;
-    setTimeout(() => ui.toast('نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc', 6000), 900);
+    if (touch.enabled) {
+      // full screen + landscape where the browser allows it (not on iPhone)
+      touch.show(true);
+      const fs = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+      Promise.resolve(fs).then(() => screen.orientation?.lock?.('landscape')).catch(() => { /* not allowed / supported */ });
+      setTimeout(() => ui.toast('حرکت: دایره پایین سمت چپ · نگاه: انگشت را روی صفحه بکشید', 6000), 900);
+    } else {
+      setTimeout(() => ui.toast('نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc', 6000), 900);
+    }
   });
-  ui.on('resume', () => { ui.hidePause(); player.freeMode = true; });
+  ui.on('resume', closeMenu);
   window.addEventListener('keydown', (e) => {
     // Esc opens / closes the settings menu
     if (e.code !== 'Escape' || !entered) return;
-    if (document.getElementById('pause').classList.contains('hidden')) { player.freeMode = false; player.keys.clear(); ui.showPause(''); }
-    else { ui.hidePause(); player.freeMode = true; }
+    if (!menuOpen()) openMenu();
+    else closeMenu();
   });
 
   window.addEventListener('resize', () => renderer.resize());

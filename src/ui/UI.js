@@ -15,6 +15,8 @@ export class UI {
       quality: 'medium',
       showFps: false,
     };
+    // phones start on the light preset (the adaptive check can lower it further)
+    if (window.matchMedia?.('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) this.settings.quality = 'low';
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
       if (saved) this.settings = { ...this.settings, ...saved, volumes: { ...this.settings.volumes, ...(saved.volumes || {}) } };

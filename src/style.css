@@ -15,6 +15,10 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
   background: #0b0f12;
   color: var(--text);
   font-family: 'Vazirmatn', Tahoma, 'Segoe UI', sans-serif;
@@ -26,6 +30,7 @@ html, body {
   width: 100%;
   height: 100%;
   display: block;
+  touch-action: none;
 }
 
 .overlay {
@@ -59,7 +64,7 @@ html, body {
   width: min(520px, 92vw);
 }
 
-.start-panel { text-align: center; }
+.start-panel { text-align: center; max-height: 94vh; overflow-y: auto; }
 
 h1 { margin: 0 0 6px; font-size: 2.4rem; font-weight: 800; letter-spacing: -0.01em; }
 h2 { margin: 0 0 18px; font-size: 1.5rem; }
@@ -194,3 +199,71 @@ section { border-top: 1px solid var(--line); padding-top: 4px; }
   h1 { font-size: 1.8rem; }
   .controls { margin-top: 16px; gap: 6px; }
 }
+
+/* ---------- touch mode (phones / tablets) ---------- */
+.touch-only { display: none; }
+body.touch .touch-only { display: grid; }
+body.touch .desktop-only { display: none; }
+
+.touch-ui { position: fixed; inset: 0; z-index: 8; pointer-events: none; transition: opacity 0.3s ease; }
+.touch-ui.hidden { opacity: 0; visibility: hidden; }
+
+/* joystick rests bottom-left; while held it jumps under the thumb */
+.joy {
+  position: fixed;
+  left: calc(env(safe-area-inset-left, 0px) + 92px);
+  top: calc(100% - env(safe-area-inset-bottom, 0px) - 104px);
+  width: 132px;
+  height: 132px;
+  margin: -66px 0 0 -66px;
+  border-radius: 50%;
+  border: 2px solid rgba(230, 236, 232, 0.28);
+  background: radial-gradient(circle, rgba(10, 14, 16, 0.18), rgba(10, 14, 16, 0.42));
+  backdrop-filter: blur(2px);
+  opacity: 0.75;
+}
+.joy.active { opacity: 1; }
+.joy-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, rgba(244, 195, 138, 0.95), rgba(233, 162, 90, 0.75));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.touch-btn {
+  pointer-events: auto;
+  position: fixed;
+  font-family: inherit;
+  color: var(--text);
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 16, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+.run-btn {
+  right: calc(env(safe-area-inset-right, 0px) + 26px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.72rem;
+}
+.run-btn.on { background: linear-gradient(180deg, var(--accent-2), var(--accent)); color: #1a1209; border-color: transparent; }
+.menu-btn {
+  top: 14px;
+  right: calc(env(safe-area-inset-right, 0px) + 68px);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+body.touch .toast { bottom: auto; top: 70px; max-width: 86vw; text-align: center; }
