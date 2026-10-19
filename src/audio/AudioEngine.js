@@ -12,6 +12,7 @@ export class AudioEngine {
     this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1 };
     this.muted = false;
     this.files = {};
+    this.duck = 1; // ambience multiplier while someone is speaking (1 = normal)
     this._fwd = new THREE.Vector3();
     this._up = new THREE.Vector3();
   }
@@ -112,11 +113,22 @@ export class AudioEngine {
 
   file(key) { return this.files[key] || null; }
 
-  applyVolumes() {
+  applyVolumes(tc = 0.08) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(this.muted ? 0 : this.volumes.master, t, 0.08);
-    for (const [k, g] of Object.entries(this.buses)) g.gain.setTargetAtTime(this.volumes[k] ?? 1, t, 0.08);
+    for (const [k, g] of Object.entries(this.buses)) {
+      const v = this.volumes[k] ?? 1;
+      g.gain.setTargetAtTime(k === 'voices' ? v * (this.duck < 1 ? 1.6 : 1) : v * this.duck, t, tc);
+    }
+    if (this.reverbIn) this.reverbIn.gain.setTargetAtTime(this.duck < 1 ? 0.35 : 1, t, tc);
+  }
+
+  // Dialogue ducking: quickly lower the rain / wind / fire / animals and lift
+  // the voice while a line is spoken, then let the ambience swell back slowly.
+  setDucking(on) {
+    this.duck = on ? 0.22 : 1;
+    this.applyVolumes(on ? 0.18 : 1.6);
   }
 
   setVolume(name, v) { this.volumes[name] = v; this.applyVolumes(); }
