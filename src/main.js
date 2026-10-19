@@ -77,6 +77,7 @@ async function build() {
   cabin.addTo(scene);
   fire.addTo(scene);
   camp.addTo(scene);
+  camp.onSubtitle = (text, ms) => ui.subtitle(text, ms);
 
   await step(0.72, 'باران، مه و گودال‌های آب…');
   const puddles = new Puddles(terrain, T);
@@ -113,6 +114,7 @@ async function build() {
   const day = new DayCycle({ scene, sky, sun, hemi, ambient, renderer: renderer.renderer });
   const sound = new Soundscape(world);
   world.emit = (type, src) => sound.onEvent(type, src);
+  camp.onVoice = (key, pos) => sound.playVoice(key, pos);
   player.onStep = (info) => sound.footstep(info);
 
   // environment map from the sky (wet reflections), refreshed as the day goes on

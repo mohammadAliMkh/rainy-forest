@@ -9,7 +9,7 @@ export class AudioEngine {
   constructor() {
     this.ctx = null;
     this.ready = false;
-    this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7 };
+    this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1 };
     this.muted = false;
     this.files = {};
     this._fwd = new THREE.Vector3();
@@ -30,7 +30,7 @@ export class AudioEngine {
     this.master.connect(this.out);
 
     this.buses = {};
-    for (const name of ['rain', 'wind', 'fire', 'wildlife', 'steps']) {
+    for (const name of ['rain', 'wind', 'fire', 'wildlife', 'steps', 'voices']) {
       const g = ctx.createGain();
       g.connect(this.master);
       this.buses[name] = g;
@@ -116,7 +116,7 @@ export class AudioEngine {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(this.muted ? 0 : this.volumes.master, t, 0.08);
-    for (const [k, g] of Object.entries(this.buses)) g.gain.setTargetAtTime(this.volumes[k], t, 0.08);
+    for (const [k, g] of Object.entries(this.buses)) g.gain.setTargetAtTime(this.volumes[k] ?? 1, t, 0.08);
   }
 
   setVolume(name, v) { this.volumes[name] = v; this.applyVolumes(); }

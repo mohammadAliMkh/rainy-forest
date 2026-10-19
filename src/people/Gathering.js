@@ -41,6 +41,17 @@ export class Gathering {
     this.greeted = false;
     this.time = 0;
     this.dog = null;
+    this.line = null; // { index, t, dur }: someone saying a line to the player
+  }
+
+  // person `key` turns to the player and talks for `dur` seconds, beckoning
+  say(key, dur) {
+    const index = this.people.findIndex((p) => p.seat.key === key);
+    if (index < 0) return;
+    this.line = { index, t: 0, dur };
+    this.speaker = index;
+    this.talkT = dur;
+    this.laughT = 0;
   }
 
   byName(key) { return this.people.find((p) => p.seat.key === key); }
@@ -57,8 +68,13 @@ export class Gathering {
     this.time += dt;
     const rand = this.rand;
     // ---- conversation director ----
+    if (this.line) {
+      this.line.t += dt;
+      this.speaker = this.line.index;
+      if (this.line.t >= this.line.dur) { this.line = null; this.talkT = 1.5; }
+    }
     this.talkT -= dt;
-    if (this.talkT <= 0) {
+    if (this.talkT <= 0 && !this.line) {
       if (this.laughT <= 0 && rand() < 0.3) this.laughT = 1.6 + rand() * 1.2;
       this._nextSpeaker();
     }
@@ -87,7 +103,8 @@ export class Gathering {
       // head target: the speaker, the player (greeting / glances), the dog, the fire
       p.headPos.copy(h.headPivot.getWorldPosition(_v));
       let target;
-      if (this.greetT > 0) target = cam;
+      const saying = this.line && this.line.index === i;
+      if (saying || this.greetT > 0 || (this.line && this.line.t < 2.5)) target = cam;
       else if (talking) {
         // speaker looks around the circle
         const k = Math.floor(this.time / 1.7 + i) % this.people.length;
@@ -155,7 +172,8 @@ export class Gathering {
       // left hand: on the thigh, gesturing while talking, waving, petting Luna
       const poleL = p.right.clone().multiplyScalar(-0.7).addScaledVector(UP, -0.6).addScaledVector(p.fwd, -0.3);
       p.gesture = damp(p.gesture, talking ? 1 : 0, 3, dt);
-      p.wave = damp(p.wave, this.greetT > 0.6 && p.seat.waves ? 1 : 0, 4, dt);
+      p.wave = damp(p.wave, this.greetT > 0.6 && p.seat.waves && !saying ? 1 : 0, 4, dt);
+      p.beckon = damp(p.beckon ?? 0, saying && this.line.t < this.line.dur - 0.4 ? 1 : 0, 4, dt);
       const restL = kneeL.clone().addScaledVector(UP, 0.07 * h.root.scale.x).addScaledVector(p.fwd, -0.13);
       let tL = restL;
       let thumbL = p.fwd.clone().negate();
@@ -184,6 +202,16 @@ export class Gathering {
         tL = tL.clone().lerp(w, p.wave);
         thumbL = thumbL.lerp(p.right.clone().negate(), p.wave).normalize();
         fingL = fingL.lerp(UP.clone(), p.wave).normalize();
+      }
+      if (p.beckon > 0.01) {
+        // "come, sit with us": palm up toward the player, fingers curling in
+        const sh = h.arms[1].shoulder.getWorldPosition(new THREE.Vector3());
+        const d = _w.subVectors(cam, sh).setY(0).normalize();
+        const curl = Math.max(0, Math.sin(this.time * 7));
+        const b = sh.addScaledVector(d, 0.38 - curl * 0.06).addScaledVector(UP, -0.12 + curl * 0.03);
+        tL = tL.clone().lerp(b, p.beckon);
+        thumbL = thumbL.lerp(new THREE.Vector3(d.z, 0, -d.x), p.beckon).normalize();
+        fingL = fingL.lerp(d.clone().addScaledVector(UP, 0.2 + curl * 0.9).normalize(), p.beckon).normalize();
       }
       h.reach(1, tL, poleL, thumbL, fingL);
       h.updateFace(dt);

@@ -1013,7 +1013,8 @@ export class Human {
     }
     const squint = this.laugh * 0.35 + (this.spec.face?.smile ?? 0) * 0.12;
     for (const l of this.head.lids) l.rotation.x = l.userData.open + (1.15 - l.userData.open) * Math.max(lid, squint);
-    const talkOpen = this.talk * (0.35 + 0.65 * Math.abs(Math.sin(this._t * 11) * Math.sin(this._t * 4.3 + 1)));
+    // real voice -> mouth follows its loudness; otherwise a talking rhythm
+    const talkOpen = this.voiceLevel != null ? this.voiceLevel : this.talk * (0.35 + 0.65 * Math.abs(Math.sin(this._t * 11) * Math.sin(this._t * 4.3 + 1)));
     const open = Math.min(1, this.mouthOpenBase * (0.75 + this.laugh * 0.5) + talkOpen + this.laugh * 0.8);
     const m = this.head.mouth;
     m.userData.inner.scale.y = 0.002 + open * (0.011 + this.mouthOpenBase * 0.004);
