@@ -9,6 +9,7 @@ import { Forest } from './world/Forest.js';
 import { Vegetation, DETAIL_LAYER } from './world/Vegetation.js';
 import { Cabin } from './world/Cabin.js';
 import { Campfire } from './world/Fire.js';
+import { Camp } from './world/Camp.js';
 import { Puddles, PUDDLE_LAYER } from './world/Puddles.js';
 import { Rain } from './world/Rain.js';
 import { Mist } from './world/Mist.js';
@@ -58,6 +59,8 @@ async function build() {
   await step(0.32, 'کاشتن درختان بلند و قدیمی…');
   const cabin = new Cabin(T, terrain, collision); // cabin first: its colliders keep trees away
   const fire = new Campfire(T, terrain, collision);
+  await step(0.38, 'دوستان دور آتش، لونا، پاترول و هورنت…');
+  const camp = new Camp(T, terrain, collision); // before the forest: keeps trees off the car & bike
   const forest = new Forest(T, terrain, collision);
   scene.add(forest.group);
 
@@ -68,6 +71,7 @@ async function build() {
   await step(0.62, 'ساختن کلبه چوبی و روشن کردن آتش…');
   cabin.addTo(scene);
   fire.addTo(scene);
+  camp.addTo(scene);
 
   await step(0.72, 'باران، مه و گودال‌های آب…');
   const puddles = new Puddles(terrain, T);
@@ -230,6 +234,7 @@ async function build() {
     sky.update(camera, time);
     fire.update(dt, time, camera, env);
     cabin.update(dt, time, camera, env, wind.strength);
+    camp.update(dt, time, camera, env, wind.strength);
     rain.update(dt, time, camera, env);
     mist.update(dt, time, camera, env);
     puddles.update(time, camera, env);
@@ -275,7 +280,7 @@ async function build() {
   setTimeout(() => { ui.hideLoading(); ui.showStart(); }, 250);
 
   if (DEBUG) {
-    window.forest = { frame, THREE, frustum, scene, camera, renderer, player, day, sound, world, deer, wildlife, fire, cabin, forest, vegetation, rain, mist, puddles, terrain, applyQuality, FIRE };
+    window.forest = { frame, THREE, frustum, scene, camera, renderer, player, day, sound, world, deer, wildlife, fire, cabin, camp, forest, vegetation, rain, mist, puddles, terrain, applyQuality, FIRE };
   }
 }
 

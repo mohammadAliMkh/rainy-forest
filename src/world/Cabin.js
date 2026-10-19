@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CABIN, FIRE } from '../core/config.js';
+import { CABIN } from '../core/config.js';
 import { mulberry32 } from '../utils/noise.js';
 import { merge, rockGeometry } from './plantGeometry.js';
 import { Flames, Smoke } from './Fire.js';
@@ -7,7 +7,8 @@ import { Flames, Smoke } from './Fire.js';
 // Rustic log cabin (like the reference photo): stacked round logs with
 // crossing corner ends, steep gable roof with mossy shingles, stone chimney
 // with smoke, a warmly glowing window, an open door showing a fireplace,
-// a stacked woodpile, a chopping block and sitting logs around the campfire.
+// a stacked woodpile and a chopping block (the seats around the campfire
+// belong to the camp, see Camp.js).
 
 export class Cabin {
   constructor(T, terrain, collision) {
@@ -313,7 +314,7 @@ export class Cabin {
     // ---------- chopping block + axe, sitting logs near the fire ----------
     const blockGeo = new THREE.CylinderGeometry(0.32, 0.36, 0.55, 12);
     const block = new THREE.Mesh(blockGeo, pileMat);
-    block.position.set(-W / 2 - 0.4, 0.27, D / 2 + 2.6);
+    block.position.set(-W / 2 - 1.0, 0.27, D / 2 + 1.3);
     block.castShadow = true;
     this.group.add(block);
     const axe = new THREE.Group();
@@ -322,38 +323,12 @@ export class Cabin {
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.03), new THREE.MeshStandardMaterial({ color: 0x3a3c3e, metalness: 0.8, roughness: 0.35 }));
     head.position.set(0.05, 0.78, 0);
     axe.add(handle, head);
-    axe.position.set(-W / 2 - 0.4, 0.55, D / 2 + 2.6);
+    axe.position.set(-W / 2 - 1.0, 0.55, D / 2 + 1.3);
     axe.rotation.set(0.15, 0.5, -0.5);
     this.group.add(axe);
 
-    // world-space props around the campfire (sitting logs & rounds)
+    // world-space props around the clearing
     this.props = new THREE.Group();
-    const big = new THREE.CylinderGeometry(1, 1, 1, 14, 1, false);
-    const propsList = [
-      // sitting logs (lying), positioned relative to the fire
-      { dx: -1.95, dz: 0.4, r: 0.2, len: 1.7, lying: true, rot: 1.35 },
-      { dx: 1.7, dz: 1.2, r: 0.22, len: 1.5, lying: true, rot: 2.2 },
-      // upright log rounds (stools)
-      { dx: 0.4, dz: 2.0, r: 0.24, len: 0.45 },
-      { dx: -1.3, dz: -1.6, r: 0.27, len: 0.5 },
-    ];
-    for (const p of propsList) {
-      const mesh = new THREE.Mesh(big, pileMat);
-      const x = FIRE.x + p.dx, z = FIRE.z + p.dz;
-      const y = terrain.heightAt(x, z);
-      if (p.lying) {
-        mesh.scale.set(p.r, p.len, p.r);
-        mesh.rotation.set(0, p.rot, Math.PI / 2, 'YXZ');
-        mesh.position.set(x, y + p.r * 0.85, z);
-        collision.addBox(x, z, p.len / 2, p.r + 0.05, p.rot, 'prop');
-      } else {
-        mesh.scale.set(p.r, p.len, p.r);
-        mesh.position.set(x, y + p.len / 2 - 0.02, z);
-        collision.addCircle(x, z, p.r + 0.05, 'prop');
-      }
-      mesh.castShadow = true; mesh.receiveShadow = true;
-      this.props.add(mesh);
-    }
     // a few stones around the clearing
     const stones = [];
     for (let i = 0; i < 9; i++) {
@@ -387,7 +362,7 @@ export class Cabin {
       collision.addBox(x, z, (pileX1 - pileX0) / 2 + 0.05, 0.36, CABIN.rotation, 'woodpile');
     }
     {
-      const [x, z] = toWorld(-W / 2 - 0.4, D / 2 + 2.6);
+      const [x, z] = toWorld(-W / 2 - 1.0, D / 2 + 1.3);
       collision.addCircle(x, z, 0.42, 'prop');
     }
 
