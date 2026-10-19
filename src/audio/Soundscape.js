@@ -43,16 +43,18 @@ export class Soundscape {
     const buf = this.engine.file(key);
     if (!buf) return null;
     const ctx = this.engine.ctx;
-    const p = this.engine.panner(pos, 'voices', { ref: 1.6, rolloff: 1.1, max: 60, reverb: 0.12 });
+    // close, dry and only gently attenuated so every word is clear
+    const p = this.engine.panner(pos, 'voices', { ref: 4, rolloff: 0.5, max: 60, reverb: 0.05 });
     const an = ctx.createAnalyser();
     an.fftSize = 512;
     an.connect(p);
-    const src = this.engine.oneShot(buf, an);
+    this.engine.setDucking(true);
+    const src = this.engine.oneShot(buf, an, { when: 0.25 }); // after the ambience has dipped
     const data = new Float32Array(an.fftSize);
     let ended = false;
-    src.addEventListener('ended', () => { ended = true; an.disconnect(); });
+    src.addEventListener('ended', () => { ended = true; an.disconnect(); this.engine.setDucking(false); });
     return {
-      duration: buf.duration,
+      duration: buf.duration + 0.25,
       level() {
         if (ended) return 0;
         an.getFloatTimeDomainData(data);
