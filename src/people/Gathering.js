@@ -42,6 +42,7 @@ export class Gathering {
     this.time = 0;
     this.dog = null;
     this.line = null; // { index, t, dur }: someone saying a line to the player
+    this.focus = null; // key of the person (or 'luna') being introduced
   }
 
   // person `key` turns to the player and talks for `dur` seconds, beckoning
@@ -104,7 +105,16 @@ export class Gathering {
       p.headPos.copy(h.headPivot.getWorldPosition(_v));
       let target;
       const saying = this.line && this.line.index === i;
-      if (saying || this.greetT > 0 || (this.line && this.line.t < 2.5)) target = cam;
+      const focusP = this.focus && this.focus !== 'luna' ? this.byName(this.focus) : null;
+      const focusLuna = this.focus === 'luna' && this.dog;
+      const focused = focusP === p;
+      const swap = Math.floor(this.time / 1.6) % 2 === 1;
+      if (focused) target = cam;
+      else if (saying && focusP) target = swap ? focusP.headPos : cam;
+      else if (saying && focusLuna) target = swap ? this.dog.headWorld : cam;
+      else if (focusLuna) target = this.dog.headWorld;
+      else if (focusP) target = focusP.headPos;
+      else if (saying || this.greetT > 0 || (this.line && this.line.t < 2.5)) target = cam;
       else if (talking) {
         // speaker looks around the circle
         const k = Math.floor(this.time / 1.7 + i) % this.people.length;
@@ -124,7 +134,7 @@ export class Gathering {
       yaw = clamp(yaw, -1.2, 1.2);
       p.yaw = damp(p.yaw, yaw, 3.2, dt);
       p.pitch = damp(p.pitch, clamp(pitch, -0.6, 0.45), 3.2, dt);
-      const nod = talking ? Math.sin(this.time * 3.3 + i) * 0.05 : 0;
+      const nod = talking ? Math.sin(this.time * 3.3 + i) * 0.05 : focused ? Math.max(0, Math.sin(this.time * 2.6)) * 0.13 : 0;
       const laughBob = h.laugh * (Math.sin(this.time * 17) * 0.04 - 0.22);
       h.neck.rotation.set(-p.pitch * 0.35 + laughBob * 0.4, p.yaw * 0.35, 0, 'YXZ');
       h.headPivot.rotation.set(-p.pitch * 0.65 + nod + laughBob, p.yaw * 0.65, Math.sin(this.time * 0.4 + i) * 0.03, 'YXZ');
@@ -171,15 +181,17 @@ export class Gathering {
 
       // left hand: on the thigh, gesturing while talking, waving, petting Luna
       const poleL = p.right.clone().multiplyScalar(-0.7).addScaledVector(UP, -0.6).addScaledVector(p.fwd, -0.3);
-      p.gesture = damp(p.gesture, talking ? 1 : 0, 3, dt);
-      p.wave = damp(p.wave, this.greetT > 0.6 && p.seat.waves && !saying ? 1 : 0, 4, dt);
-      p.beckon = damp(p.beckon ?? 0, saying && this.line.t < this.line.dur - 0.4 ? 1 : 0, 4, dt);
+      p.gesture = damp(p.gesture, talking && this.focus !== 'owner' && this.focus !== 'luna' ? 1 : 0, 3, dt);
+      // being introduced: raise a hand to the player (the owner puts his on his chest)
+      p.wave = damp(p.wave, (this.greetT > 0.6 && p.seat.waves && !saying) || (focused && p.seat.key !== 'owner') ? 1 : 0, 4, dt);
+      p.beckon = damp(p.beckon ?? 0, saying && !this.focus && this.line.t < this.line.dur - 0.4 ? 1 : 0, 4, dt);
+      p.chest = damp(p.chest ?? 0, focused && p.seat.key === 'owner' ? 1 : 0, 4, dt);
       const restL = kneeL.clone().addScaledVector(UP, 0.07 * h.root.scale.x).addScaledVector(p.fwd, -0.13);
       let tL = restL;
       let thumbL = p.fwd.clone().negate();
       let fingL = p.fwd.clone().addScaledVector(p.right, 0.25).normalize();
       if (this.dog && p.seat.key === 'owner') {
-        const petting = Math.sin(this.time * 0.13) > 0.1 && !talking;
+        const petting = (Math.sin(this.time * 0.13) > 0.1 && !talking) || focusLuna;
         p.pet = damp(p.pet, petting ? 1 : 0, 2, dt);
         if (p.pet > 0.01) {
           const stroke = Math.sin(this.time * 2.2) * 0.07;
@@ -212,6 +224,12 @@ export class Gathering {
         tL = tL.clone().lerp(b, p.beckon);
         thumbL = thumbL.lerp(new THREE.Vector3(d.z, 0, -d.x), p.beckon).normalize();
         fingL = fingL.lerp(d.clone().addScaledVector(UP, 0.2 + curl * 0.9).normalize(), p.beckon).normalize();
+      }
+      if (p.chest > 0.01) {
+        const c = h.spine.localToWorld(new THREE.Vector3(0.02, 0.4, 0.17));
+        tL = tL.clone().lerp(c, p.chest);
+        thumbL = thumbL.lerp(UP.clone(), p.chest).normalize();
+        fingL = fingL.lerp(p.right.clone().addScaledVector(p.fwd, -0.3).normalize(), p.chest).normalize();
       }
       h.reach(1, tL, poleL, thumbL, fingL);
       h.updateFace(dt);

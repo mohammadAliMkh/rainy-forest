@@ -38,7 +38,7 @@ export class Soundscape {
   // a recorded voice line from the manifest, spoken from a world position.
   // Returns { duration, level() } (level = current loudness 0..1, for lip
   // sync), or null if there is no recording.
-  playVoice(key, pos) {
+  playVoice(key, pos, { duck = true } = {}) {
     if (!this.started) return null;
     const buf = this.engine.file(key);
     if (!buf) return null;
@@ -48,13 +48,14 @@ export class Soundscape {
     const an = ctx.createAnalyser();
     an.fftSize = 512;
     an.connect(p);
-    this.engine.setDucking(true);
+    if (duck) this.engine.setDucking(true);
     const src = this.engine.oneShot(buf, an, { when: 0.25 }); // after the ambience has dipped
     const data = new Float32Array(an.fftSize);
     let ended = false;
-    src.addEventListener('ended', () => { ended = true; an.disconnect(); this.engine.setDucking(false); });
+    src.addEventListener('ended', () => { ended = true; an.disconnect(); if (duck) this.engine.setDucking(false); });
     return {
       duration: buf.duration + 0.25,
+      get done() { return ended; },
       level() {
         if (ended) return 0;
         an.getFloatTimeDomainData(data);

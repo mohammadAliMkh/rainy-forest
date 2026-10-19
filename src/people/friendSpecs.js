@@ -31,7 +31,7 @@ export const FRIENDS = {
   // beard, hazel eyes, blue mirrored sunglasses on his head, black watch,
   // black puffer jacket, olive trousers. Luna lies beside him.
   owner: {
-    name: 'من',
+    name: '',
     seed: 22,
     height: 1.0, build: 1.05, shoulders: 1.04,
     skin: 0xd3a487,
