@@ -1,7 +1,7 @@
 import { WORLD, SPAWN, PUDDLES } from '../core/config.js';
 import { damp, clamp } from '../utils/noise.js';
 
-// First-person controller: pointer-lock mouse look, WASD (physical keys, so
+// First-person controller: right-drag mouse look (cursor stays visible), WASD (physical keys, so
 // it works with a Persian keyboard layout too), Shift to run, smooth
 // acceleration, terrain following, gentle head-bob and footstep events.
 
@@ -24,52 +24,41 @@ export class PlayerController {
     this.walkSpeed = 1.9;
     this.runSpeed = 4.6;
     this.keys = new Set();
-    this.locked = false;
     this.bobPhase = 0;
     this.stepIndex = 0;
     this.onStep = null;
-    this.onLockChange = null;
     this.idleT = 0;
 
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && (this.locked || this.debug)) e.preventDefault();
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && this.active) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
-    // Mouse look: either with pointer lock, or by holding the RIGHT mouse
-    // button and dragging (works without locking the cursor).
+    // Mouse look only while the RIGHT mouse button is held and dragged; the
+    // cursor is never locked or hidden.
     this.dragging = false;
     this.freeMode = false; // set once the player has entered the forest
+    const stopDrag = () => { this.dragging = false; this.dom.style.cursor = ''; };
+    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); });
     dom.addEventListener('contextmenu', (e) => e.preventDefault());
     dom.addEventListener('mousedown', (e) => {
-      if (e.button === 2) { this.dragging = true; e.preventDefault(); }
+      if (e.button !== 2 || !this.active) return;
+      this.dragging = true;
+      dom.style.cursor = 'grabbing';
+      e.preventDefault();
     });
-    window.addEventListener('mouseup', (e) => { if (e.button === 2) this.dragging = false; });
+    window.addEventListener('mouseup', (e) => { if (e.button === 2) stopDrag(); });
     document.addEventListener('mousemove', (e) => {
-      if (!this.locked && !this.dragging) return;
+      if (!this.dragging) return;
+      if (!(e.buttons & 2)) { stopDrag(); return; } // button released outside the window
       const mx = clamp(e.movementX, -250, 250), my = clamp(e.movementY, -250, 250);
-      const k = this.locked ? 0.0022 : 0.0042;
-      this.yaw -= mx * k * this.sensitivity;
-      this.pitch = clamp(this.pitch - my * k * this.sensitivity, -1.45, 1.45);
-    });
-    document.addEventListener('pointerlockchange', () => {
-      this.locked = document.pointerLockElement === this.dom;
-      if (!this.locked && !this.freeMode) this.keys.clear();
-      if (this.onLockChange) this.onLockChange(this.locked);
+      const k = 0.0042 * this.sensitivity;
+      this.yaw -= mx * k;
+      this.pitch = clamp(this.pitch - my * k, -1.45, 1.45);
     });
   }
 
-  lock() {
-    try {
-      const p = this.dom.requestPointerLock();
-      if (p && p.catch) p.catch(() => this.onLockChange && this.onLockChange(false, true));
-    } catch (e) {
-      if (this.onLockChange) this.onLockChange(false, true);
-    }
-  }
-
-  get active() { return this.locked || this.debug || this.freeMode; }
+  get active() { return this.debug || this.freeMode; }
 
   surfaceAt(x, z) {
     for (const p of PUDDLES) if (Math.hypot((x - p[0]) / p[2], (z - p[1]) / p[3]) < 0.9) return 'water';
