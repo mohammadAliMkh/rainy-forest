@@ -163,29 +163,12 @@ async function build() {
     entered = true;
     ui.hideStart();
     player.freeMode = true;
-    player.lock();
-    setTimeout(() => ui.toast('نگاه: حرکت موس (یا نگه‌داشتن کلیک راست و کشیدن) · تنظیمات: Esc', 5000), 900);
+    setTimeout(() => ui.toast('نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc', 6000), 900);
   });
-  ui.on('resume', () => { ui.hidePause(); player.freeMode = true; player.lock(); });
-  player.onLockChange = (locked, failed) => {
-    if (locked) { ui.hidePause(); player.freeMode = true; return; }
-    if (!entered || DEBUG) return;
-    if (failed) {
-      // no pointer lock available: keep playing with right-drag look
-      ui.toast('برای چرخاندن دید، کلیک راست را نگه دارید و موس را بکشید', 4500);
-      return;
-    }
-    // Esc released the mouse -> settings menu
-    player.freeMode = false;
-    ui.showPause('');
-  };
-  // left click on the view re-captures the mouse (if the menu is closed)
-  renderer.domElement.addEventListener('mousedown', (e) => {
-    if (e.button === 0 && entered && !player.locked && document.getElementById('pause').classList.contains('hidden')) player.lock();
-  });
+  ui.on('resume', () => { ui.hidePause(); player.freeMode = true; });
   window.addEventListener('keydown', (e) => {
-    // Esc while playing without pointer lock also opens / closes the menu
-    if (e.code !== 'Escape' || !entered || player.locked) return;
+    // Esc opens / closes the settings menu
+    if (e.code !== 'Escape' || !entered) return;
     if (document.getElementById('pause').classList.contains('hidden')) { player.freeMode = false; player.keys.clear(); ui.showPause(''); }
     else { ui.hidePause(); player.freeMode = true; }
   });
