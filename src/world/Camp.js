@@ -16,6 +16,8 @@ import { Smoke } from './Fire.js';
 // tea things, Amir's Patrol parked beside the cabin and the Hornet on its
 // side stand. Built before the forest so its colliders keep trees away.
 
+const GREETING = 'بیا داداش گلم، بیا بشین کنار ما یه چای نبات بزنیم؛ زیر این آب و هوا بد می‌چسبه. بیا بیا بشین، غریبگی نکن.';
+
 export class Camp {
   constructor(T, terrain, collision) {
     this.group = new THREE.Group();
@@ -163,9 +165,15 @@ export class Camp {
       bowl.position.set(-0.07, 0.41, 0.04);
       bowl.position.y = 0.356 + 0.055;
       c.add(bowl);
-      const sugar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, 0.06), new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.8 }));
-      sugar.position.set(-0.07, 0.395, 0.04);
-      c.add(sugar);
+      // nabat (saffron rock candy) crystals in the bowl
+      const nabatMat = new THREE.MeshPhysicalMaterial({ color: 0xe8a72c, roughness: 0.15, transmission: 0.3, thickness: 0.01, clearcoat: 1 });
+      for (let i = 0; i < 7; i++) {
+        const n = new THREE.Mesh(new THREE.OctahedronGeometry(0.011 + rand() * 0.007, 0), nabatMat);
+        n.scale.set(1, 1.6, 1);
+        n.position.set(-0.07 + (rand() - 0.5) * 0.05, 0.398 + rand() * 0.008, 0.04 + (rand() - 0.5) * 0.05);
+        n.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+        c.add(n);
+      }
       const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.01, 18), new THREE.MeshStandardMaterial({ color: 0xece6da, roughness: 0.3 }));
       plate.position.set(0.09, 0.362, -0.05);
       c.add(plate);
@@ -220,8 +228,34 @@ export class Camp {
 
   addTo(scene) { scene.add(this.group); }
 
+  // hooks set by main: play a voice line at a position (returns its length
+  // in seconds, or null without a recording) and show a subtitle
+  // onVoice(key, position) / onSubtitle(text, ms)
+
   update(dt, time, camera, env, windStrength) {
+    // the owner invites the player over when they walk up to the fire
+    {
+      const cam = camera.position;
+      const d = Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z);
+      if (d < 5.2 && !this._invited) {
+        this._invited = true;
+        const owner = this.gathering.byName('owner');
+        this.voice = this.onVoice?.('owner_greeting', owner.headPos) ?? null;
+        const dur = this.voice ? this.voice.duration : 5.5;
+        this.gathering.say('owner', dur + 0.3);
+        this.onSubtitle?.(GREETING, (dur + 1) * 1000);
+      }
+      if (d > 14) this._invited = false;
+    }
     this.gathering.update(dt, time, camera);
+    // lip sync from the recording's loudness while it plays
+    {
+      const h = this.gathering.byName('owner').h;
+      if (this.voice && this.gathering.line) {
+        const lv = this.voice.level();
+        h.voiceLevel = damp(h.voiceLevel ?? 0, Math.min(1, lv * 1.4), 18, dt);
+      } else { h.voiceLevel = null; this.voice = null; }
+    }
     // Luna: watches the player when close, otherwise whoever is talking
     const cam = camera.position;
     const d = Math.hypot(cam.x - this.dog.root.position.x, cam.z - this.dog.root.position.z);

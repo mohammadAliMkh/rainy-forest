@@ -1,5 +1,6 @@
 {
-  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used.",
+  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used. owner_greeting = the owner's invitation when the player walks up to the fire.",
+  "owner_greeting": "owner-greeting.mp3",
   "rain_loop": "",
   "roof_rain_loop": "",
   "wind_loop": "",

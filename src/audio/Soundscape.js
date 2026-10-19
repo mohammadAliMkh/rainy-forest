@@ -35,6 +35,34 @@ export class Soundscape {
     if (this.started) this.wildlife.onEvent(type, src);
   }
 
+  // a recorded voice line from the manifest, spoken from a world position.
+  // Returns { duration, level() } (level = current loudness 0..1, for lip
+  // sync), or null if there is no recording.
+  playVoice(key, pos) {
+    if (!this.started) return null;
+    const buf = this.engine.file(key);
+    if (!buf) return null;
+    const ctx = this.engine.ctx;
+    const p = this.engine.panner(pos, 'voices', { ref: 1.6, rolloff: 1.1, max: 60, reverb: 0.12 });
+    const an = ctx.createAnalyser();
+    an.fftSize = 512;
+    an.connect(p);
+    const src = this.engine.oneShot(buf, an);
+    const data = new Float32Array(an.fftSize);
+    let ended = false;
+    src.addEventListener('ended', () => { ended = true; an.disconnect(); });
+    return {
+      duration: buf.duration,
+      level() {
+        if (ended) return 0;
+        an.getFloatTimeDomainData(data);
+        let s = 0;
+        for (let i = 0; i < data.length; i++) s += data[i] * data[i];
+        return Math.min(1, Math.sqrt(s / data.length) * 6);
+      },
+    };
+  }
+
   footstep(info) {
     if (this.started) this.steps.step(info);
   }

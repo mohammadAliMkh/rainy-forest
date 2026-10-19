@@ -51,6 +51,14 @@ export class UI {
     this._toastT = setTimeout(() => t.classList.remove('show'), ms);
   }
 
+  subtitle(text, ms = 5000) {
+    const el = $('subtitle');
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(this._subT);
+    this._subT = setTimeout(() => el.classList.remove('show'), ms);
+  }
+
   setClock(str, hour) {
     $('clock').textContent = str;
     if (document.activeElement !== $('time-of-day')) $('time-of-day').value = hour;
