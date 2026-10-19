@@ -2,7 +2,7 @@
   "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/people/introScript.js).",
   "welcome": "welcome.mp3",
   "intro_owner": "",
-  "intro_amir": "",
+  "intro_amir": "intro-amir.mp3",
   "intro_alireza": "",
   "intro_amin": "",
   "intro_luna": "",
