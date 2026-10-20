@@ -82,7 +82,7 @@ async function build() {
   const puddles = new Puddles(terrain, T);
   scene.add(puddles.group);
   const rain = new Rain(terrain);
-  rain.setShelter(camp.canopy.shelter);
+  rain.setShelters([camp.canopy.shelter, camp.carport.shelter]);
   rain.addTo(scene);
   const mist = new Mist(terrain);
   mist.addTo(scene);

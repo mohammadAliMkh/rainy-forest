@@ -23,7 +23,7 @@ export class Vegetation {
       if (Math.abs(x - CABIN.x) < CABIN.width / 2 + 1.2 && Math.abs(z - CABIN.z) < CABIN.depth / 2 + 1.2) return true;
       if (Math.hypot(x - FIRE.x, z - FIRE.z) < (pathMin > 1.2 ? 4.5 : 2.6)) return true;
       for (const p of PUDDLES) if (Math.hypot((x - p[0]) / p[2], (z - p[1]) / p[3]) < 1.25) return true;
-      if (collision.isBlocked(x, z, 0.15)) return true;
+      if (collision.isBlocked(x, z, 0.15) || collision.inClearZone(x, z)) return true;
       return false;
     };
 

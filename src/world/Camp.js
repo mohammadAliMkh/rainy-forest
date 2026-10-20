@@ -11,6 +11,7 @@ import { Hornet } from '../vehicles/Hornet.js';
 import { Smoke } from './Fire.js';
 import { IntroDirector } from './IntroDirector.js';
 import { Canopy } from './Canopy.js';
+import { Carport } from './Carport.js';
 
 // The camp in front of the cabin: four friends in warm clothes sitting on
 // logs and stumps around the fire drinking tea, Luna lying beside her owner,
@@ -207,6 +208,10 @@ export class Camp {
     // ---- tarp roof over the seats ----
     this.canopy = new Canopy(T, terrain, collision, { cx: F.x, cz: F.z, ...CAMP.canopy });
     this.group.add(this.canopy.group);
+
+    // ---- carport beside the cabin, over the Patrol and the Hornet ----
+    this.carport = new Carport(T, terrain, collision, CAMP.carport);
+    this.group.add(this.carport.group);
 
     // ---- the Patrol beside the cabin ----
     {

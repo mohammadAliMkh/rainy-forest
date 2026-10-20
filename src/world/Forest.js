@@ -168,6 +168,7 @@ export class Forest {
         if (Math.hypot((x - CABIN.x) * 0.9, z - CABIN.z) < 9.5) continue;
         if (Math.hypot(x - FIRE.x, z - FIRE.z) < 7) continue;
         if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 3) continue;
+        if (collision.inClearZone(x, z)) continue;
         let inPuddle = false;
         for (const p of PUDDLES) if (Math.hypot(x - p[0], z - p[1]) < p[2] + 1.2) inPuddle = true;
         if (inPuddle) continue;
