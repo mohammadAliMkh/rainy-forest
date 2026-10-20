@@ -245,7 +245,7 @@ async function build() {
       Promise.resolve(fs).then(() => screen.orientation?.lock?.('landscape')).catch(() => { /* not allowed / supported */ });
       setTimeout(() => ui.toast('حرکت: دایره پایین سمت چپ · نگاه: انگشت را روی صفحه بکشید', 6000), 900);
     } else {
-      setTimeout(() => ui.toast('نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc', 6000), 900);
+      setTimeout(() => ui.toast('نگاه: کلیک راست را نگه دار و موس را بکش · تنظیمات: Esc', 6000), 900);
     }
   });
   ui.on('resume', closeMenu);
