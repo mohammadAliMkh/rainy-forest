@@ -14,7 +14,7 @@ import { Canopy } from './Canopy.js';
 import { Carport } from './Carport.js';
 
 // The camp in front of the cabin: four friends in warm clothes sitting on
-// logs and stumps around the fire drinking tea, Luna lying beside her owner,
+// logs and stumps around the fire drinking tea, Luna lying beside one of them (she moves around now and then),
 // a kettle with a teapot on top warming at the fire, a crate with a tray of
 // tea things, Amir's Patrol parked beside the cabin and the Hornet on its
 // side stand. Built before the forest so its colliders keep trees away.
@@ -83,16 +83,23 @@ export class Camp {
       bakeJoints(h.root);
     }
 
-    // ---- Luna next to her owner ----
-    const owner = this.gathering.byName('owner');
+    // ---- Luna: starts beside her owner, now and then gets up, wanders
+    // around the camp and lies down beside someone else ----
     {
-      const o = owner.seat;
-      const fwd = owner.fwd, left = owner.right.clone().negate();
-      const x = o.x + left.x * 0.66 + fwd.x * 0.18, z = o.z + left.z * 0.66 + fwd.z * 0.18;
+      // a resting spot beside each person (on their left; Amin's left hand
+      // is on the guitar neck, so on his right)
+      const spots = this.gathering.people.map((p) => {
+        const o = p.seat;
+        const s = p.h.guitar ? 1 : -1;
+        const x = o.x + p.right.x * 0.66 * s + p.fwd.x * 0.18, z = o.z + p.right.z * 0.66 * s + p.fwd.z * 0.18;
+        return { key: o.key, x, z, heading: o.facing - 0.35 * s };
+      });
+      const wander = [[8.3, -14.6], [0.8, -17.6], [4.6, -12.0], [-1.8, -12.8]].map(([x, z]) => ({ x, z }));
+      const start = spots.find((s) => s.key === 'owner');
       this.dog = new Dog();
-      this.dog.place(x, terrain.heightAt(x, z), z, o.facing + 0.35);
+      this.dog.place(start.x, terrain.heightAt(start.x, start.z), start.z, start.heading, 'owner');
+      this.dog.setWorld({ terrain, collision, spots, wander, ring: { x: F.x, z: F.z, r: 2.6 } });
       this.group.add(this.dog.root);
-      collision.addCircle(x + fwd.x * 0.15, z + fwd.z * 0.15, 0.4, 'dog');
       this.gathering.dog = this.dog;
     }
 
@@ -266,9 +273,10 @@ export class Camp {
     const owner = this.gathering.byName('owner');
     const speaker = this.gathering.people[this.gathering.speaker];
     const look = near > 0.2 ? cam : speaker.seat.key === 'owner' ? owner.headPos : speaker.headPos;
-    this._dogExcite = damp(this._dogExcite ?? 0, Math.max(near, owner.pet * 0.6), 1.5, dt);
+    const petted = Math.max(...this.gathering.people.map((p) => p.pet));
+    this._dogExcite = damp(this._dogExcite ?? 0, Math.max(near, petted * 0.6), 1.5, dt);
     const lunaFocus = this.gathering.focus === 'luna';
-    this.dog.update(dt, lunaFocus ? cam : look, lunaFocus ? 1 : this._dogExcite);
+    this.dog.update(dt, lunaFocus ? cam : look, lunaFocus ? 1 : this._dogExcite, this.intro.active);
     this.steam.material.uniforms.uLight.value = env ? env.ambientLevel * 0.9 + 0.1 : 1;
     this.steam.update(dt, time, windStrength);
     this.canopy.update(time);

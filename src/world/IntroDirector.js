@@ -121,6 +121,13 @@ export class IntroDirector {
       this._tPos.copy(head).addScaledVector(p.fwd, 1.75 - push * 0.35).addScaledVector(p.right, -0.55).addScaledVector(UP, 0.1);
       return 42;
     }
+    if (p.h.guitar) {
+      // Amin: a wider three-quarter shot so his guitar is in the frame
+      this._tLook.copy(head).addScaledVector(UP, -0.2);
+      const dir = p.fwd.clone().multiplyScalar(0.8).addScaledVector(p.right, 0.5).normalize();
+      this._tPos.copy(head).addScaledVector(dir, 1.9 - push * 0.25).addScaledVector(UP, 0.0);
+      return 42;
+    }
     // portrait: three-quarter view, eye level, slowly closing in
     this._tLook.copy(head).addScaledVector(UP, 0.07);
     const dir = p.fwd.clone().multiplyScalar(0.8).addScaledVector(p.right, 0.5).normalize();

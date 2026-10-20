@@ -117,6 +117,7 @@ async function build() {
   // the camp's intro keeps the ambience lowered across all of its lines
   camp.onVoice = (key, pos) => sound.playVoice(key, pos, { duck: false });
   camp.onDuck = (on) => sound.engine.setDucking(on);
+  camp.gathering.onStrum = (pos, chord, down, vel) => sound.strum(pos, chord, down, vel);
   player.onStep = (info) => sound.footstep(info);
 
   // environment map from the sky (wet reflections), refreshed as the day goes on
