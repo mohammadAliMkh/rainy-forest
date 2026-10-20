@@ -56,6 +56,7 @@ export class Soundscape {
     return {
       duration: buf.duration + 0.25,
       get done() { return ended; },
+      stop() { if (!ended) try { src.stop(); } catch { /* not started yet */ } },
       level() {
         if (ended) return 0;
         an.getFloatTimeDomainData(data);

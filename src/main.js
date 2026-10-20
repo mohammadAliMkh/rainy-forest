@@ -216,10 +216,20 @@ async function build() {
   let entered = false;
   const menuOpen = () => !document.getElementById('pause').classList.contains('hidden');
   const openMenu = () => { player.freeMode = false; player.keys.clear(); touch.show(false); ui.showPause(''); };
-  const closeMenu = () => { ui.hidePause(); player.freeMode = true; touch.show(true); };
+  const closeMenu = () => { ui.hidePause(); player.freeMode = !camp.intro.active; touch.show(!camp.intro.active); };
   // phones / tablets: joystick + drag-to-look + buttons instead of keys & mouse
   const touch = new TouchControls(player, renderer.domElement, { onMenu: openMenu });
-  touch.onEnable = () => { if (entered && !menuOpen()) touch.show(true); };
+  touch.onEnable = () => { if (entered && !menuOpen() && !camp.intro.active) touch.show(true); };
+  // the introductions take over the camera like a film scene
+  camp.onCinematic = (on) => {
+    player.freeMode = !on && !menuOpen();
+    player.keys.clear();
+    if (!menuOpen()) touch.show(!on);
+    ui.setCinema(on);
+  };
+  camp.onCaption = (name) => ui.setCaption(name);
+  camp.onFade = (a) => ui.setFade(a);
+  ui.on('skip', () => camp.intro.skip());
   if (isTouchFirst()) touch.enable();
 
   ui.on('enter', async () => {
@@ -295,6 +305,7 @@ async function build() {
     day.update(dt);
     wind.update(dt, time);
     player.update(dt, time);
+    camp.intro.applyCamera(camera, dt); // film camera during the introductions
     updateCulling();
     updateSun();
 

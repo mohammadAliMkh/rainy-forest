@@ -9,7 +9,7 @@ import { Dog } from '../creatures/Dog.js';
 import { Patrol } from '../vehicles/Patrol.js';
 import { Hornet } from '../vehicles/Hornet.js';
 import { Smoke } from './Fire.js';
-import { INTRO } from '../people/introScript.js';
+import { IntroDirector } from './IntroDirector.js';
 import { Canopy } from './Canopy.js';
 
 // The camp in front of the cabin: four friends in warm clothes sitting on
@@ -202,6 +202,8 @@ export class Camp {
       collision.addBox(x, z, 0.32, 0.25, CAMP.crate.rot, 'prop');
     }
 
+    this.intro = new IntroDirector(this);
+
     // ---- tarp roof over the seats ----
     this.canopy = new Canopy(T, terrain, collision, { cx: F.x, cz: F.z, ...CAMP.canopy });
     this.group.add(this.canopy.group);
@@ -233,110 +235,25 @@ export class Camp {
   addTo(scene) { scene.add(this.group); }
 
   // hooks set by main:
-  //   onVoice(key, position) -> { duration, level() } | null (no recording)
+  //   onVoice(key, position) -> { duration, done, level(), stop() } | null
   //   onDuck(on) (lower the ambience during speech)
-
-  _startIntro() {
-    this.seq = { i: -1, t: 0, gap: 0, dur: 0, voice: null, played: 0 };
-    this.onDuck?.(true);
-    this._nextStep();
-  }
-
-  _nextStep() {
-    const s = this.seq;
-    const owner = this.gathering.byName('owner');
-    while (++s.i < INTRO.length) {
-      const step = INTRO[s.i];
-      const v = this.onVoice?.(step.key, owner.headPos) ?? null;
-      if (!v) continue; // no recording for this step (yet)
-      Object.assign(s, { voice: v, t: 0, gap: 0, dur: v.duration });
-      s.played++;
-      this.gathering.say('owner', v.duration + 0.2);
-      this.gathering.focus = step.focus;
-      return;
-    }
-    // finished (without any recording he still turns to the player and beckons)
-    if (!s.played) this.gathering.say('owner', 6);
-    this.seq = null;
-    this.gathering.focus = null;
-    this.onDuck?.(false);
-  }
-
-  // name tags that fade in above whoever is being introduced
-  _makeLabels() {
-    this.labels = new Map();
-    const make = (key, text) => {
-      if (!text) return;
-      const c = document.createElement('canvas');
-      c.width = 512; c.height = 128;
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const draw = () => {
-        const ctx = c.getContext('2d');
-        ctx.clearRect(0, 0, 512, 128);
-        ctx.font = '700 58px Vazirmatn, Tahoma, sans-serif';
-        ctx.direction = 'rtl';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const w = Math.min(500, ctx.measureText(text).width + 70);
-        ctx.fillStyle = 'rgba(10, 14, 16, 0.6)';
-        ctx.beginPath();
-        ctx.roundRect(256 - w / 2, 14, w, 100, 50);
-        ctx.fill();
-        ctx.fillStyle = '#f4c38a';
-        ctx.fillText(text, 256, 66);
-        tex.needsUpdate = true;
-      };
-      draw();
-      document.fonts?.load('700 58px Vazirmatn').then(draw).catch(() => {});
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, fog: false, opacity: 0 }));
-      sprite.scale.set(0.9, 0.225, 1);
-      sprite.renderOrder = 20;
-      sprite.visible = false;
-      this.group.add(sprite);
-      this.labels.set(key, sprite);
-    };
-    for (const p of this.gathering.people) make(p.seat.key, p.spec.name);
-    make('luna', 'لونا');
-  }
-
-  _updateLabels(dt, camera) {
-    if (!this.labels) this._makeLabels();
-    for (const [key, sprite] of this.labels) {
-      const on = this.gathering.focus === key;
-      const m = sprite.material;
-      m.opacity = damp(m.opacity, on ? 1 : 0, 5, dt);
-      sprite.visible = m.opacity > 0.01;
-      if (!sprite.visible) continue;
-      const head = key === 'luna' ? this.dog.headWorld : this.gathering.byName(key).headPos;
-      sprite.position.copy(head).add(new THREE.Vector3(0, key === 'luna' ? 0.35 : 0.42, 0));
-      void camera;
-    }
-  }
+  //   onCinematic(on), onCaption(name | null), onFade(0..1) (film-style intro, see IntroDirector)
 
   update(dt, time, camera, env, windStrength) {
-    // the owner welcomes the player and introduces everyone, in his voice
+    // the owner welcomes the player and introduces everyone (once per visit)
     {
       const cam = camera.position;
-      const d = Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z);
-      if (d < 5.2 && !this._invited) { this._invited = true; this._startIntro(); }
-      if (d > 14 && !this.seq) this._invited = false;
-      if (this.seq) {
-        // next line a moment after the audio really finished (frame-rate independent)
-        this.seq.t += dt;
-        if (this.seq.voice.done) this.seq.gap += dt;
-        if (this.seq.gap > 0.7) this._nextStep();
-      }
+      if (!this.intro.done && Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z) < 5.2) this.intro.start();
+      this.intro.update(dt);
     }
     this.gathering.update(dt, time, camera);
     // lip sync from the recording's loudness while it plays
     {
       const h = this.gathering.byName('owner').h;
-      const v = this.seq?.voice;
+      const v = this.intro.seq?.voice;
       if (v) h.voiceLevel = damp(h.voiceLevel ?? 0, Math.min(1, v.level() * 1.4), 18, dt);
       else h.voiceLevel = null;
     }
-    this._updateLabels(dt, camera);
     // Luna: watches the player when close, otherwise whoever is talking
     const cam = camera.position;
     const d = Math.hypot(cam.x - this.dog.root.position.x, cam.z - this.dog.root.position.z);
