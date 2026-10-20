@@ -9,6 +9,12 @@ export class CollisionWorld {
     this.cells = new Map();
     this.boxes = [];
     this.dynamic = new Set(); // objects with {x, z, radius} (deer, etc.)
+    this.clearZones = [];     // axis-aligned rects {x, z, hx, hz} where nothing may grow
+  }
+
+  inClearZone(x, z) {
+    for (const r of this.clearZones) if (Math.abs(x - r.x) < r.hx && Math.abs(z - r.z) < r.hz) return true;
+    return false;
   }
 
   _key(ix, iz) { return ix * 73856093 ^ iz * 19349663; }

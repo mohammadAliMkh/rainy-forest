@@ -82,6 +82,14 @@ export class RainSound {
         lp.connect(tarpPanner);
         e.loop(roof, lp, { gain: 0.75, rate: 0.82 });
       }
+      // ...and pinging on the carport's metal roof
+      if (this.world.camp?.carport) {
+        const metalPanner = e.panner(this.world.camp.carport.center, 'rain', { ref: 2.6, rolloff: 1.4, reverb: 0.1 });
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 0.8;
+        bp.connect(metalPanner);
+        e.loop(roof, bp, { gain: 0.9, rate: 1.18 });
+      }
     }
 
     // positional one-shots

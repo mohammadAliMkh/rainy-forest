@@ -35,8 +35,10 @@ export const CAMP = {
   ],
   kettleAngle: -2.2,          // around the fire ring (radians, x = cos, z = sin)
   crate: { dx: 1.55, dz: -1.65, rot: 0.6 },
-  car: { x: 9.4, z: -17.4, yaw: -0.38 },
-  bike: { x: 5.9, z: -13.4, yaw: -Math.PI / 2 + 0.3 },
+  // carport beside the cabin: the Patrol nose-out, the Hornet facing it
+  carport: { cx: 9.25, cz: -17.9, halfX: 1.95, halfZ: 4.35 },
+  car: { x: 9.25, z: -19.25, yaw: 0 },
+  bike: { x: 9.25, z: -14.95, yaw: Math.PI },
   // tarp roof over the seats (half sizes around the fire)
   canopy: { halfX: 3.1, halfZ: 2.75 },
 };
