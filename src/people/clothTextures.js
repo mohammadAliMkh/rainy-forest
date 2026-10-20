@@ -50,7 +50,7 @@ export function createCampTextures() {
     // fine isotropic speckle for stubble
     const rand = mulberry32(80);
     const sp = greyCanvas(S, () => 0.35 + rand() * 0.9);
-    C.stubbleAlpha = toTexture(sp, { srgb: false, repeat: 3 });
+    C.stubbleAlpha = toTexture(sp, { srgb: false, repeat: 12 });
   }
 
   // woven fabric (cotton, wool coats)

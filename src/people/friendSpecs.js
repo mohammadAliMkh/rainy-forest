@@ -61,7 +61,7 @@ export const FRIENDS = {
     hairColor: 0x3a2618,
     face: { width: 1.05, length: 0.98, jaw: 0.72, nose: 1.05, noseWidth: 1.1, brow: 0.9, cheek: 1.3, lips: 1.0, chin: 0.9, lidOpen: 0.14 },
     hair: { front: 0.5, recede: 0.0, quiff: 0.032, thick: 0.011, sides: 0.35, sidesLine: 0.02, nape: -0.5, highlight: 0x5a3d26, rough: 0.2 },
-    beard: { style: 'stubble', thick: 0.0024, cheekTop: -0.16, cheeks: 0.8, mustache: 1.1, color: 0x3b2819, stubble: 0.6, density: 0.62 },
+    beard: { style: 'stubble', thick: 0.0024, cheekTop: -0.16, cheeks: 0.8, mustache: 1.1, color: 0x3b2819, stubble: 0.65, density: 0.7 },
     brows: { thick: 0.0028, width: 0.045 },
     hold: 'right',
     outfit: {
