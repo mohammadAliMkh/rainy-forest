@@ -44,21 +44,12 @@ export class PlayerController {
     this.dragging = false;
     this.freeMode = false; // set once the player has entered the forest
     this.pointer = null; // last cursor position over the view
-    this.exitY = 0; // -1 / 1 while the cursor is past the top / bottom edge
     this.edgeX = 0; this.edgeY = 0;
     const stopDrag = () => { this.dragging = false; this.dom.style.cursor = ''; };
-    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); this.pointer = null; this.exitY = 0; });
-    // Above and below the page sit the browser bars and the taskbar, so the
-    // cursor leaves the page there instead of stopping at the screen edge:
-    // keep tilting that way (pitch is clamped, so it simply stops at the
-    // limit). Leaving through the sides stops turning.
-    document.documentElement.addEventListener('mouseleave', (e) => {
-      const was = this.pointer;
-      this.pointer = null;
-      if (!was) return;
-      const h = window.innerHeight;
-      this.exitY = e.clientY <= 0 ? -1 : e.clientY >= h - 1 ? 1 : 0;
-    });
+    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); this.pointer = null; });
+    // The cursor leaving the page (e.g. up to the tabs / address bar) stops
+    // any turning; the view stays where it was.
+    document.documentElement.addEventListener('mouseleave', () => { this.pointer = null; });
     dom.addEventListener('contextmenu', (e) => e.preventDefault());
     dom.addEventListener('mousedown', (e) => {
       if (e.button !== 2 || !this.active) return;
@@ -70,7 +61,6 @@ export class PlayerController {
     document.addEventListener('mousemove', (e) => {
       // over menus / buttons the edges must not turn the view
       this.pointer = e.target === dom ? { x: e.clientX, y: e.clientY } : null;
-      this.exitY = 0;
       if (!this.dragging) return;
       if (!(e.buttons & 2)) { stopDrag(); return; } // button released outside the window
       this.look(clamp(e.movementX, -250, 250), clamp(e.movementY, -250, 250), 0.0042);
@@ -100,7 +90,7 @@ export class PlayerController {
         return Math.sign(t) * t * t;
       };
       ex = edge(p.x, w); ey = edge(p.y, h);
-    } else if (this.active && !this.dragging && !this.touchMode) ey = this.exitY;
+    }
     this.edgeX = damp(this.edgeX, ex, 10, dt);
     this.edgeY = damp(this.edgeY, ey, 10, dt);
     this.yaw -= this.edgeX * 1.9 * this.sensitivity * dt;
@@ -123,6 +113,9 @@ export class PlayerController {
       // arrow keys / Q-E turn the view (alternative to the mouse)
       const turn = (k.has('ArrowLeft') || k.has('KeyQ') ? 1 : 0) - (k.has('ArrowRight') || k.has('KeyE') ? 1 : 0);
       this.yaw += turn * 1.8 * dt;
+      // R / F tilt the view up / down
+      const tilt = (k.has('KeyR') ? 1 : 0) - (k.has('KeyF') ? 1 : 0);
+      this.pitch = clamp(this.pitch + tilt * 1.2 * dt, -1.45, 1.45);
       fx += this.touchMove.x;
       fz += this.touchMove.z;
       this.running = k.has('ShiftLeft') || k.has('ShiftRight') || this.touchRun;

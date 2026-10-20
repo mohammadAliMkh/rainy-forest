@@ -630,7 +630,7 @@ function hatGeometry(h) {
   });
   parts.push(band);
   // brim: sides curled up, front & back dip
-  const brim = new THREE.RingGeometry(0.06, 1, 40, 4);
+  const brim = new THREE.RingGeometry(0.06, 1, 56, 12); // enough rings for a smooth curl
   brim.rotateX(-Math.PI / 2);
   const bp = brim.attributes.position;
   for (let i = 0; i < bp.count; i++) {

@@ -59,7 +59,7 @@ export class Renderer {
     this.composer = new EffectComposer(r, rt);
     this.renderPass = new RenderPass(scene, camera);
     this.composer.addPass(this.renderPass);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.55, 0.6, 0.9);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.42, 0.55, 0.96);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
     this.fxaa = new ShaderPass(FXAAShader);

@@ -93,11 +93,12 @@ export class Gathering {
     const gx = new THREE.Vector3(1, 0, 0).applyQuaternion(gq); // toward the headstock
     const gy = new THREE.Vector3(0, 1, 0).applyQuaternion(gq); // across the strings
     const gz = new THREE.Vector3(0, 0, 1).applyQuaternion(gq); // out of the top
-    // right hand over the sound hole
+    // right hand over the sound hole: the forearm rests on the top edge of
+    // the lower bout (elbow up and out), the palm just above the strings
     const strum = gt.strum.getWorldPosition(new THREE.Vector3())
-      .addScaledVector(gy, 0.1 - p.strumHand * 0.055).addScaledVector(gx, -0.06).addScaledVector(gz, 0.01);
-    const poleR = p.right.clone().multiplyScalar(0.8).addScaledVector(UP, -0.3).addScaledVector(p.fwd, -0.4);
-    h.reach(0, strum, poleR, gx.clone(), gy.clone().negate().addScaledVector(gz, -0.3).normalize());
+      .addScaledVector(gy, 0.12 - p.strumHand * 0.055).addScaledVector(gx, -0.05).addScaledVector(gz, 0.04);
+    const poleR = p.right.clone().multiplyScalar(0.7).addScaledVector(UP, 0.35).addScaledVector(gz, 0.5).addScaledVector(gx, -0.4);
+    h.reach(0, strum, poleR, gx.clone(), gy.clone().negate().addScaledVector(gz, 0.1).normalize());
     // left hand around the neck, fingers over the fretboard (moving with the chords)
     const chordShift = playing ? [0, 0.02, -0.015, 0.03][Math.floor(p.gtStep / 8) % 4] : 0;
     p.fretX = damp(p.fretX ?? 0, chordShift, 6, dt);

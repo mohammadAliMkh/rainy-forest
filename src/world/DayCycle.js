@@ -4,20 +4,21 @@ import { smoothstep } from '../utils/noise.js';
 
 // Full day/night cycle. By default one real hour = one whole day:
 // dawn -> misty morning -> overcast noon -> dim sunset -> night -> midnight.
+// Nights are moonlit: dark, but the trail and the trees still read.
 // Every lighting-related value is interpolated between keyframes.
 
 const K = (hour, o) => ({ hour, ...o });
 const KEYS = [
-  K(0, { top: 0x04070c, hor: 0x0b1017, fog: 0x0a0e13, sun: 0x7f95c0, sunI: 0.08, hs: 0x2a3a55, hg: 0x0b0c0a, hI: 0.2, amb: 0.03, exp: 1.3, fogD: 0.021, stars: 0.7, glow: 0.15 }),
-  K(4.4, { top: 0x060a11, hor: 0x10161f, fog: 0x0d1218, sun: 0x8197c0, sunI: 0.08, hs: 0x2d3d58, hg: 0x0c0d0b, hI: 0.22, amb: 0.03, exp: 1.3, fogD: 0.022, stars: 0.6, glow: 0.15 }),
+  K(0, { top: 0x04070c, hor: 0x131b26, fog: 0x121a23, sun: 0x8fa6d0, sunI: 0.2, hs: 0x34476a, hg: 0x10120f, hI: 0.42, amb: 0.06, exp: 1.45, fogD: 0.021, stars: 0.7, glow: 0.15 }),
+  K(4.4, { top: 0x060a11, hor: 0x161e29, fog: 0x141c25, sun: 0x91a8d0, sunI: 0.2, hs: 0x36496b, hg: 0x111310, hI: 0.44, amb: 0.06, exp: 1.45, fogD: 0.022, stars: 0.6, glow: 0.15 }),
   K(5.5, { top: 0x1a2636, hor: 0x4b5a6c, fog: 0x3a4757, sun: 0xd29c78, sunI: 0.22, hs: 0x55667a, hg: 0x191913, hI: 0.48, amb: 0.06, exp: 1.12, fogD: 0.025, stars: 0.05, glow: 0.55 }),
   K(7.0, { top: 0x4f6478, hor: 0x93a3b2, fog: 0x7a8b9b, sun: 0xe6e0d4, sunI: 0.85, hs: 0x9fb2c6, hg: 0x262a1e, hI: 1.0, amb: 0.12, exp: 1.0, fogD: 0.023, stars: 0, glow: 0.5 }),
   K(12.0, { top: 0x71859a, hor: 0xb3bfc8, fog: 0x95a4b0, sun: 0xf2efe8, sunI: 1.5, hs: 0xb8c7d4, hg: 0x2f3127, hI: 1.25, amb: 0.15, exp: 0.95, fogD: 0.019, stars: 0, glow: 0.35 }),
   K(16.0, { top: 0x667a8d, hor: 0xa6b2ba, fog: 0x8a99a5, sun: 0xf0e0c4, sunI: 1.2, hs: 0xb4bec5, hg: 0x312e25, hI: 1.1, amb: 0.13, exp: 0.97, fogD: 0.02, stars: 0, glow: 0.45 }),
   K(18.0, { top: 0x4a5463, hor: 0xae8a70, fog: 0x7a7371, sun: 0xffa86a, sunI: 0.62, hs: 0x8a8b94, hg: 0x2a2219, hI: 0.72, amb: 0.08, exp: 1.05, fogD: 0.022, stars: 0, glow: 1.0 }),
   K(19.3, { top: 0x18233a, hor: 0x37445a, fog: 0x2a3446, sun: 0x9aa8c8, sunI: 0.14, hs: 0x3c4a60, hg: 0x121210, hI: 0.36, amb: 0.05, exp: 1.18, fogD: 0.024, stars: 0.12, glow: 0.3 }),
-  K(20.8, { top: 0x05080d, hor: 0x0c1118, fog: 0x0b0f14, sun: 0x7f95c0, sunI: 0.08, hs: 0x2a3a55, hg: 0x0b0c0a, hI: 0.2, amb: 0.03, exp: 1.3, fogD: 0.021, stars: 0.65, glow: 0.15 }),
-  K(24.0, { top: 0x04070c, hor: 0x0b1017, fog: 0x0a0e13, sun: 0x7f95c0, sunI: 0.08, hs: 0x2a3a55, hg: 0x0b0c0a, hI: 0.2, amb: 0.03, exp: 1.3, fogD: 0.021, stars: 0.7, glow: 0.15 }),
+  K(20.8, { top: 0x05080d, hor: 0x131b26, fog: 0x121a23, sun: 0x8fa6d0, sunI: 0.2, hs: 0x34476a, hg: 0x10120f, hI: 0.42, amb: 0.06, exp: 1.45, fogD: 0.021, stars: 0.65, glow: 0.15 }),
+  K(24.0, { top: 0x04070c, hor: 0x131b26, fog: 0x121a23, sun: 0x8fa6d0, sunI: 0.2, hs: 0x34476a, hg: 0x10120f, hI: 0.42, amb: 0.06, exp: 1.45, fogD: 0.021, stars: 0.7, glow: 0.15 }),
 ];
 const COLOR_KEYS = ['top', 'hor', 'fog', 'sun', 'hs', 'hg'];
 const NUM_KEYS = ['sunI', 'hI', 'amb', 'exp', 'fogD', 'stars', 'glow'];

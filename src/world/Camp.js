@@ -249,13 +249,15 @@ export class Camp {
   // hooks set by main:
   //   onVoice(key, position) -> { duration, done, level(), stop() } | null
   //   onDuck(on) (lower the ambience during speech)
+  //   voicesReady() -> bool (the introductions wait for the recordings)
+  //   onSubtitle(text | null) (optional subtitle of the current line)
   //   onCinematic(on), onCaption(name | null), onFade(0..1) (film-style intro, see IntroDirector)
 
   update(dt, time, camera, env, windStrength) {
     // the owner welcomes the player and introduces everyone (once per visit)
     {
       const cam = camera.position;
-      if (!this.intro.done && Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z) < 5.2) this.intro.start();
+      if (!this.intro.done && (this.voicesReady?.() ?? true) && Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z) < 5.2) this.intro.start();
       this.intro.update(dt);
     }
     this.gathering.update(dt, time, camera);

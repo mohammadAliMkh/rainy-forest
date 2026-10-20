@@ -13,9 +13,7 @@
     <meta property="og:title" content="جنگل بارانی" />
     <meta property="og:description" content="قدم زدن اول‌شخص در یک جنگل سه‌بعدی بارانی با کلبه چوبی، آتش و صدای سه‌بعدی." />
     <meta property="og:locale" content="fa_IR" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;800&display=swap" rel="stylesheet" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101618'/%3E%3Cpath d='M32 8 L48 34 H40 L52 52 H12 L24 34 H16 Z' fill='%234f7a4a'/%3E%3Crect x='29' y='52' width='6' height='6' fill='%236b4a2e'/%3E%3C/svg%3E" />
   </head>
   <body>
     <div id="app"></div>
@@ -40,9 +38,11 @@
           <div><kbd>موس در لبه تصویر</kbd><span>چرخیدن به همان سمت</span></div>
           <div><kbd>کلیک راست + کشیدن</kbd><span>نگاه کردن به اطراف از هر جای صفحه</span></div>
           <div><kbd>Q</kbd><kbd>E</kbd><span>چرخش به چپ و راست با کیبورد</span></div>
+          <div><kbd>R</kbd><kbd>F</kbd><span>نگاه به بالا و پایین با کیبورد</span></div>
           <div><kbd>Shift</kbd><span>دویدن</span></div>
           <div><kbd>Esc</kbd><span>تنظیمات</span></div>
           <div><kbd>M</kbd><span>قطع و وصل صدا</span></div>
+          <div><kbd>N</kbd><span>نقشه (با کلیک روی نقشه: نزدیک / دور)</span></div>
         </div>
         <div class="controls touch-only">
           <div><kbd>دایره پایین سمت چپ</kbd><span>حرکت (انگشت را به هر طرف بکشید)</span></div>
@@ -56,8 +56,11 @@
 
     <!-- Pause / settings -->
     <div id="pause" class="overlay hidden">
-      <div class="panel settings-panel">
-        <h2>تنظیمات</h2>
+      <div class="panel settings-panel" role="dialog" aria-labelledby="settings-title">
+        <div class="panel-head">
+          <h2 id="settings-title">تنظیمات</h2>
+          <button id="close-btn" class="close-btn" aria-label="بستن">×</button>
+        </div>
 
         <section>
           <h3>صدا</h3>
@@ -67,7 +70,10 @@
           <label class="row"><span>آتش</span><input type="range" id="vol-fire" min="0" max="1" step="0.01" /></label>
           <label class="row"><span>پرندگان و حیوانات</span><input type="range" id="vol-wildlife" min="0" max="1" step="0.01" /></label>
           <label class="row"><span>صدای قدم‌ها</span><input type="range" id="vol-steps" min="0" max="1" step="0.01" /></label>
+          <label class="row"><span>صدای معرفی</span><input type="range" id="vol-voices" min="0" max="1" step="0.01" /></label>
+          <label class="row"><span>گیتار امین</span><input type="range" id="vol-music" min="0" max="1" step="0.01" /></label>
           <label class="row check"><span>قطع صدا</span><input type="checkbox" id="mute" /></label>
+          <label class="row check"><span>زیرنویس معرفی‌ها</span><input type="checkbox" id="subtitles" /></label>
         </section>
 
         <section>
@@ -95,10 +101,14 @@
               <option value="low">پایین</option>
             </select>
           </label>
+          <label class="row check"><span>نمایش نقشه</span><input type="checkbox" id="minimap" /></label>
           <label class="row check"><span>نمایش FPS</span><input type="checkbox" id="show-fps" /></label>
         </section>
 
-        <button id="resume-btn" class="primary">ادامه</button>
+        <div class="panel-actions">
+          <button id="replay-btn" class="ghost-btn">پخش دوباره‌ی معرفی</button>
+          <button id="resume-btn" class="primary">ادامه</button>
+        </div>
         <div id="lock-msg" class="lock-msg"></div>
       </div>
     </div>
@@ -126,6 +136,7 @@
       <div class="bar top"></div>
       <div class="bar bottom"></div>
       <div id="caption" class="caption"></div>
+      <div id="intro-sub" class="intro-sub" dir="rtl"></div>
       <button id="skip-btn" class="skip-btn">رد شدن ⏭</button>
     </div>
 
@@ -133,5 +144,7 @@
     <div id="fps" class="fps hidden"></div>
 
     <script type="module" src="/src/main.js"></script>
+    <!-- phones held upright -->
+    <div class="rotate-hint"><div class="icon">⟳</div><div>برای دیدن جنگل، گوشی را افقی بگیرید<br /><small>اگر صفحه نمی‌چرخد، قفل چرخش صفحه را خاموش کنید</small></div></div>
   </body>
 </html>

@@ -8,13 +8,15 @@ const STORE_KEY = 'rainy-forest-settings-v2';
 export class UI {
   constructor() {
     this.settings = {
-      volumes: { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7 },
+      volumes: { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.5 },
       muted: false,
       daySpeed: 3600,
       sensitivity: 1,
       quality: 'auto',
       qualityV: 2,
       showFps: false,
+      subtitles: false, // subtitles for the introductions (off unless the visitor wants them)
+      minimap: true,
     };
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -53,13 +55,22 @@ export class UI {
 
   setCinema(on) {
     $('cinema').classList.toggle('hidden', !on);
-    if (!on) this.setCaption(null);
+    if (!on) { this.setCaption(null); this.setSubtitle(null); }
   }
 
   setFade(a) {
     if (a === this._fade) return;
     this._fade = a;
     $('fade').style.opacity = a;
+  }
+
+  // subtitle of the line being spoken; only shown when turned on in the menu
+  setSubtitle(text) {
+    this._subText = text || null;
+    const el = $('intro-sub');
+    const show = !!this._subText && this.settings.subtitles;
+    if (show) el.textContent = this._subText;
+    el.classList.toggle('show', show);
   }
 
   setCaption(name) {
@@ -96,6 +107,10 @@ export class UI {
     const s = this.settings;
     $('enter-btn').addEventListener('click', () => this.emit('enter'));
     $('resume-btn').addEventListener('click', () => this.emit('resume'));
+    $('close-btn').addEventListener('click', () => this.emit('resume'));
+    $('replay-btn').addEventListener('click', () => this.emit('replayIntro'));
+    // a click / tap on the dimmed background closes the menu too
+    $('pause').addEventListener('click', (e) => { if (e.target === $('pause')) this.emit('resume'); });
     $('skip-btn').addEventListener('click', (e) => { e.stopPropagation(); this.emit('skip'); });
 
     for (const k of Object.keys(s.volumes)) {
@@ -126,6 +141,17 @@ export class UI {
     $('quality').value = s.quality;
     $('quality').addEventListener('change', () => { s.quality = $('quality').value; this.emit('quality', s.quality); this.save(); });
 
+    $('minimap').checked = s.minimap;
+    const setMap = (on) => { s.minimap = on; $('minimap').checked = on; this.save(); this.emit('minimap', on); };
+    $('minimap').addEventListener('change', () => setMap($('minimap').checked));
+
+    $('subtitles').checked = s.subtitles;
+    $('subtitles').addEventListener('change', () => {
+      s.subtitles = $('subtitles').checked;
+      this.save();
+      this.setSubtitle(this._subText);
+    });
+
     $('show-fps').checked = s.showFps;
     $('fps').classList.toggle('hidden', !s.showFps);
     $('show-fps').addEventListener('change', () => {
@@ -136,6 +162,7 @@ export class UI {
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyM' && !e.repeat) this.setMuted(!s.muted);
+      if (e.code === 'KeyN' && !e.repeat) setMap(!s.minimap);
     });
   }
 }
