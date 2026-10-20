@@ -216,8 +216,24 @@ async function build() {
 
   let entered = false;
   const menuOpen = () => !document.getElementById('pause').classList.contains('hidden');
-  const openMenu = () => { player.freeMode = false; player.keys.clear(); touch.show(false); ui.showPause(''); };
-  const closeMenu = () => { ui.hidePause(); player.freeMode = !camp.intro.active; touch.show(!camp.intro.active); };
+  const openMenu = () => { player.freeMode = false; player.keys.clear(); player.unlockMouse(); touch.show(false); ui.showPause(''); };
+  const closeMenu = () => {
+    ui.hidePause();
+    player.freeMode = !camp.intro.active;
+    touch.show(!camp.intro.active);
+    if (!touch.enabled) {
+      player.lockMouse();
+      // Esc can't capture the mouse again (browsers only allow it on a click)
+      setTimeout(() => { if (!player.mouseLocked && !menuOpen() && !touch.enabled) ui.toast('برای نگاه کردن با موس، روی صفحه کلیک کنید', 3000); }, 250);
+    }
+  };
+  // Esc releases the captured mouse: like in games, that opens the settings
+  // (during the introductions it only frees the cursor, e.g. for "skip")
+  let unlockedAt = 0;
+  player.onUnlock = () => {
+    unlockedAt = performance.now();
+    if (entered && !menuOpen() && !camp.intro.active && !touch.enabled) openMenu();
+  };
   // phones / tablets: joystick + drag-to-look + buttons instead of keys & mouse
   const touch = new TouchControls(player, renderer.domElement, { onMenu: openMenu });
   touch.onEnable = () => { if (entered && !menuOpen() && !camp.intro.active) touch.show(true); };
@@ -227,6 +243,7 @@ async function build() {
     player.keys.clear();
     if (!menuOpen()) touch.show(!on);
     ui.setCinema(on);
+    if (!on && entered && !touch.enabled && !player.mouseLocked && !menuOpen()) ui.toast('برای نگاه کردن با موس، روی صفحه کلیک کنید', 3000);
   };
   camp.onCaption = (name) => ui.setCaption(name);
   camp.onFade = (a) => ui.setFade(a);
@@ -234,6 +251,7 @@ async function build() {
   if (isTouchFirst()) touch.enable();
 
   ui.on('enter', async () => {
+    if (!touch.enabled) player.lockMouse(); // while the click still counts
     try { await sound.start(); } catch (e) { console.warn('Audio failed to start', e); }
     entered = true;
     ui.hideStart();
@@ -245,13 +263,15 @@ async function build() {
       Promise.resolve(fs).then(() => screen.orientation?.lock?.('landscape')).catch(() => { /* not allowed / supported */ });
       setTimeout(() => ui.toast('حرکت: دایره پایین سمت چپ · نگاه: انگشت را روی صفحه بکشید', 6000), 900);
     } else {
-      setTimeout(() => ui.toast('نگاه: کلیک راست را نگه دار و موس را بکش · تنظیمات: Esc', 6000), 900);
+      setTimeout(() => ui.toast('نگاه: موس را حرکت بده · آزاد کردن موس و تنظیمات: Esc', 6000), 900);
     }
   });
   ui.on('resume', closeMenu);
   window.addEventListener('keydown', (e) => {
-    // Esc opens / closes the settings menu
-    if (e.code !== 'Escape' || !entered) return;
+    // Space / Enter skip the introductions (the cursor is hidden then)
+    if (camp.intro.active && (e.code === 'Space' || e.code === 'Enter') && !menuOpen()) { e.preventDefault(); camp.intro.skip(); return; }
+    // Esc opens / closes the settings menu (unless it just released the mouse)
+    if (e.code !== 'Escape' || !entered || performance.now() - unlockedAt < 400) return;
     if (!menuOpen()) openMenu();
     else closeMenu();
   });

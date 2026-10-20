@@ -1,7 +1,7 @@
 import { WORLD, SPAWN, PUDDLES } from '../core/config.js';
 import { damp, clamp } from '../utils/noise.js';
 
-// First-person controller: right-drag mouse look (cursor stays visible), WASD (physical keys, so
+// First-person controller: game-style mouse look (pointer lock), WASD (physical keys, so
 // it works with a Persian keyboard layout too), Shift to run, smooth
 // acceleration, terrain following, gentle head-bob and footstep events.
 
@@ -38,26 +38,36 @@ export class PlayerController {
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && this.active) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    // Mouse look: only while the RIGHT mouse button is held and dragged.
-    // Moving the mouse otherwise (or leaving it anywhere, even at the edge of
-    // the screen) never turns the view; the cursor is never locked or hidden.
-    this.dragging = false;
+    // Mouse look like in PC games: the mouse is captured (pointer lock), the
+    // cursor disappears and moving the mouse turns the view freely, with no
+    // screen edges. Esc gives the cursor back (the page then opens the
+    // settings); a click on the view captures it again.
     this.freeMode = false; // set once the player has entered the forest
-    const stopDrag = () => { this.dragging = false; this.dom.style.cursor = ''; };
-    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); });
+    this.mouseLocked = false;
+    this.onUnlock = null;
+    document.addEventListener('pointerlockchange', () => {
+      const was = this.mouseLocked;
+      this.mouseLocked = document.pointerLockElement === dom;
+      if (was && !this.mouseLocked) this.onUnlock?.();
+    });
+    document.addEventListener('pointerlockerror', () => { this.mouseLocked = false; });
+    window.addEventListener('blur', () => this.keys.clear());
     dom.addEventListener('contextmenu', (e) => e.preventDefault());
-    dom.addEventListener('mousedown', (e) => {
-      if (e.button !== 2 || !this.active) return;
-      this.dragging = true;
-      dom.style.cursor = 'grabbing';
-      e.preventDefault();
-    });
-    window.addEventListener('mouseup', (e) => { if (e.button === 2) stopDrag(); });
+    dom.addEventListener('mousedown', () => { if (this.freeMode) this.lockMouse(); });
     document.addEventListener('mousemove', (e) => {
-      if (!this.dragging) return;
-      if (!(e.buttons & 2)) { stopDrag(); return; } // button released outside the window
-      this.look(clamp(e.movementX, -250, 250), clamp(e.movementY, -250, 250), 0.0042);
+      if (!this.mouseLocked || !this.active) return;
+      this.look(clamp(e.movementX, -200, 200), clamp(e.movementY, -200, 200), 0.0024);
     });
+  }
+
+  // capture the mouse (needs a click / key press just before it)
+  lockMouse() {
+    if (this.mouseLocked || this.touchMode || !this.dom.requestPointerLock) return;
+    try { this.dom.requestPointerLock()?.catch?.(() => { /* not allowed right now */ }); } catch { /* not allowed right now */ }
+  }
+
+  unlockMouse() {
+    if (document.pointerLockElement) document.exitPointerLock();
   }
 
   // turn the view by a pointer / finger movement in pixels
