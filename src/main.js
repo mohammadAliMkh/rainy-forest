@@ -82,6 +82,7 @@ async function build() {
   const puddles = new Puddles(terrain, T);
   scene.add(puddles.group);
   const rain = new Rain(terrain);
+  rain.setShelter(camp.canopy.shelter);
   rain.addTo(scene);
   const mist = new Mist(terrain);
   mist.addTo(scene);
@@ -101,7 +102,7 @@ async function build() {
   scene.add(hemi, ambient, sun, sun.target);
 
   await step(0.82, 'آهوها، پرندگان و خرگوش‌ها…');
-  const world = { terrain, collision, cabin, fire, forest, player: null, emit: () => {} };
+  const world = { terrain, collision, cabin, fire, camp, forest, player: null, emit: () => {} };
   const player = new PlayerController(camera, renderer.domElement, terrain, collision, { debug: DEBUG });
   world.player = player;
   const deer = new DeerHerd(T, world);

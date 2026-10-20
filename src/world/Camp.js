@@ -10,6 +10,7 @@ import { Patrol } from '../vehicles/Patrol.js';
 import { Hornet } from '../vehicles/Hornet.js';
 import { Smoke } from './Fire.js';
 import { INTRO } from '../people/introScript.js';
+import { Canopy } from './Canopy.js';
 
 // The camp in front of the cabin: four friends in warm clothes sitting on
 // logs and stumps around the fire drinking tea, Luna lying beside her owner,
@@ -201,6 +202,10 @@ export class Camp {
       collision.addBox(x, z, 0.32, 0.25, CAMP.crate.rot, 'prop');
     }
 
+    // ---- tarp roof over the seats ----
+    this.canopy = new Canopy(T, terrain, collision, { cx: F.x, cz: F.z, ...CAMP.canopy });
+    this.group.add(this.canopy.group);
+
     // ---- the Patrol beside the cabin ----
     {
       const car = new Patrol();
@@ -344,5 +349,6 @@ export class Camp {
     this.dog.update(dt, lunaFocus ? cam : look, lunaFocus ? 1 : this._dogExcite);
     this.steam.material.uniforms.uLight.value = env ? env.ambientLevel * 0.9 + 0.1 : 1;
     this.steam.update(dt, time, windStrength);
+    this.canopy.update(time);
   }
 }

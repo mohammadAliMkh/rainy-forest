@@ -74,6 +74,14 @@ export class RainSound {
         normalize(d, 0.6);
       });
       e.loop(roof, this.roofPanner, { gain: 0.85 });
+      // the same patter, duller, drumming on the camp's canvas tarp
+      if (this.world.camp?.canopy) {
+        const tarpPanner = e.panner(this.world.camp.canopy.center, 'rain', { ref: 2.6, rolloff: 1.4, reverb: 0.08 });
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = 0.5;
+        lp.connect(tarpPanner);
+        e.loop(roof, lp, { gain: 0.75, rate: 0.82 });
+      }
     }
 
     // positional one-shots

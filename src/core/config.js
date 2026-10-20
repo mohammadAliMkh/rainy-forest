@@ -37,6 +37,8 @@ export const CAMP = {
   crate: { dx: 1.55, dz: -1.65, rot: 0.6 },
   car: { x: 9.4, z: -17.4, yaw: -0.38 },
   bike: { x: 5.9, z: -13.4, yaw: -Math.PI / 2 + 0.3 },
+  // tarp roof over the seats (half sizes around the fire)
+  canopy: { halfX: 3.1, halfZ: 2.75 },
 };
 
 // Control points of the narrow trail (x, z). It comes out of the far forest,
