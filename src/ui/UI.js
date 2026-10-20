@@ -8,7 +8,7 @@ const STORE_KEY = 'rainy-forest-settings-v2';
 export class UI {
   constructor() {
     this.settings = {
-      volumes: { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7 },
+      volumes: { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.5 },
       muted: false,
       daySpeed: 3600,
       sensitivity: 1,
@@ -96,6 +96,10 @@ export class UI {
     const s = this.settings;
     $('enter-btn').addEventListener('click', () => this.emit('enter'));
     $('resume-btn').addEventListener('click', () => this.emit('resume'));
+    $('close-btn').addEventListener('click', () => this.emit('resume'));
+    $('replay-btn').addEventListener('click', () => this.emit('replayIntro'));
+    // a click / tap on the dimmed background closes the menu too
+    $('pause').addEventListener('click', (e) => { if (e.target === $('pause')) this.emit('resume'); });
     $('skip-btn').addEventListener('click', (e) => { e.stopPropagation(); this.emit('skip'); });
 
     for (const k of Object.keys(s.volumes)) {

@@ -397,8 +397,8 @@ export class Campfire {
     // sparks & smoke live in world space
     this.sparks = new Sparks(90);
     this.sparks.origin.copy(this.position);
-    this.smoke = new Smoke({ max: 46, rate: 5.5, origin: this.position.clone().add(new THREE.Vector3(0, 1.2, 0)), alpha: 0.2, color: 0x80868c });
-    this.smoke.material.uniforms.uWarmK.value = 0.35;
+    this.smoke = new Smoke({ max: 46, rate: 5.5, origin: this.position.clone().add(new THREE.Vector3(0, 1.2, 0)), alpha: 0.15, color: 0x80868c });
+    this.smoke.material.uniforms.uWarmK.value = 0.22;
 
     collision.addCircle(FIRE.x, FIRE.z, 1.05, 'fire');
 

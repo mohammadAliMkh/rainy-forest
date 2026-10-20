@@ -41,13 +41,23 @@ export class Soundscape {
   // a recorded voice line from the manifest, spoken from a world position.
   // Returns { duration, level() } (level = current loudness 0..1, for lip
   // sync), or null if there is no recording.
-  playVoice(key, pos, { duck = true } = {}) {
+  // `flat`: narration (the film-style introductions) - centred, not placed
+  // in 3D, so it doesn't jump between ears when the camera cuts.
+  playVoice(key, pos, { duck = true, flat = false } = {}) {
     if (!this.started) return null;
     const buf = this.engine.file(key);
     if (!buf) return null;
     const ctx = this.engine.ctx;
     // close, dry and only gently attenuated so every word is clear
-    const p = this.engine.panner(pos, 'voices', { ref: 4, rolloff: 0.5, max: 60, reverb: 0.05 });
+    let p;
+    if (flat) {
+      p = ctx.createGain();
+      p.gain.value = 1;
+      p.connect(this.engine.buses.voices);
+      const s = ctx.createGain();
+      s.gain.value = 0.05;
+      p.connect(s).connect(this.engine.reverbIn);
+    } else p = this.engine.panner(pos, 'voices', { ref: 4, rolloff: 0.5, max: 60, reverb: 0.05 });
     const an = ctx.createAnalyser();
     an.fftSize = 512;
     an.connect(p);

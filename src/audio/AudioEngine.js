@@ -22,6 +22,9 @@ export class AudioEngine {
     const AC = window.AudioContext || window.webkitAudioContext;
     this.ctx = new AC({ latencyHint: 'interactive' });
     const ctx = this.ctx;
+    ctx.resume?.(); // still inside the click
+    // iPhone: play even with the ring / silent switch on
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* not supported */ }
 
     this.out = ctx.createGain();
     const comp = ctx.createDynamicsCompressor();
@@ -54,7 +57,9 @@ export class AudioEngine {
     };
 
     this.applyVolumes();
-    await this._loadManifest();
+    // recordings load in the background (all at once); nothing waits for them
+    this.filesLoaded = false;
+    this.filesReady = this._loadManifest().then(() => { this.filesLoaded = true; });
     this.ready = true;
     if (ctx.state !== 'running') await ctx.resume();
   }
@@ -96,8 +101,8 @@ export class AudioEngine {
           return await this.ctx.decodeAudioData(await r.arrayBuffer());
         } catch { return null; }
       };
-      for (const [key, val] of Object.entries(manifest)) {
-        if (key.startsWith('_')) continue;
+      await Promise.all(Object.entries(manifest).map(async ([key, val]) => {
+        if (key.startsWith('_')) return;
         if (Array.isArray(val)) {
           const list = (await Promise.all(val.filter(Boolean).map(load))).filter(Boolean);
           if (list.length) this.files[key] = list;
@@ -105,7 +110,7 @@ export class AudioEngine {
           const b = await load(val);
           if (b) this.files[key] = b;
         }
-      }
+      }));
     } catch {
       /* no manifest: everything is synthesized */
     }

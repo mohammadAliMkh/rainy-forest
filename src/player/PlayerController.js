@@ -123,6 +123,9 @@ export class PlayerController {
       // arrow keys / Q-E turn the view (alternative to the mouse)
       const turn = (k.has('ArrowLeft') || k.has('KeyQ') ? 1 : 0) - (k.has('ArrowRight') || k.has('KeyE') ? 1 : 0);
       this.yaw += turn * 1.8 * dt;
+      // R / F tilt the view up / down
+      const tilt = (k.has('KeyR') ? 1 : 0) - (k.has('KeyF') ? 1 : 0);
+      this.pitch = clamp(this.pitch + tilt * 1.2 * dt, -1.45, 1.45);
       fx += this.touchMove.x;
       fz += this.touchMove.z;
       this.running = k.has('ShiftLeft') || k.has('ShiftRight') || this.touchRun;

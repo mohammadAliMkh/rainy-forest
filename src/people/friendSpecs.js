@@ -89,8 +89,8 @@ export const FRIENDS = {
     hold: 'none',
     guitar: true,
     outfit: {
-      jacket: { color: 0x2c2c30, tex: 'fabric', open: true, collar: 'turtle', collarColor: 0xd9d0bf, collarTex: 'knit', sleeve: 0.054, pad: 0.016 },
-      inner: { color: 0xd9d0bf },
+      jacket: { color: 0x2c2c30, tex: 'fabric', open: true, collar: 'turtle', collarColor: 0xc4c0b6, collarTex: 'knit', sleeve: 0.054, pad: 0.016 },
+      inner: { color: 0xb3afa5 }, // a cooler oatmeal so it never reads as skin in the firelight
       pants: { color: 0x2b2723, tex: 'fabric' },
       shoes: { style: 'boot', color: 0x3b2819 },
     },
