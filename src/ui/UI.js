@@ -16,6 +16,7 @@ export class UI {
       qualityV: 2,
       showFps: false,
       subtitles: false, // subtitles for the introductions (off unless the visitor wants them)
+      minimap: true,
     };
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -140,6 +141,10 @@ export class UI {
     $('quality').value = s.quality;
     $('quality').addEventListener('change', () => { s.quality = $('quality').value; this.emit('quality', s.quality); this.save(); });
 
+    $('minimap').checked = s.minimap;
+    const setMap = (on) => { s.minimap = on; $('minimap').checked = on; this.save(); this.emit('minimap', on); };
+    $('minimap').addEventListener('change', () => setMap($('minimap').checked));
+
     $('subtitles').checked = s.subtitles;
     $('subtitles').addEventListener('change', () => {
       s.subtitles = $('subtitles').checked;
@@ -157,6 +162,7 @@ export class UI {
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyM' && !e.repeat) this.setMuted(!s.muted);
+      if (e.code === 'KeyN' && !e.repeat) setMap(!s.minimap);
     });
   }
 }

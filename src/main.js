@@ -29,6 +29,7 @@ import { PlayerController } from './player/PlayerController.js';
 import { Soundscape } from './audio/Soundscape.js';
 import { UI } from './ui/UI.js';
 import { TouchControls, isTouchFirst } from './ui/TouchControls.js';
+import { Minimap } from './ui/Minimap.js';
 
 installFogChunks();
 
@@ -234,6 +235,10 @@ async function build() {
   ui.on('time', (h) => { day.setHour(h); refreshEnv(); });
   ui.on('daySpeed', (v) => { day.cycleSeconds = v; });
   ui.on('sensitivity', (v) => { player.sensitivity = v; });
+  // small map in the corner (hidden during the introductions)
+  const minimap = new Minimap({ container: document.body, trees: forest.trees, pathLine: terrain.pathLine, camp, deer });
+  const showMap = () => minimap.setVisible(entered && ui.settings.minimap && !camp.intro.active);
+  ui.on('minimap', showMap);
   ui.on('quality', (q) => {
     autoMode = q === 'auto';
     const level = autoMode ? gpu.tier : q;
@@ -255,6 +260,7 @@ async function build() {
     player.keys.clear();
     if (!menuOpen()) touch.show(!on);
     ui.setCinema(on);
+    showMap();
   };
   camp.onCaption = (name) => ui.setCaption(name);
   camp.onSubtitle = (text) => ui.setSubtitle(text);
@@ -272,6 +278,7 @@ async function build() {
     });
     entered = true;
     ui.hideStart();
+    showMap();
     player.freeMode = true;
     if (touch.enabled) {
       // full screen + landscape where the browser allows it (not on iPhone)
@@ -376,6 +383,7 @@ async function build() {
       ui.toast('صداها در حال آماده شدن‌اند…', 2500);
       waitHintAt = time + 6;
     }
+    if (entered) minimap.update(dt, player.x, player.z, player.yaw);
     sky.update(camera, time);
     fire.update(dt, time, camera, env);
     cabin.update(dt, time, camera, env, wind.strength);
