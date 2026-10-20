@@ -1,7 +1,7 @@
 import { WORLD, SPAWN, PUDDLES } from '../core/config.js';
 import { damp, clamp } from '../utils/noise.js';
 
-// First-person controller: right-drag / screen-edge mouse look (cursor stays visible), WASD (physical keys, so
+// First-person controller: right-drag mouse look (cursor stays visible), WASD (physical keys, so
 // it works with a Persian keyboard layout too), Shift to run, smooth
 // acceleration, terrain following, gentle head-bob and footstep events.
 
@@ -38,27 +38,13 @@ export class PlayerController {
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && this.active) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    // Mouse look: hold the RIGHT mouse button and drag, or rest the cursor
-    // near the edge of the view to keep turning that way. Moving the mouse
-    // elsewhere does nothing; the cursor is never locked or hidden.
+    // Mouse look: only while the RIGHT mouse button is held and dragged.
+    // Moving the mouse otherwise (or leaving it anywhere, even at the edge of
+    // the screen) never turns the view; the cursor is never locked or hidden.
     this.dragging = false;
     this.freeMode = false; // set once the player has entered the forest
-    this.pointer = null; // last cursor position over the view
-    this.exitY = 0; // -1 / 1 while the cursor is past the top / bottom edge
-    this.edgeX = 0; this.edgeY = 0;
     const stopDrag = () => { this.dragging = false; this.dom.style.cursor = ''; };
-    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); this.pointer = null; this.exitY = 0; });
-    // Above and below the page sit the browser bars and the taskbar, so the
-    // cursor leaves the page there instead of stopping at the screen edge:
-    // keep tilting that way (pitch is clamped, so it simply stops at the
-    // limit). Leaving through the sides stops turning.
-    document.documentElement.addEventListener('mouseleave', (e) => {
-      const was = this.pointer;
-      this.pointer = null;
-      if (!was) return;
-      const h = window.innerHeight;
-      this.exitY = e.clientY <= 0 ? -1 : e.clientY >= h - 1 ? 1 : 0;
-    });
+    window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); });
     dom.addEventListener('contextmenu', (e) => e.preventDefault());
     dom.addEventListener('mousedown', (e) => {
       if (e.button !== 2 || !this.active) return;
@@ -68,9 +54,6 @@ export class PlayerController {
     });
     window.addEventListener('mouseup', (e) => { if (e.button === 2) stopDrag(); });
     document.addEventListener('mousemove', (e) => {
-      // over menus / buttons the edges must not turn the view
-      this.pointer = e.target === dom ? { x: e.clientX, y: e.clientY } : null;
-      this.exitY = 0;
       if (!this.dragging) return;
       if (!(e.buttons & 2)) { stopDrag(); return; } // button released outside the window
       this.look(clamp(e.movementX, -250, 250), clamp(e.movementY, -250, 250), 0.0042);
@@ -85,27 +68,6 @@ export class PlayerController {
   }
 
   get active() { return this.debug || this.freeMode; }
-
-  // Turn while the cursor rests in a band along the window edge; faster the
-  // closer it is to the edge (the cursor stops at the monitor edge, so a
-  // maximised window keeps turning).
-  edgeTurn(dt) {
-    let ex = 0, ey = 0;
-    const p = this.pointer;
-    if (this.active && !this.dragging && p && !this.touchMode) {
-      const w = window.innerWidth, h = window.innerHeight;
-      const m = Math.max(28, Math.min(w, h) * 0.06);
-      const edge = (v, size) => {
-        const t = v < m ? -(1 - v / m) : v > size - 1 - m ? 1 - (size - 1 - v) / m : 0;
-        return Math.sign(t) * t * t;
-      };
-      ex = edge(p.x, w); ey = edge(p.y, h);
-    } else if (this.active && !this.dragging && !this.touchMode) ey = this.exitY;
-    this.edgeX = damp(this.edgeX, ex, 10, dt);
-    this.edgeY = damp(this.edgeY, ey, 10, dt);
-    this.yaw -= this.edgeX * 1.9 * this.sensitivity * dt;
-    this.pitch = clamp(this.pitch - this.edgeY * 1.3 * this.sensitivity * dt, -1.45, 1.45);
-  }
 
   surfaceAt(x, z) {
     for (const p of PUDDLES) if (Math.hypot((x - p[0]) / p[2], (z - p[1]) / p[3]) < 0.9) return 'water';
@@ -127,7 +89,6 @@ export class PlayerController {
       fz += this.touchMove.z;
       this.running = k.has('ShiftLeft') || k.has('ShiftRight') || this.touchRun;
     } else this.running = false;
-    this.edgeTurn(dt);
     const len = Math.hypot(fx, fz);
     if (len > 1) { fx /= len; fz /= len; } // keyboard diagonals; the stick stays analog
     const sp = this.running ? this.runSpeed : this.walkSpeed;
