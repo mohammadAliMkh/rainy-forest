@@ -161,6 +161,9 @@ async function build() {
     vegetation.setQuality(q);
     puddles.setReflections(q.reflections, q.reflectionSize, q.reflectEvery || 1);
     mist.setCount(q.mistCount);
+    // the lantern costs a light per pixel: the lowest level does without it
+    // and gets a little more moonlight instead (switching levels recompiles anyway)
+    lantern.visible = name !== 'low';
     syncPixelRatio();
   };
   const syncPixelRatio = () => {
@@ -176,9 +179,11 @@ async function build() {
   // the whole level only changes when resolution alone can't keep up (or
   // there is clear headroom). Never goes more than one level above the GPU
   // guess; a level it had to leave is only tried again after ~30 s of
-  // plenty of headroom. The low mark sits under 30 so screens / battery
-  // savers that cap at 30 FPS don't drag the quality down for nothing.
-  const gov = { t0: 0, frames: 0, holdUntil: 0, highStreak: 0, calm: 0, ceiling: Math.min(TIERS.length - 1, TIERS.indexOf(gpu.tier) + 1) };
+  // plenty of headroom, then 60 s, and after two failed tries never again
+  // (each level change recompiles shaders, a short hitch). The low mark sits
+  // under 30 so screens / battery savers that cap at 30 FPS don't drag the
+  // quality down for nothing.
+  const gov = { t0: 0, frames: 0, holdUntil: 0, highStreak: 0, calm: 0, wait: 15, fails: 0, retried: false, ceiling: Math.min(TIERS.length - 1, TIERS.indexOf(gpu.tier) + 1) };
   gov.maxCeiling = gov.ceiling;
   gov.reset = (hold = 3) => { gov.t0 = 0; gov.frames = 0; gov.holdUntil = performance.now() + hold * 1000; gov.highStreak = 0; };
   const setLevel = (name) => {
@@ -199,9 +204,18 @@ async function build() {
     if (fps < 27) {
       gov.highStreak = 0; gov.calm = 0;
       if (pr > q.minScale + 0.01) { renderer.setScale(pr - (fps < 22 ? 0.2 : 0.1)); syncPixelRatio(); gov.reset(1); }
-      else if (i > 0) { gov.ceiling = Math.min(gov.ceiling, i - 1); setLevel(TIERS[i - 1]); }
+      else if (i > 0) {
+        if (gov.retried && now - gov.retriedAt < 90000) {
+          // a retried level failed again: wait twice as long, give up after two
+          gov.retried = false;
+          gov.wait *= 2;
+          if (++gov.fails >= 2) gov.maxCeiling = Math.min(gov.maxCeiling, i - 1);
+        }
+        gov.ceiling = Math.min(gov.ceiling, i - 1);
+        setLevel(TIERS[i - 1]);
+      }
     } else if (fps > 55) {
-      if (++gov.calm >= 15 && gov.ceiling < gov.maxCeiling) { gov.ceiling++; gov.calm = 0; }
+      if (++gov.calm >= gov.wait && gov.ceiling < gov.maxCeiling) { gov.ceiling++; gov.calm = 0; gov.retried = true; gov.retriedAt = now; }
       if (++gov.highStreak < 2) return;
       gov.highStreak = 0;
       if (pr < q.maxScale - 0.01) { renderer.setScale(pr + 0.1); syncPixelRatio(); gov.reset(1); }
@@ -252,7 +266,10 @@ async function build() {
     if (entered) return;
     // the audio context is created inside this click; the recordings load in
     // the background, so the forest opens right away
-    sound.start().catch((e) => console.warn('Audio failed to start', e));
+    sound.start().catch((e) => {
+      console.warn('Audio failed to start', e);
+      sound.engine.filesLoaded = true; // no sound: the introductions must not wait forever
+    });
     entered = true;
     ui.hideStart();
     player.freeMode = true;
@@ -334,7 +351,7 @@ async function build() {
 
   // ---------- main loop ----------
   const clock = new THREE.Clock();
-  let time = 0, envTimer = 0, fpsAcc = 0, fpsFrames = 0;
+  let time = 0, envTimer = 0, fpsAcc = 0, fpsFrames = 0, waitHintAt = 0;
   const frame = (forcedDt) => {
     const dt = forcedDt ?? Math.min(clock.getDelta(), 0.05);
     time += dt;
@@ -351,7 +368,13 @@ async function build() {
       const dark = THREE.MathUtils.clamp((0.48 - env.ambientLevel) / 0.12, 0, 1);
       const on = camp.intro.active ? 0 : dark;
       lantern.intensity += (on * 5.5 - lantern.intensity) * Math.min(1, dt * 2);
+      if (!lantern.visible) hemi.intensity += dark * 0.3;
       lantern.position.set(0.28, -0.42, -0.3).applyQuaternion(camera.quaternion).add(camera.position);
+    }
+    if (entered && !camp.intro.done && !sound.engine.filesLoaded && time > waitHintAt
+      && Math.hypot(camera.position.x - FIRE.x, camera.position.z - FIRE.z) < 5.2) {
+      ui.toast('صداها در حال آماده شدن‌اند…', 2500);
+      waitHintAt = time + 6;
     }
     sky.update(camera, time);
     fire.update(dt, time, camera, env);
