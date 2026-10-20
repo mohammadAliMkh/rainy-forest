@@ -491,7 +491,7 @@ function limbGeometry(r0, r1, len, segs = 14) {
 }
 
 // right hand: fingers along -Y, palm normal +Z, thumb toward +X
-function handGeometry(skinCol, holding) {
+function handGeometry(skinCol, holding, open = false) {
   const parts = [];
   const palm = new THREE.SphereGeometry(1, 14, 10);
   palm.scale(0.04, 0.05, 0.018);
@@ -510,6 +510,21 @@ function handGeometry(skinCol, holding) {
     const th = limbGeometry(0.0095, 0.0082, 0.042, 8);
     th.rotateZ(Math.PI / 2 - 0.35);
     th.translate(0.02, -0.052, 0.012);
+    parts.push(th);
+  } else if (open) {
+    // open hand (waving): straight, slightly spread fingers, thumb out
+    for (let i = 0; i < 4; i++) {
+      const len = [0.044, 0.05, 0.052, 0.048][i];
+      const f = limbGeometry(0.0086, 0.0074, len, 8);
+      f.rotateX(0.08);
+      f.rotateZ((i - 1.5) * 0.09);
+      f.translate(0.027 - i * 0.018, -0.088, 0.002);
+      parts.push(f);
+    }
+    const th = limbGeometry(0.0098, 0.0082, 0.046, 8);
+    th.rotateZ(1.05);
+    th.rotateX(0.15);
+    th.translate(0.036, -0.032, 0.006);
     parts.push(th);
   } else {
     for (let i = 0; i < 4; i++) {
@@ -808,6 +823,17 @@ export class Human {
       const hand = new THREE.Mesh(hg, mats.skin);
       hand.castShadow = true;
       wrist.add(hand);
+      // a free hand also has an open pose (for waving); both stay separate meshes
+      let openHand = null;
+      if (!holding) {
+        const og = handGeometry(skinCol, false, true);
+        if (s < 0) flipWinding(og.scale(1, 1, -1));
+        openHand = new THREE.Mesh(og, mats.skin);
+        openHand.castShadow = true;
+        openHand.visible = false;
+        openHand.userData.keep = hand.userData.keep = true;
+        wrist.add(openHand);
+      }
       let glass = null;
       if (holding) {
         glass = teaGlass(mats);
@@ -837,7 +863,7 @@ export class Human {
           wrist.add(r);
         }
       }
-      this.arms.push({ side: s, shoulder, elbow, wrist, upperLen, foreLen, glass });
+      this.arms.push({ side: s, shoulder, elbow, wrist, upperLen, foreLen, glass, hand, openHand });
     }
 
     // ---- legs ----
@@ -981,6 +1007,13 @@ export class Human {
     } else {
       A.wrist.quaternion.identity();
     }
+  }
+
+  setHandOpen(i, open) {
+    const A = this.arms[i];
+    if (!A.openHand) return;
+    A.openHand.visible = open;
+    A.hand.visible = !open;
   }
 
   // place the rim of the glass held by arm i at `rim` (world)

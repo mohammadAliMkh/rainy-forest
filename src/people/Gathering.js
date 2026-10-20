@@ -57,6 +57,9 @@ export class Gathering {
 
   byName(key) { return this.people.find((p) => p.seat.key === key); }
 
+  // one short "hello" wave: raise the hand, wave a few times, lower it
+  _waveAt(p, delay = 0) { p.waveFrom = this.time + delay; p.waveUntil = p.waveFrom + 2.3; }
+
   _nextSpeaker() {
     const n = this.people.length;
     let next = Math.floor(this.rand() * n);
@@ -89,10 +92,20 @@ export class Gathering {
       const c = this.people[0].seat.center;
       const d = Math.hypot(cam.x - c.x, cam.z - c.z);
       playerNear = d < 6.5;
-      if (playerNear && !this.greeted) { this.greeted = true; this.greetT = 3.2; }
+      if (playerNear && !this.greeted) {
+        this.greeted = true;
+        this.greetT = 3.2;
+        for (const p of this.people) if (p.seat.waves) this._waveAt(p, 0.3);
+      }
       if (d > 14) this.greeted = false;
     }
     this.greetT = Math.max(0, this.greetT - dt);
+    // whoever starts being introduced waves once, after the cut has faded in
+    if (this.focus !== this._prevFocus) {
+      this._prevFocus = this.focus;
+      const fp = this.focus && this.focus !== 'owner' && this.focus !== 'luna' ? this.byName(this.focus) : null;
+      if (fp) this._waveAt(fp, 0.7);
+    }
 
     for (let i = 0; i < this.people.length; i++) {
       const p = this.people[i];
@@ -183,7 +196,9 @@ export class Gathering {
       const poleL = p.right.clone().multiplyScalar(-0.7).addScaledVector(UP, -0.6).addScaledVector(p.fwd, -0.3);
       p.gesture = damp(p.gesture, talking && this.focus !== 'owner' && this.focus !== 'luna' ? 1 : 0, 3, dt);
       // being introduced: raise a hand to the player (the owner puts his on his chest)
-      p.wave = damp(p.wave, (this.greetT > 0.6 && p.seat.waves && !saying) || (focused && p.seat.key !== 'owner') ? 1 : 0, 4, dt);
+      const waving = !saying && this.time > (p.waveFrom ?? 0) && this.time < (p.waveUntil ?? 0);
+      p.wave = damp(p.wave, waving ? 1 : 0, 5, dt);
+      h.setHandOpen(1, p.wave > 0.35);
       p.beckon = damp(p.beckon ?? 0, saying && !this.focus && this.line.t < this.line.dur - 0.4 ? 1 : 0, 4, dt);
       p.chest = damp(p.chest ?? 0, focused && p.seat.key === 'owner' ? 1 : 0, 4, dt);
       const restL = kneeL.clone().addScaledVector(UP, 0.07 * h.root.scale.x).addScaledVector(p.fwd, -0.13);
@@ -209,11 +224,17 @@ export class Gathering {
         fingL = fingL.lerp(p.fwd.clone().addScaledVector(UP, 0.4), p.gesture).normalize();
       }
       if (p.wave > 0.01) {
+        // hand up beside the head, palm toward the player, waving from the
+        // wrist with a little sway of the forearm
         const sh = h.arms[1].shoulder.getWorldPosition(new THREE.Vector3());
-        const w = sh.addScaledVector(UP, 0.32).addScaledVector(p.fwd, 0.12).addScaledVector(p.right, -0.12 + Math.sin(this.time * 9) * 0.05);
+        const toCam = _w.subVectors(cam, sh).setY(0).normalize();
+        const osc = Math.sin((this.time - (p.waveFrom ?? 0)) * 8.5);
+        const w = sh.addScaledVector(UP, 0.26).addScaledVector(p.right, -0.16 + osc * 0.025).addScaledVector(toCam, 0.14);
         tL = tL.clone().lerp(w, p.wave);
-        thumbL = thumbL.lerp(p.right.clone().negate(), p.wave).normalize();
-        fingL = fingL.lerp(UP.clone(), p.wave).normalize();
+        const fingers = UP.clone().applyAxisAngle(toCam, osc * 0.32).addScaledVector(p.right, -0.15).normalize();
+        const thumb = new THREE.Vector3().crossVectors(toCam, fingers).normalize(); // palm faces the player
+        thumbL = thumbL.lerp(thumb, p.wave).normalize();
+        fingL = fingL.lerp(fingers, p.wave).normalize();
       }
       if (p.beckon > 0.01) {
         // "come, sit with us": palm up toward the player, fingers curling in
