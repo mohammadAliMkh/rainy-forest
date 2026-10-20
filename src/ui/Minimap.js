@@ -32,6 +32,11 @@ export class Minimap {
     container.appendChild(this.el);
     this.ctx = this.canvas.getContext('2d');
     this.el.addEventListener('click', (e) => { e.stopPropagation(); this.toggleZoom(); });
+    this._size = 0;
+    const measure = () => { this._size = this.el.clientWidth; };
+    window.addEventListener('resize', measure);
+    this._measure = measure;
+    this._acc = 1;
     this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this._updateZoomLabel();
 
@@ -111,19 +116,32 @@ export class Minimap {
     this._updateZoomLabel();
   }
 
-  _updateZoomLabel() { this.zoomLabel.textContent = this.zoom ? 'دور' : 'نزدیک'; }
+  // "close" / "wide" appears for a moment after switching (or showing the
+  // map), then fades so it never covers anything
+  _updateZoomLabel() {
+    this.zoomLabel.textContent = this.zoom ? 'دور' : 'نزدیک';
+    this.zoomLabel.classList.add('show');
+    clearTimeout(this._zoomT);
+    this._zoomT = setTimeout(() => this.zoomLabel.classList.remove('show'), 2200);
+  }
 
   setVisible(on) {
+    const was = this.visible && !this.el.classList.contains('hidden');
     this.visible = on;
     this.el.classList.toggle('hidden', !on);
+    if (on) { this._measure(); if (!was) this._updateZoomLabel(); }
   }
 
   // x / z / yaw of the player (yaw 0 = looking toward -Z)
   update(dt, x, z, yaw) {
     this.time += dt;
     if (!this.visible) return;
-    const el = this.el;
-    const css = el.clientWidth;
+    // redraw at ~30 Hz: plenty for a map, half the cost at 60 FPS
+    this._acc += dt;
+    if (this._acc < 1 / 30) return;
+    this._acc = 0;
+    if (!this._size) this._measure();
+    const css = this._size;
     if (!css) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const size = Math.round(css * dpr);
@@ -165,15 +183,25 @@ export class Minimap {
       return [sx, sy];
     };
     // deer
-    for (const a of this.deer?.agents ?? []) dot(a.x, a.z, 2.2, '#a9784a', 'rgba(0,0,0,0.5)');
+    // deer: only the ones fairly close, in a neutral colour (orange means the camp)
+    for (const a of this.deer?.agents ?? []) {
+      if (Math.hypot(a.x - x, a.z - z) < 40) dot(a.x, a.z, 2, '#cfc6b4', 'rgba(0,0,0,0.5)');
+    }
     // fire (flickering glow) and the friends around it
     const fl = 0.8 + Math.sin(this.time * 9) * 0.1 + Math.sin(this.time * 23) * 0.08;
     const [fx, fy] = toScreen(FIRE.x, FIRE.z);
-    const glow = g.createRadialGradient(fx, fy, 0, fx, fy, 9 * dpr);
-    glow.addColorStop(0, `rgba(255, 190, 90, ${0.9 * fl})`);
-    glow.addColorStop(1, 'rgba(255, 120, 30, 0)');
-    g.fillStyle = glow;
-    g.fillRect(fx - 10 * dpr, fy - 10 * dpr, 20 * dpr, 20 * dpr);
+    if (this._glowDpr !== dpr) {
+      this._glow = g.createRadialGradient(0, 0, 0, 0, 0, 9 * dpr);
+      this._glow.addColorStop(0, 'rgba(255, 190, 90, 0.9)');
+      this._glow.addColorStop(1, 'rgba(255, 120, 30, 0)');
+      this._glowDpr = dpr;
+    }
+    g.save();
+    g.globalAlpha = fl;
+    g.translate(fx, fy);
+    g.fillStyle = this._glow;
+    g.fillRect(-10 * dpr, -10 * dpr, 20 * dpr, 20 * dpr);
+    g.restore();
     dot(FIRE.x, FIRE.z, 2.6, '#ffb347');
     for (const p of this.camp.gathering.people) dot(p.seat.x, p.seat.z, 2.4, '#efe2c4', 'rgba(0,0,0,0.55)');
     // Luna
@@ -181,32 +209,38 @@ export class Minimap {
     if (d) dot(d.x, d.z, 2.3, '#111', '#e9e3d6');
 
     // labels: upright, skipped when they would overlap
+    // in order of importance (the fire is where everyone goes first)
+    const small = css < 140;
     const labels = [
-      ['کلبه', CABIN.x, CABIN.z],
-      ['ماشین', CAMP.car.x, CAMP.car.z],
-      ['موتور', CAMP.bike.x, CAMP.bike.z],
       ['آتش', FIRE.x, FIRE.z],
-      ['لونا', d?.x, d?.z],
+      ['کلبه', CABIN.x, CABIN.z],
+      ...(small ? [] : [['ماشین', CAMP.car.x, CAMP.car.z], ['موتور', CAMP.bike.x, CAMP.bike.z], ['لونا', d?.x, d?.z]]),
     ];
+    const northA = Math.atan2(-cos, sin); // direction of world -Z on screen
+    const northX = R + Math.cos(northA) * (R - 9 * dpr), northY = R + Math.sin(northA) * (R - 9 * dpr);
     if (this.zoom === 0) {
       g.font = `600 ${10 * dpr}px Vazirmatn, Tahoma, sans-serif`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      const boxes = [];
+      const boxes = [[northX - 8 * dpr, northY - 8 * dpr, 16 * dpr, 16 * dpr]]; // the north letter
       for (const [text, wx, wz] of labels) {
         if (wx === undefined) continue;
-        const [sx, sy0] = toScreen(wx, wz);
-        const sy = sy0 - 9 * dpr;
-        if (Math.hypot(sx - R, sy - R) > R - 10 * dpr) continue;
+        const [px, py] = toScreen(wx, wz);
         const w = g.measureText(text).width + 6 * dpr, h = 13 * dpr;
-        const box = [sx - w / 2, sy - h / 2, w, h];
-        if (boxes.some((b) => box[0] < b[0] + b[2] && b[0] < box[0] + box[2] && box[1] < b[1] + b[3] && b[1] < box[1] + box[3])) continue;
-        boxes.push(box);
-        g.lineWidth = 3 * dpr;
-        g.strokeStyle = 'rgba(10, 14, 12, 0.85)';
-        g.strokeText(text, sx, sy);
-        g.fillStyle = '#f2e9d8';
-        g.fillText(text, sx, sy);
+        // above the place, else below, right or left of it; skipped if all are taken
+        for (const [ox, oy] of [[0, -9], [0, 10], [w / dpr / 2 + 6, 0], [-w / dpr / 2 - 6, 0]]) {
+          const sx = px + ox * dpr, sy = py + oy * dpr;
+          if (Math.hypot(sx - R, sy - R) > R - 10 * dpr) continue;
+          const box = [sx - w / 2, sy - h / 2, w, h];
+          if (boxes.some((b) => box[0] < b[0] + b[2] && b[0] < box[0] + box[2] && box[1] < b[1] + b[3] && b[1] < box[1] + box[3])) continue;
+          boxes.push(box);
+          g.lineWidth = 3 * dpr;
+          g.strokeStyle = 'rgba(10, 14, 12, 0.85)';
+          g.strokeText(text, sx, sy);
+          g.fillStyle = '#f2e9d8';
+          g.fillText(text, sx, sy);
+          break;
+        }
       }
     }
     g.restore();
@@ -236,9 +270,7 @@ export class Minimap {
     }
     // north marker on the rim (ش = شمال)
     {
-      const a = Math.atan2(-cos, sin); // direction of world -Z on screen
-      const rr = R - 9 * dpr;
-      const nx = R + Math.cos(a) * rr, ny = R + Math.sin(a) * rr;
+      const nx = northX, ny = northY;
       g.font = `700 ${10 * dpr}px Vazirmatn, Tahoma, sans-serif`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
