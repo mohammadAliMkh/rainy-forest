@@ -306,6 +306,5 @@ body.touch .toast { bottom: auto; top: 70px; max-width: 86vw; text-align: center
   transition: opacity 0.6s ease;
 }
 .skip-btn:hover { color: var(--text); }
-.skip-btn kbd { font-size: 0.72rem; padding: 1px 6px; margin-inline-start: 4px; }
 .cinema.hidden .skip-btn { opacity: 0; pointer-events: none; }
 .fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 7; }
