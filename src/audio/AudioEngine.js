@@ -9,7 +9,7 @@ export class AudioEngine {
   constructor() {
     this.ctx = null;
     this.ready = false;
-    this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1 };
+    this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.5 };
     this.muted = false;
     this.files = {};
     this.duck = 1; // ambience multiplier while someone is speaking (1 = normal)
@@ -31,7 +31,7 @@ export class AudioEngine {
     this.master.connect(this.out);
 
     this.buses = {};
-    for (const name of ['rain', 'wind', 'fire', 'wildlife', 'steps', 'voices']) {
+    for (const name of ['rain', 'wind', 'fire', 'wildlife', 'steps', 'voices', 'music']) {
       const g = ctx.createGain();
       g.connect(this.master);
       this.buses[name] = g;

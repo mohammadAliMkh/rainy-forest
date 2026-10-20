@@ -72,6 +72,7 @@ export const FRIENDS = {
   },
   // Amin: big laugh, full black beard and mustache, leather outback hat,
   // small silver earrings; charcoal coat over a cream knit turtleneck.
+  // He has his acoustic guitar on his lap and plays now and then.
   amin: {
     name: 'امین',
     seed: 44,
@@ -85,7 +86,8 @@ export const FRIENDS = {
     brows: { thick: 0.0036, width: 0.056 },
     hat: { color: 0x5b3b22 },
     earrings: true,
-    hold: 'right',
+    hold: 'none',
+    guitar: true,
     outfit: {
       jacket: { color: 0x2c2c30, tex: 'fabric', open: true, collar: 'turtle', collarColor: 0xd9d0bf, collarTex: 'knit', sleeve: 0.054, pad: 0.016 },
       inner: { color: 0xd9d0bf },

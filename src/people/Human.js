@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createNoise2D, mulberry32 } from '../utils/noise.js';
 import { merge } from '../world/plantGeometry.js';
 import { createCampTextures } from './clothTextures.js';
+import { buildGuitar } from './Guitar.js';
 
 // Procedural seated person: a sculpted head (brow, eye sockets, nose, lips,
 // chin, jaw), hair / beard / eyebrows grown as shells over the scalp, real
@@ -756,6 +757,15 @@ export class Human {
     headPivot.add(head.group);
     this.head = head;
     this.mouthOpenBase = spec.face?.smile ? 0.7 : 0;
+
+    // guitar resting on the right thigh against the belly, neck to the left
+    if (spec.guitar) {
+      const gt = buildGuitar();
+      gt.group.position.set(0.0, 0.2, 0.19);
+      gt.group.rotation.set(-0.22, 0, 0.42, 'XYZ');
+      spine.add(gt.group);
+      this.guitar = gt;
+    }
 
     // hat / sunglasses
     if (spec.hat) {

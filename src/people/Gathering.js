@@ -57,6 +57,57 @@ export class Gathering {
 
   byName(key) { return this.people.find((p) => p.seat.key === key); }
 
+  // Strumming pattern (eighth notes, "D-DU-UDU") over a slow I-vi-IV-V
+  // style progression; plays for a while, rests, plays again. Calls
+  // onStrum(worldPos, chord, down, velocity) on every stroke for the sound.
+  _guitar(p, i, dt, quiet) {
+    const h = p.h, gt = h.guitar;
+    if (p.gtTimer === undefined) { p.gtTimer = 6 + this.rand() * 10; p.gtPlaying = false; p.gtStep = 0; p.gtClock = 0; p.strumY = 0; }
+    p.gtTimer -= dt;
+    if (p.gtTimer <= 0) {
+      p.gtPlaying = !p.gtPlaying;
+      p.gtTimer = p.gtPlaying ? 22 + this.rand() * 25 : 14 + this.rand() * 20;
+      p.gtStep = 0; p.gtClock = 0;
+    }
+    const playing = p.gtPlaying && !quiet;
+    const PATTERN = [1, 0, 1, -1, 0, -1, 1, -1]; // 1 down, -1 up, 0 rest
+    if (playing) {
+      p.gtClock += dt;
+      const STEP = 0.34;
+      while (p.gtClock >= STEP) {
+        p.gtClock -= STEP;
+        const s = PATTERN[p.gtStep % 8];
+        const chord = Math.floor(p.gtStep / 8) % 4;
+        if (s) {
+          p.strumY = s > 0 ? 1 : -1;
+          this.onStrum?.(gt.strum.getWorldPosition(new THREE.Vector3()), chord, s > 0, s > 0 ? 0.8 + this.rand() * 0.2 : 0.45 + this.rand() * 0.15);
+        }
+        p.gtStep++;
+      }
+    }
+    // the strumming hand swings across the strings and settles in between
+    p.strumHand = damp(p.strumHand ?? 0, playing ? p.strumY : 0, playing ? 22 : 4, dt);
+    p.strumY *= Math.exp(-dt * 3);
+    h.root.updateMatrixWorld(true);
+    const gq = gt.group.getWorldQuaternion(new THREE.Quaternion());
+    const gx = new THREE.Vector3(1, 0, 0).applyQuaternion(gq); // toward the headstock
+    const gy = new THREE.Vector3(0, 1, 0).applyQuaternion(gq); // across the strings
+    const gz = new THREE.Vector3(0, 0, 1).applyQuaternion(gq); // out of the top
+    // right hand over the sound hole
+    const strum = gt.strum.getWorldPosition(new THREE.Vector3())
+      .addScaledVector(gy, 0.1 - p.strumHand * 0.055).addScaledVector(gx, -0.06).addScaledVector(gz, 0.01);
+    const poleR = p.right.clone().multiplyScalar(0.8).addScaledVector(UP, -0.3).addScaledVector(p.fwd, -0.4);
+    h.reach(0, strum, poleR, gx.clone(), gy.clone().negate().addScaledVector(gz, -0.3).normalize());
+    // left hand around the neck, fingers over the fretboard (moving with the chords)
+    const chordShift = playing ? [0, 0.02, -0.015, 0.03][Math.floor(p.gtStep / 8) % 4] : 0;
+    p.fretX = damp(p.fretX ?? 0, chordShift, 6, dt);
+    const fret = gt.fret.getWorldPosition(new THREE.Vector3())
+      .addScaledVector(gx, p.fretX).addScaledVector(gy, -0.075).addScaledVector(gz, -0.035);
+    const poleL = p.right.clone().multiplyScalar(-0.6).addScaledVector(UP, -0.8).addScaledVector(p.fwd, -0.1);
+    h.reach(1, fret, poleL, gy.clone().addScaledVector(gx, 0.4).normalize(), gy.clone().multiplyScalar(0.6).addScaledVector(gz, 0.8).normalize());
+    void i;
+  }
+
   // one short "hello" wave: raise the hand, wave a few times, lower it
   _waveAt(p, delay = 0) { p.waveFrom = this.time + delay; p.waveUntil = p.waveFrom + 2.3; }
 
@@ -104,7 +155,7 @@ export class Gathering {
     if (this.focus !== this._prevFocus) {
       this._prevFocus = this.focus;
       const fp = this.focus && this.focus !== 'owner' && this.focus !== 'luna' ? this.byName(this.focus) : null;
-      if (fp) this._waveAt(fp, 0.7);
+      if (fp && !fp.h.guitar) this._waveAt(fp, 0.7); // the guitarist keeps his hands on the guitar
     }
 
     for (let i = 0; i < this.people.length; i++) {
@@ -134,7 +185,7 @@ export class Gathering {
         target = k === i ? this.people[(k + 1) % this.people.length].headPos : this.people[k].headPos;
         if (playerNear && Math.floor(this.time / 2.3 + i) % 4 === 0) target = cam;
       } else if (p.sipPhase >= 0) target = _t.copy(p.headPos).addScaledVector(p.fwd, 1).setY(p.headPos.y - 0.25);
-      else if (this.dog && p.seat.key === 'owner' && p.pet > 0.5) target = this.dog.headWorld;
+      else if (this.dog && p.pet > 0.5) target = this.dog.headWorld;
       else {
         target = this.people[this.speaker].headPos;
         if (playerNear && Math.floor(this.time / 3.1 + i * 1.7) % 5 === 0) target = cam;
@@ -154,6 +205,9 @@ export class Gathering {
       // breathing + laughter shaking the shoulders
       h.spine.rotation.x = p.baseLean + Math.sin(this.time * 1.6 + i) * 0.008 + h.laugh * Math.sin(this.time * 15) * 0.025 - h.laugh * 0.05;
       h.spine.rotation.y = p.yaw * 0.12;
+
+      // ---- Amin and his guitar ----
+      if (h.guitar) { this._guitar(p, i, dt, talking || laughing || !!this.line); h.updateFace(dt); continue; }
 
       // ---- sipping tea ----
       p.nextSip -= dt;
@@ -205,9 +259,11 @@ export class Gathering {
       let tL = restL;
       let thumbL = p.fwd.clone().negate();
       let fingL = p.fwd.clone().addScaledVector(p.right, 0.25).normalize();
-      if (this.dog && p.seat.key === 'owner') {
-        const petting = (Math.sin(this.time * 0.13) > 0.1 && !talking) || focusLuna;
-        p.pet = damp(p.pet, petting ? 1 : 0, 2, dt);
+      // whoever Luna is lying beside strokes her now and then
+      const besideLuna = this.dog && this.dog.restingBy === p.seat.key && this.dog.isLying;
+      const petting = besideLuna && ((Math.sin(this.time * 0.13 + i * 1.3) > 0.1 && !talking) || focusLuna);
+      p.pet = damp(p.pet, petting ? 1 : 0, 2, dt);
+      if (this.dog) {
         if (p.pet > 0.01) {
           const stroke = Math.sin(this.time * 2.2) * 0.07;
           const back = this.dog.backWorld.clone().addScaledVector(this.dog.forward, stroke).addScaledVector(UP, 0.06);

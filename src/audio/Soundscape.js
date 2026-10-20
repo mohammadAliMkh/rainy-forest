@@ -4,6 +4,7 @@ import { WindSound } from './sounds/WindSound.js';
 import { FireSound } from './sounds/FireSound.js';
 import { WildlifeSound } from './sounds/WildlifeSound.js';
 import { Footsteps } from './sounds/Footsteps.js';
+import { GuitarSound } from './sounds/GuitarSound.js';
 
 // Orchestrates the whole forest soundscape. Must be started from a user
 // gesture (the "enter the forest" button) because of browser autoplay rules.
@@ -17,6 +18,7 @@ export class Soundscape {
     this.fire = new FireSound(this.engine, world);
     this.wildlife = new WildlifeSound(this.engine, world);
     this.steps = new Footsteps(this.engine);
+    this.guitar = new GuitarSound(this.engine);
     this.started = false;
   }
 
@@ -28,6 +30,7 @@ export class Soundscape {
     this.fire.start();
     this.wildlife.start();
     this.steps.start();
+    this.guitar.start();
     this.started = true;
   }
 
@@ -65,6 +68,10 @@ export class Soundscape {
         return Math.min(1, Math.sqrt(s / data.length) * 6);
       },
     };
+  }
+
+  strum(pos, chord, down, velocity) {
+    if (this.started) this.guitar.strum(pos, chord, down, velocity);
   }
 
   footstep(info) {
