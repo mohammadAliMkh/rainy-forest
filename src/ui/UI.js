@@ -51,6 +51,23 @@ export class UI {
     this._toastT = setTimeout(() => t.classList.remove('show'), ms);
   }
 
+  setCinema(on) {
+    $('cinema').classList.toggle('hidden', !on);
+    if (!on) this.setCaption(null);
+  }
+
+  setFade(a) {
+    if (a === this._fade) return;
+    this._fade = a;
+    $('fade').style.opacity = a;
+  }
+
+  setCaption(name) {
+    const el = $('caption');
+    if (name) el.textContent = name;
+    el.classList.toggle('show', !!name);
+  }
+
   setClock(str, hour) {
     $('clock').textContent = str;
     if (document.activeElement !== $('time-of-day')) $('time-of-day').value = hour;
@@ -79,6 +96,7 @@ export class UI {
     const s = this.settings;
     $('enter-btn').addEventListener('click', () => this.emit('enter'));
     $('resume-btn').addEventListener('click', () => this.emit('resume'));
+    $('skip-btn').addEventListener('click', (e) => { e.stopPropagation(); this.emit('skip'); });
 
     for (const k of Object.keys(s.volumes)) {
       const el = $(`vol-${k}`);
