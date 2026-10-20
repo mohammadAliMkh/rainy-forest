@@ -250,6 +250,7 @@ export class Camp {
   //   onVoice(key, position) -> { duration, done, level(), stop() } | null
   //   onDuck(on) (lower the ambience during speech)
   //   voicesReady() -> bool (the introductions wait for the recordings)
+  //   onSubtitle(text | null) (optional subtitle of the current line)
   //   onCinematic(on), onCaption(name | null), onFade(0..1) (film-style intro, see IntroDirector)
 
   update(dt, time, camera, env, windStrength) {

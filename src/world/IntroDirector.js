@@ -59,6 +59,7 @@ export class IntroDirector {
       g.say('owner', v.duration + 0.2);
       g.focus = step.focus;
       this.camp.onCaption?.(this._name(step.focus));
+      this.camp.onSubtitle?.(step.text || null);
       return;
     }
     // nothing recorded at all: he still turns to the player and beckons
@@ -72,13 +73,15 @@ export class IntroDirector {
     this.w = 0;
     g.focus = null;
     this.camp.onCaption?.(null);
+    this.camp.onSubtitle?.(null);
     this.camp.onDuck?.(false);
     this.camp.onCinematic?.(false);
   }
 
   _name(focus) {
     if (focus === 'luna') return 'لونا';
-    if (!focus) return null;
+    // the welcome and his own introduction: a neutral title (his name isn't shown)
+    if (!focus || focus === 'owner') return this.camp.gathering.byName('owner')?.spec.name || 'میزبان';
     return this.camp.gathering.byName(focus)?.spec.name || null;
   }
 

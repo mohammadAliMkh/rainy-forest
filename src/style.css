@@ -334,6 +334,21 @@ body.touch .toast { bottom: auto; top: 70px; max-width: 86vw; text-align: center
   transition: opacity 0.8s ease, transform 0.8s ease;
 }
 .caption.show { opacity: 1; transform: none; }
+/* optional subtitles: above the bottom bar, left of the name caption */
+.intro-sub {
+  position: absolute;
+  left: 6vw;
+  right: 30vw;
+  bottom: calc(11vh + 14px);
+  text-align: center;
+  font-size: clamp(0.85rem, 1.9vw, 1.2rem);
+  line-height: 1.7;
+  color: #f3eee6;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.intro-sub.show { opacity: 1; }
 .skip-btn {
   pointer-events: auto;
   position: absolute;

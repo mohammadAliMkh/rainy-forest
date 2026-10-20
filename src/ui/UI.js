@@ -15,6 +15,7 @@ export class UI {
       quality: 'auto',
       qualityV: 2,
       showFps: false,
+      subtitles: false, // subtitles for the introductions (off unless the visitor wants them)
     };
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -53,13 +54,22 @@ export class UI {
 
   setCinema(on) {
     $('cinema').classList.toggle('hidden', !on);
-    if (!on) this.setCaption(null);
+    if (!on) { this.setCaption(null); this.setSubtitle(null); }
   }
 
   setFade(a) {
     if (a === this._fade) return;
     this._fade = a;
     $('fade').style.opacity = a;
+  }
+
+  // subtitle of the line being spoken; only shown when turned on in the menu
+  setSubtitle(text) {
+    this._subText = text || null;
+    const el = $('intro-sub');
+    const show = !!this._subText && this.settings.subtitles;
+    if (show) el.textContent = this._subText;
+    el.classList.toggle('show', show);
   }
 
   setCaption(name) {
@@ -129,6 +139,13 @@ export class UI {
 
     $('quality').value = s.quality;
     $('quality').addEventListener('change', () => { s.quality = $('quality').value; this.emit('quality', s.quality); this.save(); });
+
+    $('subtitles').checked = s.subtitles;
+    $('subtitles').addEventListener('change', () => {
+      s.subtitles = $('subtitles').checked;
+      this.save();
+      this.setSubtitle(this._subText);
+    });
 
     $('show-fps').checked = s.showFps;
     $('fps').classList.toggle('hidden', !s.showFps);

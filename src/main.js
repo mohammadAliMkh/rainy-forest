@@ -243,6 +243,7 @@ async function build() {
     ui.setCinema(on);
   };
   camp.onCaption = (name) => ui.setCaption(name);
+  camp.onSubtitle = (text) => ui.setSubtitle(text);
   camp.onFade = (a) => ui.setFade(a);
   ui.on('skip', () => camp.intro.skip());
   if (isTouchFirst()) touch.enable();
