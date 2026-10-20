@@ -229,7 +229,7 @@ export class Camp {
 
   // hooks set by main:
   //   onVoice(key, position) -> { duration, level() } | null (no recording)
-  //   onSubtitle(text, ms), onDuck(on) (lower the ambience during speech)
+  //   onDuck(on) (lower the ambience during speech)
 
   _startIntro() {
     this.seq = { i: -1, t: 0, gap: 0, dur: 0, voice: null, played: 0 };
@@ -248,14 +248,10 @@ export class Camp {
       s.played++;
       this.gathering.say('owner', v.duration + 0.2);
       this.gathering.focus = step.focus;
-      if (step.text) this.onSubtitle?.(step.text, (v.duration + 0.6) * 1000);
       return;
     }
-    // finished (or nothing could be played: show the welcome as text only)
-    if (!s.played && INTRO[0]) {
-      this.gathering.say('owner', 6);
-      this.onSubtitle?.(INTRO[0].text, 7000);
-    }
+    // finished (without any recording he still turns to the player and beckons)
+    if (!s.played) this.gathering.say('owner', 6);
     this.seq = null;
     this.gathering.focus = null;
     this.onDuck?.(false);

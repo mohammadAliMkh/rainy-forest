@@ -77,7 +77,6 @@ async function build() {
   cabin.addTo(scene);
   fire.addTo(scene);
   camp.addTo(scene);
-  camp.onSubtitle = (text, ms) => ui.subtitle(text, ms);
 
   await step(0.72, 'باران، مه و گودال‌های آب…');
   const puddles = new Puddles(terrain, T);
