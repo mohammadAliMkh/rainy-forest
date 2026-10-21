@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { merge } from '../world/plantGeometry.js';
+import { merge } from './geometry.js';
 
 // Merge every mesh under `root` (that doesn't move relative to it) into one
 // mesh per material, to keep draw calls low. `keep(mesh)` returning true

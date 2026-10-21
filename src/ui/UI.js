@@ -2,6 +2,8 @@
 // time of day, day speed, mouse sensitivity, graphics quality), toast hints.
 // Settings are remembered in localStorage when available.
 
+import { EventBus } from '../engine/events.ts';
+
 const $ = (id) => document.getElementById(id);
 const STORE_KEY = 'rainy-forest-settings-v2';
 
@@ -24,11 +26,27 @@ export class UI {
       // older saves stored the then-default "medium": switch them to automatic
       if (saved && saved.qualityV !== 2) { this.settings.quality = 'auto'; this.settings.qualityV = 2; }
     } catch { /* storage unavailable */ }
-    this.handlers = {};
+    /** what the screens announce (list: ./events.ts) @type {EventBus<import('./events.ts').UiEvents>} */
+    this.events = new EventBus();
   }
 
-  on(name, fn) { this.handlers[name] = fn; }
-  emit(name, ...a) { this.handlers[name]?.(...a); }
+  /**
+   * listen to a screen event; returns a function that stops listening
+   * @template {keyof import('./events.ts').UiEvents} K
+   * @param {K} name
+   * @param {(payload: import('./events.ts').UiEvents[K]) => void} fn
+   */
+  on(name, fn) { return this.events.on(name, fn); }
+
+  /**
+   * @template {keyof import('./events.ts').UiEvents} K
+   * @param {K} name
+   * @param {import('./events.ts').UiEvents[K]} [payload]
+   */
+  emit(name, payload) { this.events.emit(name, /** @type {import('./events.ts').UiEvents[K]} */ (payload)); }
+
+  /** the settings menu is showing */
+  isMenuOpen() { return !$('pause').classList.contains('hidden'); }
 
   save() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(this.settings)); } catch { /* ignore */ }
@@ -118,7 +136,7 @@ export class UI {
       el.value = s.volumes[k];
       el.addEventListener('input', () => {
         s.volumes[k] = parseFloat(el.value);
-        this.emit('volume', k, s.volumes[k]);
+        this.emit('volume', { key: k, value: s.volumes[k] });
         this.save();
       });
     }
