@@ -78,7 +78,7 @@ export class Camp {
       collision.addCircle(x + fwd.x * 0.2, z + fwd.z * 0.2, 0.45, 'person');
       seats.push({ key: s.key, spec: FRIENDS[s.key], x, y: top, z, facing, lean: s.lean, kneeSpread: s.kneeSpread, waves: s.waves, center: F });
     }
-    this.gathering = new Gathering(seats, shared, rand, events);
+    this.gathering = new Gathering(seats, shared, rand, this.events);
     this.group.add(this.gathering.group);
     // static parts of each person merged per material (heads keep eyes / lids / mouth separate)
     for (const p of this.gathering.people) {
@@ -256,7 +256,7 @@ export class Camp {
   // the voice service (set by app/createGame.js):
   //   voices.play(key, position) -> { duration, done, level(), stop() } | null
   //   voices.ready() -> bool (the introductions wait for the recordings)
-  // what the introductions announce is listed in config/events.js (INTRO_*)
+  // what the introductions announce is listed in config/events.ts (INTRO_*)
 
   update(dt, time, camera, env, windStrength) {
     // the owner welcomes the player and introduces everyone (once per visit)

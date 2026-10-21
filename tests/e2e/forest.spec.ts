@@ -9,7 +9,11 @@ async function open(page: Page, errors: string[]) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/?debug');
-  await page.waitForFunction(() => (window as any).forest && !document.getElementById('start')!.classList.contains('hidden'), null, { timeout: 240_000 });
+  // ready (start screen showing) or failed (the loading screen shows the error)
+  await page.waitForFunction(() => ((window as any).forest && !document.getElementById('start')!.classList.contains('hidden'))
+    || document.getElementById('loading-step')!.textContent!.startsWith('خطا'), null, { timeout: 240_000 });
+  const failed = await page.textContent('#loading-step');
+  expect(failed?.startsWith('خطا') ? failed : '', 'building the scene failed').toBe('');
 }
 
 const enter = (page: Page) => page.evaluate(() => {
