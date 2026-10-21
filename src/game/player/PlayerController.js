@@ -1,12 +1,14 @@
 import { WORLD, SPAWN, PUDDLES } from '../../config/config.js';
 import { damp, clamp } from '../../utils/noise.js';
+import { EV } from '../../config/events.js';
 
 // First-person controller: right-drag / screen-edge mouse look (cursor stays visible), WASD (physical keys, so
 // it works with a Persian keyboard layout too), Shift to run, smooth
 // acceleration, terrain following, gentle head-bob and footstep events.
 
 export class PlayerController {
-  constructor(camera, dom, terrain, collision, { debug = false } = {}) {
+  constructor(camera, dom, terrain, collision, { debug = false, events = null } = {}) {
+    this.events = events;
     this.camera = camera;
     this.dom = dom;
     this.terrain = terrain;
@@ -30,7 +32,6 @@ export class PlayerController {
     this.touchRun = false;
     this.bobPhase = 0;
     this.stepIndex = 0;
-    this.onStep = null;
     this.idleT = 0;
 
     window.addEventListener('keydown', (e) => {
@@ -147,8 +148,8 @@ export class PlayerController {
     const idx = Math.floor(this.bobPhase / Math.PI);
     if (idx !== this.stepIndex) {
       this.stepIndex = idx;
-      if (this.speed > 0.4 && this.onStep) {
-        this.onStep({ running: this.running, surface: this.surfaceAt(this.x, this.z), side: idx % 2 ? 1 : -1, speed: this.speed });
+      if (this.speed > 0.4 && this.events) {
+        this.events?.emit(EV.PLAYER_STEP, { running: this.running, surface: this.surfaceAt(this.x, this.z), side: idx % 2 ? 1 : -1, speed: this.speed });
       }
     }
     const moveK = clamp(this.speed / this.walkSpeed, 0, 1.6);

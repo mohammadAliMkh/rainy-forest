@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { INTRO } from './introScript.js';
+import { EV } from '../../config/events.js';
 
 // The owner's welcome and introductions, played like a film scene: the
 // player's camera hands over to a film camera that cuts (a quick dip to
@@ -31,8 +32,8 @@ export class IntroDirector {
     if (this.done) return;
     this.done = true;
     this.seq = { i: -1, t: 0, gap: 0, voice: null, played: 0, step: null };
-    this.camp.onDuck?.(true);
-    this.camp.onCinematic?.(true);
+    this.camp.events.emit(EV.INTRO_DUCK, true);
+    this.camp.events.emit(EV.INTRO_CINEMATIC, true);
     this._cut(() => { this.w = 1; this._next(); });
   }
 
@@ -52,14 +53,14 @@ export class IntroDirector {
     const owner = g.byName('owner');
     while (++s.i < INTRO.length) {
       const step = INTRO[s.i];
-      const v = this.camp.onVoice?.(step.key, owner.headPos) ?? null;
+      const v = this.camp.voices?.play(step.key, owner.headPos) ?? null;
       if (!v) continue; // no recording for this step (yet)
       Object.assign(s, { voice: v, t: 0, gap: 0, step });
       s.played++;
       g.say('owner', v.duration + 0.2);
       g.focus = step.focus;
-      this.camp.onCaption?.(this._name(step.focus));
-      this.camp.onSubtitle?.(step.text || null);
+      this.camp.events.emit(EV.INTRO_CAPTION, this._name(step.focus));
+      this.camp.events.emit(EV.INTRO_SUBTITLE, step.text || null);
       return;
     }
     // nothing recorded at all: he still turns to the player and beckons
@@ -72,10 +73,10 @@ export class IntroDirector {
     this.seq = null;
     this.w = 0;
     g.focus = null;
-    this.camp.onCaption?.(null);
-    this.camp.onSubtitle?.(null);
-    this.camp.onDuck?.(false);
-    this.camp.onCinematic?.(false);
+    this.camp.events.emit(EV.INTRO_CAPTION, null);
+    this.camp.events.emit(EV.INTRO_SUBTITLE, null);
+    this.camp.events.emit(EV.INTRO_DUCK, false);
+    this.camp.events.emit(EV.INTRO_CINEMATIC, false);
   }
 
   _name(focus) {
@@ -94,7 +95,7 @@ export class IntroDirector {
       this.fade = Math.max(0, this.fade - dt / 0.5);
       if (this.fade <= 0) this.cutPhase = null;
     }
-    this.camp.onFade?.(this.fade);
+    this.camp.events.emit(EV.INTRO_FADE, this.fade);
     const s = this.seq;
     if (!s || !s.voice || this.cutPhase === 'out') return;
     s.t += dt;

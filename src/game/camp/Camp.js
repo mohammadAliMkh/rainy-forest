@@ -20,7 +20,11 @@ import { Carport } from './Carport.js';
 // side stand. Built before the forest so its colliders keep trees away.
 
 export class Camp {
-  constructor(T, terrain, collision) {
+  // events: the game's event bus (the introductions and the guitar announce
+  // themselves on it); voices: { play(key, position), ready() } is set later
+  constructor(T, terrain, collision, { events } = {}) {
+    this.events = events;
+    this.voices = null;
     this.group = new THREE.Group();
     const rand = mulberry32(2024);
     const F = new THREE.Vector3(FIRE.x, terrain.heightAt(FIRE.x, FIRE.z), FIRE.z);
@@ -71,7 +75,7 @@ export class Camp {
       collision.addCircle(x + fwd.x * 0.2, z + fwd.z * 0.2, 0.45, 'person');
       seats.push({ key: s.key, spec: FRIENDS[s.key], x, y: top, z, facing, lean: s.lean, kneeSpread: s.kneeSpread, waves: s.waves, center: F });
     }
-    this.gathering = new Gathering(seats, shared, rand);
+    this.gathering = new Gathering(seats, shared, rand, events);
     this.group.add(this.gathering.group);
     // static parts of each person merged per material (heads keep eyes / lids / mouth separate)
     for (const p of this.gathering.people) {
@@ -246,18 +250,16 @@ export class Camp {
 
   addTo(scene) { scene.add(this.group); }
 
-  // hooks set by main:
-  //   onVoice(key, position) -> { duration, done, level(), stop() } | null
-  //   onDuck(on) (lower the ambience during speech)
-  //   voicesReady() -> bool (the introductions wait for the recordings)
-  //   onSubtitle(text | null) (optional subtitle of the current line)
-  //   onCinematic(on), onCaption(name | null), onFade(0..1) (film-style intro, see IntroDirector)
+  // the voice service (set by app/createGame.js):
+  //   voices.play(key, position) -> { duration, done, level(), stop() } | null
+  //   voices.ready() -> bool (the introductions wait for the recordings)
+  // what the introductions announce is listed in config/events.js (INTRO_*)
 
   update(dt, time, camera, env, windStrength) {
     // the owner welcomes the player and introduces everyone (once per visit)
     {
       const cam = camera.position;
-      if (!this.intro.done && (this.voicesReady?.() ?? true) && Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z) < 5.2) this.intro.start();
+      if (!this.intro.done && (this.voices?.ready() ?? true) && Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z) < 5.2) this.intro.start();
       this.intro.update(dt);
     }
     this.gathering.update(dt, time, camera);

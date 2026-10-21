@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Human } from './Human.js';
 import { damp, clamp } from '../../utils/noise.js';
+import { EV } from '../../config/events.js';
 
 // The friends sitting around the fire: who talks, who listens, sips of tea,
 // laughter, glances at the dog and a greeting when the player walks up.
@@ -29,7 +30,8 @@ class Seated {
 }
 
 export class Gathering {
-  constructor(seats, shared, rand) {
+  constructor(seats, shared, rand, events) {
+    this.events = events;
     this.group = new THREE.Group();
     this.people = seats.map((s) => new Seated(s.spec, s, shared, rand));
     for (const p of this.people) this.group.add(p.h.root);
@@ -80,7 +82,7 @@ export class Gathering {
         const chord = Math.floor(p.gtStep / 8) % 4;
         if (s) {
           p.strumY = s > 0 ? 1 : -1;
-          this.onStrum?.(gt.strum.getWorldPosition(new THREE.Vector3()), chord, s > 0, s > 0 ? 0.8 + this.rand() * 0.2 : 0.45 + this.rand() * 0.15);
+          this.events?.emit(EV.GUITAR_STRUM, { position: gt.strum.getWorldPosition(new THREE.Vector3()), chord, down: s > 0, velocity: s > 0 ? 0.8 + this.rand() * 0.2 : 0.45 + this.rand() * 0.15 });
         }
         p.gtStep++;
       }

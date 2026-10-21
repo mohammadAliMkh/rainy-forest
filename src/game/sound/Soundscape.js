@@ -5,12 +5,15 @@ import { FireSound } from './sounds/FireSound.js';
 import { WildlifeSound } from './sounds/WildlifeSound.js';
 import { Footsteps } from './sounds/Footsteps.js';
 import { GuitarSound } from './sounds/GuitarSound.js';
+import { EV } from '../../config/events.js';
 
 // Orchestrates the whole forest soundscape. Must be started from a user
 // gesture (the "enter the forest" button) because of browser autoplay rules.
+// It listens on the event bus for what makes a sound (steps, the guitar,
+// animals) and lowers the ambience while the introductions speak.
 
 export class Soundscape {
-  constructor(world) {
+  constructor(world, events) {
     this.world = world;
     this.engine = new AudioEngine();
     this.rain = new RainSound(this.engine, world);
@@ -20,6 +23,12 @@ export class Soundscape {
     this.steps = new Footsteps(this.engine);
     this.guitar = new GuitarSound(this.engine);
     this.started = false;
+    if (events) {
+      events.on(EV.PLAYER_STEP, (info) => this.footstep(info));
+      events.on(EV.GUITAR_STRUM, ({ position, chord, down, velocity }) => this.strum(position, chord, down, velocity));
+      events.on(EV.CREATURE_SOUND, ({ type, source }) => this.onEvent(type, source));
+      events.on(EV.INTRO_DUCK, (on) => this.engine.setDucking(on));
+    }
   }
 
   async start() {
