@@ -322,7 +322,7 @@ body.touch .desktop-only { display: none; }
   height: 44px;
   border-radius: 50%;
 }
-body.touch .toast { bottom: auto; top: 70px; max-width: 86vw; text-align: center; }
+body.touch .toast { bottom: auto; top: 70px; max-width: min(86vw, calc(100vw - 240px)); text-align: center; }
 
 /* ---------- film-style introductions ---------- */
 .cinema { position: fixed; inset: 0; z-index: 7; pointer-events: none; }
@@ -445,15 +445,17 @@ body.touch .toast { bottom: auto; top: 70px; max-width: 86vw; text-align: center
   transition: opacity 0.6s ease;
 }
 .minimap-zoom.show { opacity: 1; }
-/* phones: top left, out of the way of the joystick and the run button */
+/* phones: small, top right under the sound button (out of the way of the
+   joystick, the run button and the view) */
 body.touch .minimap {
-  right: auto;
+  right: 14px;
   bottom: auto;
-  left: calc(env(safe-area-inset-left, 0px) + 12px);
-  top: 12px;
-  width: 128px;
-  height: 128px;
+  top: 68px;
+  width: 92px;
+  height: 92px;
+  border-width: 1.5px;
 }
+body.touch .minimap-zoom { bottom: 5px; font-size: 0.56rem; }
 /* phones: the optional FPS readout goes to the bottom middle, off the map */
 body.touch .fps { top: auto; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); transform: translateX(-50%); }
 @media (max-height: 520px) {
