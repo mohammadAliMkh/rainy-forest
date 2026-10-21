@@ -1,0 +1,136 @@
+{
+  "_credits": "Models: Poly Haven (polyhaven.com), CC0 public domain",
+  "models": {
+    "ferns": {
+      "file": "assets/models/ferns.glb",
+      "source": "fern_02",
+      "parts": [
+        "fern_a",
+        "fern_b",
+        "fern_c",
+        "fern_d"
+      ],
+      "kb": 160
+    },
+    "rocks_big": {
+      "file": "assets/models/rocks_big.glb",
+      "source": "rock_moss_set_01",
+      "parts": [
+        "rock_big_1",
+        "rock_big_2",
+        "rock_big_3",
+        "rock_big_4",
+        "rock_big_5",
+        "rock_big_6"
+      ],
+      "kb": 344
+    },
+    "rocks_small": {
+      "file": "assets/models/rocks_small.glb",
+      "source": "rock_moss_set_02",
+      "parts": [
+        "rock_small_7",
+        "rock_small_8",
+        "rock_small_9",
+        "rock_small_10",
+        "rock_small_11",
+        "rock_small_12",
+        "rock_small_13"
+      ],
+      "kb": 439
+    },
+    "boulder": {
+      "file": "assets/models/boulder.glb",
+      "source": "boulder_01",
+      "parts": [
+        "boulder"
+      ],
+      "kb": 1160
+    },
+    "stump_a": {
+      "file": "assets/models/stump_a.glb",
+      "source": "tree_stump_01",
+      "parts": [
+        "stump_a"
+      ],
+      "kb": 666
+    },
+    "stump_b": {
+      "file": "assets/models/stump_b.glb",
+      "source": "tree_stump_02",
+      "parts": [
+        "stump_b"
+      ],
+      "kb": 701
+    },
+    "dead_trunk": {
+      "file": "assets/models/dead_trunk.glb",
+      "source": "dead_tree_trunk",
+      "parts": [
+        "dead_trunk"
+      ],
+      "kb": 465
+    },
+    "branches": {
+      "file": "assets/models/branches.glb",
+      "source": "dry_branches_medium_01",
+      "parts": [
+        "branch_a",
+        "branch_b",
+        "branch_c"
+      ],
+      "kb": 196
+    },
+    "shrubs": {
+      "file": "assets/models/shrubs.glb",
+      "source": "shrub_02",
+      "parts": [
+        "shrub_a",
+        "shrub_b",
+        "shrub_d"
+      ],
+      "kb": 225
+    },
+    "grass": {
+      "file": "assets/models/grass.glb",
+      "source": "grass_medium_02",
+      "parts": [
+        "grass_c",
+        "grass_d",
+        "grass_e"
+      ],
+      "kb": 49
+    },
+    "ferns_lo": {
+      "file": "assets/models/ferns_lo.glb",
+      "source": "fern_02",
+      "parts": [
+        "fern_a_lo",
+        "fern_b_lo",
+        "fern_c_lo",
+        "fern_d_lo"
+      ],
+      "kb": 63
+    },
+    "grass_lo": {
+      "file": "assets/models/grass_lo.glb",
+      "source": "grass_medium_02",
+      "parts": [
+        "grass_c_lo",
+        "grass_d_lo",
+        "grass_e_lo"
+      ],
+      "kb": 23
+    },
+    "shrubs_lo": {
+      "file": "assets/models/shrubs_lo.glb",
+      "source": "shrub_02",
+      "parts": [
+        "shrub_a_lo",
+        "shrub_b_lo",
+        "shrub_d_lo"
+      ],
+      "kb": 85
+    }
+  }
+}

@@ -200,7 +200,77 @@ export class Terrain {
       normalScale: new THREE.Vector2(0.9, 0.9),
     });
     const mud = T.mud, mudN = T.mudNormal;
-    mat.onBeforeCompile = (shader) => {
+    const sc = T.scanned;
+    if (sc && sc.ground && sc.ground2 && sc.mud) {
+      // scanned forest floor: two leaf-litter layers mixed by large-scale noise
+      // (hides tiling), wet mud on the trail, roughness & AO from the scans
+      mat.roughness = 1;
+      mat.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, {
+          tMud: { value: sc.mud.map }, tMudN: { value: sc.mud.normal }, tMudArm: { value: sc.mud.arm },
+          tG2: { value: sc.ground2.map }, tG2N: { value: sc.ground2.normal }, tG2Arm: { value: sc.ground2.arm },
+          tGArm: { value: sc.ground.arm },
+          uSize: { value: new THREE.Vector3(sc.ground.size, sc.ground2.size, sc.mud.size) },
+        });
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', `#include <common>
+attribute vec2 aMask;
+varying vec2 vMask;
+varying vec2 vGroundUv;`)
+          .replace('#include <uv_vertex>', `#include <uv_vertex>
+vMask = aMask;
+vGroundUv = vec2(position.x, -position.z);`);
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', `#include <common>
+uniform sampler2D tMud; uniform sampler2D tMudN; uniform sampler2D tMudArm;
+uniform sampler2D tG2; uniform sampler2D tG2N; uniform sampler2D tG2Arm; uniform sampler2D tGArm;
+uniform vec3 uSize;
+varying vec2 vMask;
+varying vec2 vGroundUv;
+float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  float a = fract(sin(dot(i, vec2(127.1,311.7)))*43758.5), b = fract(sin(dot(i+vec2(1,0), vec2(127.1,311.7)))*43758.5);
+  float c = fract(sin(dot(i+vec2(0,1), vec2(127.1,311.7)))*43758.5), d = fract(sin(dot(i+vec2(1,1), vec2(127.1,311.7)))*43758.5);
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y); }`)
+          .replace('#include <map_fragment>', `
+vec2 uvA = vGroundUv / uSize.x;
+vec2 uvB = vGroundUv / uSize.y + vec2(0.31, 0.77);
+vec2 uvM = vGroundUv / uSize.z;
+float layer = smoothstep(0.35, 0.65, gN(vGroundUv * 0.07) * 0.75 + gN(vGroundUv * 0.23) * 0.25);
+float pathK = smoothstep( 0.15, 0.85, vMask.x );
+vec4 cA = texture2D( map, uvA );
+vec4 cB = texture2D( tG2, uvB );
+vec3 floorCol = mix( cA.rgb, cB.rgb, layer );
+// slow brightness variation breaks up any remaining repetition
+floorCol *= 0.85 + 0.3 * gN(vGroundUv * 0.045 + 7.0);
+floorCol *= vec3(0.74, 0.8, 0.68); // darker, greener: wet forest floor in the rain
+floorCol *= mix( vec3(1.0), vec3(0.9, 1.06, 0.85), vMask.y * 0.5 );
+vec3 mudCol = texture2D( tMud, uvM ).rgb * 0.82;
+#ifdef TERRAIN_LITE
+// laptop GPUs: no roughness / AO texture reads (4 fewer per pixel)
+vec3 armMix = vec3( 0.85, 0.92, 0.0 );
+#else
+vec3 armA = texture2D( tGArm, uvA ).rgb, armB = texture2D( tG2Arm, uvB ).rgb, armM = texture2D( tMudArm, uvM ).rgb;
+vec3 armMix = mix( mix( armA, armB, layer ), armM, pathK );
+#endif
+diffuseColor.rgb *= mix( floorCol, mudCol, pathK ) * mix( 1.0, armMix.r, 0.6 );
+`)
+          .replace('#include <roughnessmap_fragment>', `
+// rain-soaked: everything a bit glossier, the trail mud much more
+float roughnessFactor = armMix.g * mix( 0.85, 0.45, pathK );
+`)
+          .replace('#include <normal_fragment_maps>', `
+#ifdef TERRAIN_LITE
+vec3 mapN = mix( texture2D( normalMap, uvA ).xyz, texture2D( tMudN, uvM ).xyz, pathK ) * 2.0 - 1.0;
+#else
+vec3 nA = texture2D( normalMap, uvA ).xyz, nB = texture2D( tG2N, uvB ).xyz, nM = texture2D( tMudN, uvM ).xyz;
+vec3 mapN = mix( mix( nA, nB, layer ), nM, pathK ) * 2.0 - 1.0;
+#endif
+mapN.xy *= normalScale;
+normal = normalize( tbn * mapN );
+`);
+      };
+      mat.customProgramCacheKey = () => 'terrain-scanned';
+    } else mat.onBeforeCompile = (shader) => {
       shader.uniforms.tMud = { value: mud };
       shader.uniforms.tMudN = { value: mudN };
       shader.vertexShader = shader.vertexShader
@@ -242,7 +312,17 @@ normal = normalize( tbn * mapN );
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     mesh.name = 'terrain';
+    mesh.userData.customShading = true;
     return mesh;
+  }
+
+  /** lighter ground shader on laptop-class quality levels */
+  setQuality(preset) {
+    const mat = this.mesh.material;
+    const lite = !preset.richFoliage;
+    if (!!(mat.defines && 'TERRAIN_LITE' in mat.defines) === lite) return;
+    mat.defines = lite ? { TERRAIN_LITE: '' } : {};
+    mat.needsUpdate = true;
   }
 
   spawnPosition() {

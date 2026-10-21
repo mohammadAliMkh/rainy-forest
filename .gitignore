@@ -3,3 +3,5 @@ dist
 .claude
 test-results/
 playwright-report/
+graphVenv/
+__pycache__/

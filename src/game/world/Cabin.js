@@ -35,7 +35,7 @@ export class Cabin {
     const roofN = T.shinglesNormal.clone();
     roofN.repeat.copy(roofTex.repeat);
     roofN.needsUpdate = true;
-    const roofMat = new THREE.MeshStandardMaterial({ map: roofTex, normalMap: roofN, roughness: 0.5, envMapIntensity: 0.9 });
+    const roofMat = new THREE.MeshStandardMaterial({ map: roofTex, normalMap: roofN, roughness: 0.5, envMapIntensity: 0.9, color: 0x77767a });
     const plankMat = new THREE.MeshStandardMaterial({ map: T.planks, roughness: 0.8 });
     const stoneMat = new THREE.MeshStandardMaterial({ map: T.stone, normalMap: T.stoneNormal, roughness: 0.55, vertexColors: true });
     const stoneTex = T.stone.clone(); stoneTex.repeat.set(1.5, 3); stoneTex.needsUpdate = true;

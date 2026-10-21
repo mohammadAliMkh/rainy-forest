@@ -1,0 +1,124 @@
+{
+  "_credits": "Textures: Poly Haven (polyhaven.com), CC0 public domain",
+  "textures": {
+    "ground": {
+      "asset": "forest_leaves_02",
+      "size": [
+        3.0,
+        3.0
+      ],
+      "maps": {
+        "diff": "assets/tex/ground_diff.webp",
+        "nor": "assets/tex/ground_nor.webp",
+        "arm": "assets/tex/ground_arm.webp"
+      }
+    },
+    "ground2": {
+      "asset": "forest_leaves_04",
+      "size": [
+        1.5,
+        1.5
+      ],
+      "maps": {
+        "diff": "assets/tex/ground2_diff.webp",
+        "nor": "assets/tex/ground2_nor.webp",
+        "arm": "assets/tex/ground2_arm.webp"
+      }
+    },
+    "mud": {
+      "asset": "mud_forest",
+      "size": [
+        2.35,
+        2.35
+      ],
+      "maps": {
+        "diff": "assets/tex/mud_diff.webp",
+        "nor": "assets/tex/mud_nor.webp",
+        "arm": "assets/tex/mud_arm.webp"
+      }
+    },
+    "bark": {
+      "asset": "pine_bark",
+      "size": [
+        2.0,
+        2.0
+      ],
+      "maps": {
+        "diff": "assets/tex/bark_diff.webp",
+        "nor": "assets/tex/bark_nor.webp",
+        "arm": "assets/tex/bark_arm.webp"
+      }
+    },
+    "bark2": {
+      "asset": "bark_brown_02",
+      "size": [
+        1.0,
+        1.0
+      ],
+      "maps": {
+        "diff": "assets/tex/bark2_diff.webp",
+        "nor": "assets/tex/bark2_nor.webp",
+        "arm": "assets/tex/bark2_arm.webp"
+      }
+    },
+    "stone": {
+      "asset": "mossy_rock",
+      "size": [
+        3.0,
+        3.0
+      ],
+      "maps": {
+        "diff": "assets/tex/stone_diff.webp",
+        "nor": "assets/tex/stone_nor.webp",
+        "arm": "assets/tex/stone_arm.webp"
+      }
+    },
+    "wood": {
+      "asset": "rough_wood",
+      "size": [
+        0.5,
+        0.5
+      ],
+      "maps": {
+        "diff": "assets/tex/wood_diff.webp",
+        "nor": "assets/tex/wood_nor.webp",
+        "arm": "assets/tex/wood_arm.webp"
+      }
+    },
+    "planks": {
+      "asset": "weathered_brown_planks",
+      "size": [
+        1.8,
+        1.8
+      ],
+      "maps": {
+        "diff": "assets/tex/planks_diff.webp",
+        "nor": "assets/tex/planks_nor.webp",
+        "arm": "assets/tex/planks_arm.webp"
+      }
+    },
+    "shingles": {
+      "asset": "roof_slates_02",
+      "size": [
+        3.0,
+        3.0
+      ],
+      "maps": {
+        "diff": "assets/tex/shingles_diff.webp",
+        "nor": "assets/tex/shingles_nor.webp",
+        "arm": "assets/tex/shingles_arm.webp"
+      }
+    },
+    "needles": {
+      "asset": "fir_sapling (Blender card bake)",
+      "size": [
+        1,
+        1
+      ],
+      "card": true,
+      "maps": {
+        "diff": "assets/tex/needles_diff.webp"
+      }
+    }
+  }
+}

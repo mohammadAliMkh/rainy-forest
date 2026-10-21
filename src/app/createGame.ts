@@ -10,6 +10,8 @@ import { Renderer } from '../engine/render/Renderer.js';
 import { detectGpu } from '../engine/render/gpuTier.js';
 import { QualityManager } from '../engine/quality/QualityManager.ts';
 import { createTextures, setMaxAnisotropy } from '../game/world/textures.js';
+import { loadScannedTextures, upgradeScannedMaterials, type TextureSet } from '../game/world/scannedTextures.ts';
+import { loadEnvModels } from '../game/world/envModels.ts';
 import { Terrain } from '../game/world/Terrain.js';
 import { Forest } from '../game/world/Forest.js';
 import { Vegetation, DETAIL_LAYER } from '../game/world/Vegetation.js';
@@ -80,6 +82,10 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const gpu = detectGpu(renderer.renderer);
   const quality = new QualityManager({ renderer, events, gpuTier: gpu.tier, setting: ui.settings.quality });
   const T = createTextures({ detail: quality.preset.texDetail });
+  await step(0.12, 'بارگذاری بافت‌های اسکن‌شده از طبیعت…');
+  const aniso = Math.min(8, renderer.renderer.capabilities.getMaxAnisotropy());
+  const [, models] = await Promise.all([loadScannedTextures(T, aniso), loadEnvModels(aniso)]);
+  (T as TextureSet).models = models;
 
   await step(0.2, 'شکل دادن زمین و مسیر جنگلی…');
   const terrain = new Terrain(T);
@@ -150,6 +156,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   // ---------- graphics quality ----------
   events.on(EV.QUALITY_CHANGED, ({ name, preset }) => {
     lighting.setQuality(name, preset);
+    terrain.setQuality(preset);
     forest.setQuality(preset);
     vegetation.setQuality(preset);
     puddles.setReflections(preset.reflections, preset.reflectionSize, preset.reflectEvery || 1);
@@ -184,6 +191,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
 
   // ---------- warm-up ----------
   await step(0.92, 'آماده‌سازی نور و سایه‌ها…');
+  upgradeScannedMaterials(scene, T);
   day.apply(true);
   lighting.refreshEnv();
   const culling = new Culling({ camera, forest, vegetation });
