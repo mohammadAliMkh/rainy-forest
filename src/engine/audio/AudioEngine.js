@@ -7,10 +7,14 @@ import { loopBuffer, white, pink, brown, biquad } from './dsp.js';
 
 export class AudioEngine {
   constructor() {
+    /** @type {AudioContext | null} */
     this.ctx = null;
     this.ready = false;
+    /** recordings have finished loading (or failed): nothing waits any longer */
+    this.filesLoaded = false;
     this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.5 };
     this.muted = false;
+    /** @type {Record<string, AudioBuffer | AudioBuffer[]>} */
     this.files = {};
     this.duck = 1; // ambience multiplier while someone is speaking (1 = normal)
     this._fwd = new THREE.Vector3();
@@ -33,6 +37,7 @@ export class AudioEngine {
     this.master = ctx.createGain();
     this.master.connect(this.out);
 
+    /** @type {Record<string, GainNode>} */
     this.buses = {};
     for (const name of ['rain', 'wind', 'fire', 'wildlife', 'steps', 'voices', 'music']) {
       const g = ctx.createGain();
@@ -58,7 +63,6 @@ export class AudioEngine {
 
     this.applyVolumes();
     // recordings load in the background (all at once); nothing waits for them
-    this.filesLoaded = false;
     this.filesReady = this._loadManifest().then(() => { this.filesLoaded = true; });
     this.ready = true;
     if (ctx.state !== 'running') await ctx.resume();

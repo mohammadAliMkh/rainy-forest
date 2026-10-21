@@ -23,7 +23,9 @@ npm run dev
 
 نسخه نهایی برای انتشار: `npm run build` (خروجی در پوشه `dist`).
 
-بررسی نوع‌ها (TypeScript) بدون ساختن: `npm run typecheck`. دستور build هم اول همین را اجرا می‌کند.
+بررسی نوع‌ها (TypeScript) و قانون لایه‌ها بدون ساختن: `npm run typecheck`. دستور build هم اول همین را اجرا می‌کند.
+
+آزمون‌های خودکار در مرورگر: `npm run test:e2e` (بار اول: `npx playwright install chromium`).
 
 ## دور آتش
 

@@ -3,7 +3,7 @@ import type { QualityName, QualityPreset } from '../../config/config.js';
 import type { Renderer } from '../../engine/render/Renderer.js';
 import type { Sky } from '../weather/Sky.js';
 import type { DayCycle } from '../weather/DayCycle.js';
-import type { PlayerController } from '../player/PlayerController.js';
+import type { PlayerController } from '../player/PlayerController.ts';
 import type { FrameBase } from '../../engine/Game.ts';
 
 interface LightingFrame extends FrameBase {

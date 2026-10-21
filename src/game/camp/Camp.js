@@ -4,12 +4,12 @@ import { mulberry32, damp } from '../../utils/noise.js';
 import { bakeByMaterial, bakeJoints } from '../../utils/bake.js';
 import { taperTube, teaGlass } from '../people/Human.js';
 import { FRIENDS } from '../people/friendSpecs.js';
-import { Gathering } from '../people/Gathering.js';
+import { Gathering } from '../people/Gathering.ts';
 import { Dog } from '../creatures/Dog.js';
 import { Patrol } from '../vehicles/Patrol.js';
 import { Hornet } from '../vehicles/Hornet.js';
 import { Smoke } from './Fire.js';
-import { IntroDirector } from '../intro/IntroDirector.js';
+import { IntroDirector } from '../intro/IntroDirector.ts';
 import { Canopy } from './Canopy.js';
 import { Carport } from './Carport.js';
 
@@ -20,10 +20,13 @@ import { Carport } from './Carport.js';
 // side stand. Built before the forest so its colliders keep trees away.
 
 export class Camp {
-  // events: the game's event bus (the introductions and the guitar announce
-  // themselves on it); voices: { play(key, position), ready() } is set later
-  constructor(T, terrain, collision, { events } = {}) {
-    this.events = events;
+  /**
+   * @param {{ events: import('../../engine/events.ts').EventBus<import('../../config/events.ts').GameEvents> }} options
+   *   events: the game's event bus (the introductions and the guitar announce themselves on it)
+   */
+  constructor(T, terrain, collision, options) {
+    this.events = options.events;
+    /** the voice service, set by app/createGame.ts @type {import('../intro/IntroDirector.ts').VoiceService | null} */
     this.voices = null;
     this.group = new THREE.Group();
     const rand = mulberry32(2024);
@@ -262,7 +265,7 @@ export class Camp {
       if (!this.intro.done && (this.voices?.ready() ?? true) && Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z) < 5.2) this.intro.start();
       this.intro.update(dt);
     }
-    this.gathering.update(dt, time, camera);
+    this.gathering.update(dt, camera);
     // lip sync from the recording's loudness while it plays
     {
       const h = this.gathering.byName('owner').h;

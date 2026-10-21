@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { INTRO } from './introScript.js';
 import { EV } from '../../config/events.ts';
+import type { Camp } from '../camp/Camp.js';
+import type { VoiceHandle } from '../sound/Soundscape.ts';
 
 // The owner's welcome and introductions, played like a film scene: the
 // player's camera hands over to a film camera that cuts (a quick dip to
@@ -11,24 +13,53 @@ import { EV } from '../../config/events.ts';
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
 
+/** what the introductions need to play the recordings (set on the camp by app/createGame.ts) */
+export interface VoiceService {
+  play(key: string, position: THREE.Vector3): VoiceHandle | null;
+  /** the recordings have loaded (the introductions wait for them) */
+  ready(): boolean;
+}
+
+type Step = (typeof INTRO)[number];
+
+/** the introductions in progress */
+interface Sequence {
+  i: number; // index of the current line in INTRO
+  t: number; // seconds into the current line
+  gap: number; // seconds since its recording ended
+  voice: VoiceHandle | null;
+  played: number;
+  step: Step | null;
+  skipping?: boolean;
+}
+
 export class IntroDirector {
-  constructor(camp) {
+  readonly camp: Camp;
+  /** the "flag": once started it never plays again this visit (set to false to replay) */
+  done = false;
+  seq: Sequence | null = null;
+  /** 1 while the film camera owns the view */
+  private w = 0;
+  /** black dip used for cuts (0..1) */
+  private fade = 0;
+  private _sentFade = -1;
+  private cutPhase: 'out' | 'in' | null = null;
+  /** what to do once the screen is black */
+  private pending: (() => void) | null = null;
+  private snap = false;
+  private pos = new THREE.Vector3();
+  private quat = new THREE.Quaternion();
+  private fov = 70;
+  private _tPos = new THREE.Vector3();
+  private _tLook = new THREE.Vector3();
+
+  constructor(camp: Camp) {
     this.camp = camp;
-    this.done = false;          // the "flag": once started it never plays again this visit
-    this.seq = null;
-    this.w = 0;                 // 1 while the film camera owns the view
-    this.fade = 0;              // black dip used for cuts (0..1)
-    this.pending = null;        // what to do once the screen is black
-    this.pos = new THREE.Vector3();
-    this.quat = new THREE.Quaternion();
-    this.fov = 70;
-    this._tPos = new THREE.Vector3();
-    this._tLook = new THREE.Vector3();
   }
 
-  get active() { return !!this.seq; }
+  get active(): boolean { return !!this.seq; }
 
-  start() {
+  start(): void {
     if (this.done) return;
     this.done = true;
     this.seq = { i: -1, t: 0, gap: 0, voice: null, played: 0, step: null };
@@ -37,20 +68,21 @@ export class IntroDirector {
     this._cut(() => { this.w = 1; this._next(); });
   }
 
-  skip() {
+  skip(): void {
     if (!this.seq || this.seq.skipping) return;
     this.seq.skipping = true;
-    this.seq.voice?.stop?.();
+    this.seq.voice?.stop();
     this._cut(() => this._finish());
   }
 
   // dip to black, run `fn` while the screen is black, come back
-  _cut(fn) { this.pending = fn; this.cutPhase = 'out'; }
+  private _cut(fn: () => void): void { this.pending = fn; this.cutPhase = 'out'; }
 
-  _next() {
+  private _next(): void {
     const s = this.seq;
+    if (!s) return;
     const g = this.camp.gathering;
-    const owner = g.byName('owner');
+    const owner = g.byName('owner')!; // the owner always sits at the fire
     while (++s.i < INTRO.length) {
       const step = INTRO[s.i];
       const v = this.camp.voices?.play(step.key, owner.headPos) ?? null;
@@ -68,7 +100,7 @@ export class IntroDirector {
     this._finish();
   }
 
-  _finish() {
+  private _finish(): void {
     const g = this.camp.gathering;
     this.seq = null;
     this.w = 0;
@@ -79,14 +111,14 @@ export class IntroDirector {
     this.camp.events.emit(EV.INTRO_CINEMATIC, false);
   }
 
-  _name(focus) {
+  private _name(focus: string | null): string | null {
     if (focus === 'luna') return 'لونا';
     // the welcome and his own introduction: a neutral title (his name isn't shown)
     if (!focus || focus === 'owner') return this.camp.gathering.byName('owner')?.spec.name || 'میزبان';
     return this.camp.gathering.byName(focus)?.spec.name || null;
   }
 
-  update(dt) {
+  update(dt: number): void {
     // cut transitions
     if (this.cutPhase === 'out') {
       this.fade = Math.min(1, this.fade + dt / 0.35);
@@ -95,7 +127,7 @@ export class IntroDirector {
       this.fade = Math.max(0, this.fade - dt / 0.5);
       if (this.fade <= 0) this.cutPhase = null;
     }
-    this.camp.events.emit(EV.INTRO_FADE, this.fade);
+    if (this.fade !== this._sentFade) { this._sentFade = this.fade; this.camp.events.emit(EV.INTRO_FADE, this.fade); } // only on change
     const s = this.seq;
     if (!s || !s.voice || this.cutPhase === 'out') return;
     s.t += dt;
@@ -104,10 +136,9 @@ export class IntroDirector {
     if (s.gap > 0.6) { s.voice = null; this._cut(() => this._next()); }
   }
 
-  // where the film camera wants to be for the current line
-  _shot() {
+  // where the film camera wants to be for the current line; returns its field of view
+  private _shot(s: Sequence): number {
     const g = this.camp.gathering;
-    const s = this.seq;
     const push = Math.min(s.t, 12) / 12; // slow push-in during each line
     const focus = s.step?.focus;
     if (focus === 'luna') {
@@ -117,7 +148,7 @@ export class IntroDirector {
       this._tPos.copy(d.headWorld).addScaledVector(d.forward, 0.85 - push * 0.2).addScaledVector(left, 0.3).addScaledVector(UP, 0.1);
       return 34;
     }
-    const p = g.byName(focus || 'owner');
+    const p = g.byName(focus || 'owner')!; // everyone introduced is at the fire
     const head = p.headPos;
     if (!focus) {
       // the welcome: a medium shot of the owner beside Luna
@@ -140,12 +171,12 @@ export class IntroDirector {
   }
 
   // called right after the player has placed the camera for this frame
-  applyCamera(camera, dt) {
+  applyCamera(camera: THREE.PerspectiveCamera, dt: number): void {
     if (!this.w || !this.seq) {
       if (camera.fov !== 70) { camera.fov = 70; camera.updateProjectionMatrix(); }
       return;
     }
-    const fov = this._shot();
+    const fov = this._shot(this.seq);
     _m.lookAt(this._tPos, this._tLook, UP);
     const tq = new THREE.Quaternion().setFromRotationMatrix(_m);
     if (this.snap) { this.pos.copy(this._tPos); this.quat.copy(tq); this.fov = fov; this.snap = false; }

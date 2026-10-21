@@ -1,7 +1,7 @@
 import type { UI } from '../ui/UI.js';
-import type { Soundscape } from '../game/sound/Soundscape.js';
+import type { Soundscape } from '../game/sound/Soundscape.ts';
 import type { DayCycle } from '../game/weather/DayCycle.js';
-import type { PlayerController } from '../game/player/PlayerController.js';
+import type { PlayerController } from '../game/player/PlayerController.ts';
 import type { QualityManager } from '../engine/quality/QualityManager.ts';
 import type { Lighting } from '../game/lighting/Lighting.ts';
 
@@ -16,10 +16,10 @@ export function connectSettings({ ui, sound, day, player, quality, lighting }: {
   sound.engine.muted = s.muted;
   day.cycleSeconds = s.daySpeed;
   player.sensitivity = s.sensitivity;
-  ui.on('volume', (k: string, v: number) => sound.engine.setVolume(k, v));
-  ui.on('mute', (m: boolean) => sound.engine.setMuted(m));
-  ui.on('time', (h: number) => { day.setHour(h); lighting.refreshEnv(); });
-  ui.on('daySpeed', (v: number) => { day.cycleSeconds = v; });
-  ui.on('sensitivity', (v: number) => { player.sensitivity = v; });
-  ui.on('quality', (q: string) => quality.setSetting(q));
+  ui.on('volume', ({ key, value }) => sound.engine.setVolume(key, value));
+  ui.on('mute', (m) => sound.engine.setMuted(m));
+  ui.on('time', (h) => { day.setHour(h); lighting.refreshEnv(); });
+  ui.on('daySpeed', (v) => { day.cycleSeconds = v; });
+  ui.on('sensitivity', (v) => { player.sensitivity = v; });
+  ui.on('quality', (q) => quality.setSetting(q));
 }

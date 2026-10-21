@@ -4,9 +4,9 @@ import type { GameEvents } from '../config/events.ts';
 import type { EventBus } from '../engine/events.ts';
 import type { FrameBase } from '../engine/Game.ts';
 import type { QualityManager } from '../engine/quality/QualityManager.ts';
-import type { PlayerController } from '../game/player/PlayerController.js';
+import type { PlayerController } from '../game/player/PlayerController.ts';
 import type { Camp } from '../game/camp/Camp.js';
-import type { Soundscape } from '../game/sound/Soundscape.js';
+import type { Soundscape } from '../game/sound/Soundscape.ts';
 import type { UI } from '../ui/UI.js';
 import type { Minimap } from '../ui/Minimap.js';
 import { TouchControls, isTouchFirst } from '../ui/TouchControls.js';
@@ -88,7 +88,7 @@ export class Session {
     if (isTouchFirst()) touch.enable();
   }
 
-  menuOpen(): boolean { return !document.getElementById('pause')?.classList.contains('hidden'); }
+  menuOpen(): boolean { return this.ui.isMenuOpen(); }
 
   openMenu(): void {
     const { player } = this;

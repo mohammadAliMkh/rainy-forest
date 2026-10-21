@@ -1,3 +1,4 @@
+import type * as THREE from 'three';
 import { AudioEngine } from '../../engine/audio/AudioEngine.js';
 import { RainSound } from './sounds/RainSound.js';
 import { WindSound } from './sounds/WindSound.js';
@@ -6,32 +7,52 @@ import { WildlifeSound } from './sounds/WildlifeSound.js';
 import { Footsteps } from './sounds/Footsteps.js';
 import { GuitarSound } from './sounds/GuitarSound.js';
 import { EV } from '../../config/events.ts';
+import type { GameEvents } from '../../config/events.ts';
+import type { EventBus } from '../../engine/events.ts';
 
 // Orchestrates the whole forest soundscape. Must be started from a user
 // gesture (the "enter the forest" button) because of browser autoplay rules.
 // It listens on the event bus for what makes a sound (steps, the guitar,
 // animals) and lowers the ambience while the introductions speak.
 
+/** a recording that is playing: how long it is, whether it ended, its loudness now */
+export interface VoiceHandle {
+  duration: number;
+  readonly done: boolean;
+  stop(): void;
+  /** current loudness 0..1 (for lip sync) */
+  level(): number;
+}
+
+type CreatureSound = GameEvents[typeof EV.CREATURE_SOUND];
+
 export class Soundscape {
-  constructor(world, events) {
-    this.world = world;
-    this.engine = new AudioEngine();
+  readonly engine = new AudioEngine();
+  readonly rain: RainSound;
+  readonly wind: WindSound;
+  readonly fire: FireSound;
+  readonly wildlife: WildlifeSound;
+  readonly steps: Footsteps;
+  readonly guitar: GuitarSound;
+  started = false;
+
+  /** world: what the ambient layers listen to (terrain, fire, creatures) */
+  constructor(world: object, events?: EventBus<GameEvents>) {
     this.rain = new RainSound(this.engine, world);
     this.wind = new WindSound(this.engine, world);
     this.fire = new FireSound(this.engine, world);
     this.wildlife = new WildlifeSound(this.engine, world);
     this.steps = new Footsteps(this.engine);
     this.guitar = new GuitarSound(this.engine);
-    this.started = false;
     if (events) {
       events.on(EV.PLAYER_STEP, (info) => this.footstep(info));
       events.on(EV.GUITAR_STRUM, ({ position, chord, down, velocity }) => this.strum(position, chord, down, velocity));
-      events.on(EV.CREATURE_SOUND, ({ type, source }) => this.onEvent(type, source));
+      events.on(EV.CREATURE_SOUND, (sound) => this.onEvent(sound));
       events.on(EV.INTRO_DUCK, (on) => this.engine.setDucking(on));
     }
   }
 
-  async start() {
+  async start(): Promise<void> {
     await this.engine.init();
     if (this.started) return;
     this.rain.start();
@@ -43,38 +64,40 @@ export class Soundscape {
     this.started = true;
   }
 
-  onEvent(type, src) {
-    if (this.started) this.wildlife.onEvent(type, src);
+  onEvent(sound: CreatureSound): void {
+    if (this.started) this.wildlife.onEvent(sound.type, sound.source);
   }
 
-  // a recorded voice line from the manifest, spoken from a world position.
-  // Returns { duration, level() } (level = current loudness 0..1, for lip
-  // sync), or null if there is no recording.
+  // a recorded voice line from the manifest, spoken from a world position,
+  // or null if there is no recording.
   // `flat`: narration (the film-style introductions) - centred, not placed
   // in 3D, so it doesn't jump between ears when the camera cuts.
-  playVoice(key, pos, { duck = true, flat = false } = {}) {
+  playVoice(key: string, pos: THREE.Vector3, { duck = true, flat = false } = {}): VoiceHandle | null {
     if (!this.started) return null;
-    const buf = this.engine.file(key);
-    if (!buf) return null;
-    const ctx = this.engine.ctx;
+    const file = this.engine.file(key);
+    if (!file || Array.isArray(file)) return null;
+    const buf = file;
+    const engine = this.engine;
+    const ctx = engine.ctx!;
     // close, dry and only gently attenuated so every word is clear
-    let p;
+    let p: AudioNode;
     if (flat) {
-      p = ctx.createGain();
-      p.gain.value = 1;
-      p.connect(this.engine.buses.voices);
+      const g = ctx.createGain();
+      g.gain.value = 1;
+      g.connect(engine.buses!.voices); // buses and reverb exist once started
       const s = ctx.createGain();
       s.gain.value = 0.05;
-      p.connect(s).connect(this.engine.reverbIn);
-    } else p = this.engine.panner(pos, 'voices', { ref: 4, rolloff: 0.5, max: 60, reverb: 0.05 });
+      g.connect(s).connect(engine.reverbIn!);
+      p = g;
+    } else p = engine.panner(pos, 'voices', { ref: 4, rolloff: 0.5, max: 60, reverb: 0.05 });
     const an = ctx.createAnalyser();
     an.fftSize = 512;
     an.connect(p);
-    if (duck) this.engine.setDucking(true);
-    const src = this.engine.oneShot(buf, an, { when: 0.25 }); // after the ambience has dipped
+    if (duck) engine.setDucking(true);
+    const src = engine.oneShot(buf, an, { when: 0.25 }); // after the ambience has dipped
     const data = new Float32Array(an.fftSize);
     let ended = false;
-    src.addEventListener('ended', () => { ended = true; an.disconnect(); if (duck) this.engine.setDucking(false); });
+    src.addEventListener('ended', () => { ended = true; an.disconnect(); if (duck) engine.setDucking(false); });
     return {
       duration: buf.duration + 0.25,
       get done() { return ended; },
@@ -89,15 +112,15 @@ export class Soundscape {
     };
   }
 
-  strum(pos, chord, down, velocity) {
+  strum(pos: THREE.Vector3, chord: number, down: boolean, velocity: number): void {
     if (this.started) this.guitar.strum(pos, chord, down, velocity);
   }
 
-  footstep(info) {
+  footstep(info: GameEvents[typeof EV.PLAYER_STEP]): void {
     if (this.started) this.steps.step(info);
   }
 
-  update(dt, camera, env, wind) {
+  update(dt: number, camera: THREE.Camera, env: { birdActivity: number }, wind: { strength: number }): void {
     if (!this.started) return;
     this.engine.updateListener(camera);
     const listener = camera.position;
@@ -107,5 +130,5 @@ export class Soundscape {
     this.wildlife.update(dt, listener, env);
   }
 
-  get state() { return this.engine.ctx ? this.engine.ctx.state : 'none'; }
+  get state(): string { return this.engine.ctx ? this.engine.ctx.state : 'none'; }
 }

@@ -11,10 +11,16 @@ const K = 2; // static layer: pixels per metre
 const HALF = WORLD.playableRadius + 12; // static layer covers [-HALF, HALF] metres
 const ZOOMS = [28, 75]; // map radius in metres (close / wide)
 
+/**
+ * What moves on the map, handed in by app/ (the map doesn't know the game).
+ * @typedef {{ x: number, z: number }} MapPoint
+ * @typedef {{ people: () => MapPoint[], dog: () => MapPoint | null, deer: () => MapPoint[] }} MapSource
+ */
+
 export class Minimap {
-  constructor({ container, trees, pathLine, camp, deer }) {
-    this.camp = camp;
-    this.deer = deer;
+  /** @param {{ container: HTMLElement, trees: { x: number, z: number, height: number, kind: string }[], pathLine: number[][], source: MapSource }} parts */
+  constructor({ container, trees, pathLine, source }) {
+    this.source = source;
     this.zoom = 0;
     this.time = 0;
     this.visible = true;
@@ -184,7 +190,7 @@ export class Minimap {
     };
     // deer
     // deer: only the ones fairly close, in a neutral colour (orange means the camp)
-    for (const a of this.deer?.agents ?? []) {
+    for (const a of this.source.deer()) {
       if (Math.hypot(a.x - x, a.z - z) < 40) dot(a.x, a.z, 2, '#cfc6b4', 'rgba(0,0,0,0.5)');
     }
     // fire (flickering glow) and the friends around it
@@ -203,9 +209,9 @@ export class Minimap {
     g.fillRect(-10 * dpr, -10 * dpr, 20 * dpr, 20 * dpr);
     g.restore();
     dot(FIRE.x, FIRE.z, 2.6, '#ffb347');
-    for (const p of this.camp.gathering.people) dot(p.seat.x, p.seat.z, 2.4, '#efe2c4', 'rgba(0,0,0,0.55)');
+    for (const p of this.source.people()) dot(p.x, p.z, 2.4, '#efe2c4', 'rgba(0,0,0,0.55)');
     // Luna
-    const d = this.camp.dog?.root.position;
+    const d = this.source.dog();
     if (d) dot(d.x, d.z, 2.3, '#111', '#e9e3d6');
 
     // labels: upright, skipped when they would overlap

@@ -38,7 +38,9 @@ export interface GameEvents {
   [EV.INTRO_DUCK]: boolean;
   [EV.GUITAR_STRUM]: { position: Vector3; chord: number; down: boolean; velocity: number };
   [EV.PLAYER_STEP]: { running: boolean; surface: 'water' | 'mud' | 'leaves'; side: number; speed: number };
-  [EV.CREATURE_SOUND]: { type: 'deerStep' | 'deerSnort' | 'birdFlap' | 'birdSong'; source: unknown };
+  [EV.CREATURE_SOUND]:
+    | { type: 'birdSong' | 'birdFlap'; source: { species: string; pos: Vector3 } }
+    | { type: 'deerStep' | 'deerSnort'; source: { x: number; z: number } };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };
   /** the render resolution (pixel ratio) changed */
   [EV.PIXEL_RATIO]: number;

@@ -27,8 +27,8 @@ import { Lighting } from '../game/lighting/Lighting.ts';
 import { DeerHerd } from '../game/creatures/Deer.js';
 import { Wildlife } from '../game/creatures/Wildlife.js';
 import { CollisionWorld } from '../game/player/Collision.js';
-import { PlayerController } from '../game/player/PlayerController.js';
-import { Soundscape } from '../game/sound/Soundscape.js';
+import { PlayerController } from '../game/player/PlayerController.ts';
+import { Soundscape } from '../game/sound/Soundscape.ts';
 import { Minimap } from '../ui/Minimap.js';
 import { Session } from './Session.ts';
 import { Hud } from './Hud.ts';
@@ -116,7 +116,8 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   // shared context the creatures use; their sounds go out on the event bus
   const world = {
     terrain, collision, cabin, fire, camp, forest, player: null as PlayerController | null,
-    emit: (type: GameEvents[typeof EV.CREATURE_SOUND]['type'], source: unknown) => events.emit(EV.CREATURE_SOUND, { type, source }),
+    // (the creatures are plain JS: deer send { x, z }, birds { species, pos })
+    emit: (type: string, source: unknown) => events.emit(EV.CREATURE_SOUND, { type, source } as GameEvents[typeof EV.CREATURE_SOUND]),
   };
   const player = new PlayerController(camera, renderer.domElement, terrain, collision, { debug, events });
   world.player = player;
@@ -156,7 +157,15 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   // ---------- settings, screens and the flow of a visit ----------
   connectSettings({ ui, sound, day, player, quality, lighting });
   // small map in the corner (hidden during the introductions)
-  const minimap = new Minimap({ container: document.body, trees: forest.trees, pathLine: terrain.pathLine, camp, deer });
+  const minimap = new Minimap({
+    container: document.body, trees: forest.trees, pathLine: terrain.pathLine,
+    // what moves on the map, read-only
+    source: {
+      people: () => camp.gathering.people.map((p) => p.seat),
+      dog: () => camp.dog?.root.position ?? null,
+      deer: () => deer.agents,
+    },
+  });
   const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement });
   const hud = new Hud({ ui, day });
 
@@ -168,33 +177,39 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   day.apply(true);
   lighting.refreshEnv();
   const culling = new Culling({ camera, forest, vegetation });
-  player.update(0, 0);
+  player.update(0);
   culling.update();
   try { await renderer.renderer.compileAsync(scene, camera); } catch { renderer.renderer.compile(scene, camera); }
 
   // ---------- the systems, in the order they run every frame ----------
   const game = new Game<ForestFrame>({ camera, env: day.env });
   const sys = (name: string, update: (f: ForestFrame) => void) => game.add({ name, update });
+  // 1. time and the player: the hour (and so the light) first, then movement
   sys('day', (f) => { day.update(f.dt); f.env = day.env; });
   sys('wind', (f) => wind.update(f.dt, f.time));
-  sys('player', (f) => player.update(f.dt, f.time));
-  sys('film camera', (f) => camp.intro.applyCamera(camera, f.dt)); // the introductions take over the view
+  sys('player', (f) => player.update(f.dt));
+  // 2. the camera is final for this frame: the introductions may take it over,
+  //    then everything that depends on where it looks
+  sys('film camera', (f) => camp.intro.applyCamera(f.camera, f.dt));
   sys('culling', () => culling.update());
   sys('lighting', (f) => lighting.update(f));
+  // 3. the world moves
   sys('session', (f) => session.update(f));
-  sys('minimap', (f) => { if (session.entered) minimap.update(f.dt, player.x, player.z, player.yaw); });
-  sys('sky', (f) => sky.update(camera, f.time));
-  sys('fire', (f) => fire.update(f.dt, f.time, camera, f.env));
-  sys('cabin', (f) => cabin.update(f.dt, f.time, camera, f.env, wind.strength));
-  sys('camp', (f) => camp.update(f.dt, f.time, camera, f.env, wind.strength));
-  sys('rain', (f) => rain.update(f.dt, f.time, camera, f.env));
-  sys('mist', (f) => mist.update(f.dt, f.time, camera, f.env));
-  sys('puddles', (f) => puddles.update(f.time, camera, f.env));
+  sys('sky', (f) => sky.update(f.camera, f.time));
+  sys('fire', (f) => fire.update(f.dt, f.time, f.camera, f.env));
+  sys('cabin', (f) => cabin.update(f.dt, f.time, f.camera, f.env, wind.strength));
+  sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
+  sys('rain', (f) => rain.update(f.dt, f.time, f.camera, f.env));
+  sys('mist', (f) => mist.update(f.dt, f.time, f.camera, f.env));
+  sys('puddles', (f) => puddles.update(f.time, f.camera, f.env));
   sys('deer', (f) => deer.update(f.dt, f.time, player));
   sys('wildlife', (f) => wildlife.update(f.dt, f.time, player, f.env));
-  sys('sound', (f) => sound.update(f.dt, camera, f.env, wind));
+  // 4. output: sound, the map (after everyone has moved), the picture
+  sys('sound', (f) => sound.update(f.dt, f.camera, f.env, wind));
+  sys('minimap', (f) => { if (session.entered) minimap.update(f.dt, player.x, player.z, player.yaw); });
   sys('environment map', (f) => lighting.updateEnvironment(f));
   sys('render', (f) => renderer.render(f.time));
+  // 5. after the frame: readouts and automatic quality (measures the frame just drawn)
   sys('hud', () => hud.update());
   sys('quality', () => quality.update());
   game.start();

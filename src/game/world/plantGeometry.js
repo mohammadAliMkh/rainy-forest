@@ -1,40 +1,14 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32, createNoise2D, smoothstep } from '../../utils/noise.js';
+import { ensureColor, merge } from '../../utils/geometry.js';
+
+export { merge }; // used by most builders in the game
 
 // Procedural geometry builders for trees and plants. Every builder returns a
 // geometry with position / normal / uv / color attributes so parts can be
 // merged freely.
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-function ensureColor(geo, r = 1, g = 1, b = 1) {
-  if (!geo.attributes.color) {
-    const n = geo.attributes.position.count;
-    const c = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { c[i * 3] = r; c[i * 3 + 1] = g; c[i * 3 + 2] = b; }
-    geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
-  }
-  return geo;
-}
-
-export function merge(geos) {
-  const list = geos.filter(Boolean).map((g) => {
-    ensureColor(g);
-    if (!g.index) {
-      // make all indexed for mergeGeometries consistency
-      const idx = [];
-      for (let i = 0; i < g.attributes.position.count; i++) idx.push(i);
-      g.setIndex(idx);
-    }
-    for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) g.deleteAttribute(k);
-    return g;
-  });
-  if (!list.length) return new THREE.BufferGeometry();
-  const m = mergeGeometries(list, false);
-  m.computeBoundingSphere();
-  return m;
-}
 
 // ---------------------------------------------------------------------------
 // Trunk: tapered, slightly bent, root flare, moss on the lower (north) side.

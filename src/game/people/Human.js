@@ -733,7 +733,10 @@ export class Human {
     const headPivot = new THREE.Group();
     headPivot.position.set(0, 0.07, 0.012);
     neck.add(headPivot);
-    Object.assign(this, { pelvis, spine, neck, headPivot });
+    this.pelvis = pelvis;
+    this.spine = spine;
+    this.neck = neck;
+    this.headPivot = headPivot;
 
     // ---- torso ----
     const jc = { main: rgb(out.jacket.color), inner: rgb(out.inner?.color ?? 0x151515), edge: rgb(out.jacket.edge ?? out.jacket.color) };

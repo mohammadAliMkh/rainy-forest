@@ -1,43 +1,68 @@
 import { WORLD, SPAWN, PUDDLES } from '../../config/config.js';
 import { damp, clamp } from '../../utils/noise.js';
 import { EV } from '../../config/events.ts';
+import type { GameEvents } from '../../config/events.ts';
+import type { EventBus } from '../../engine/events.ts';
+import type { Terrain } from '../world/Terrain.js';
+import type { CollisionWorld } from './Collision.js';
+import type * as THREE from 'three';
 
 // First-person controller: right-drag / screen-edge mouse look (cursor stays visible), WASD (physical keys, so
 // it works with a Persian keyboard layout too), Shift to run, smooth
 // acceleration, terrain following, gentle head-bob and footstep events.
 
 export class PlayerController {
-  /**
-   * @param {{ debug?: boolean, events?: import('../../engine/events.ts').EventBus<import('../../config/events.ts').GameEvents> }} [options]
-   *   debug: free look before entering; events: where footsteps are announced
-   */
-  constructor(camera, dom, terrain, collision, options = {}) {
-    const { debug = false, events } = options;
-    this.events = events;
+  readonly events?: EventBus<GameEvents>;
+  readonly camera: THREE.Camera;
+  readonly dom: HTMLElement;
+  readonly terrain: Terrain;
+  readonly collision: CollisionWorld;
+  /** ?debug: looking around works before entering the forest */
+  readonly debug: boolean;
+  x = SPAWN.x;
+  z = SPAWN.z;
+  /** ground height under the player, and the eye height */
+  groundY: number;
+  y: number;
+  /** view direction (radians; yaw 0 = looking toward -Z) */
+  yaw = SPAWN.yaw;
+  pitch = -0.04;
+  vx = 0; vz = 0;
+  speed = 0;
+  running = false;
+  sensitivity = 1;
+  walkSpeed = 1.9;
+  runSpeed = 4.6;
+  /** physical key codes held down (so it works with any keyboard layout) */
+  readonly keys = new Set<string>();
+  // on-screen controls (phones): analog stick, run toggle
+  touchMode = false;
+  touchMove = { x: 0, z: 0 };
+  touchRun = false;
+  /** set once the player has entered the forest */
+  freeMode = false;
+  // tests / debugging: walk through everything, raise or lower the eyes
+  noclip = false;
+  eyeOffset = 0;
+  private bobPhase = 0;
+  private stepIndex = 0;
+  private idleT = 0;
+  private dragging = false;
+  /** last cursor position over the view */
+  private pointer: { x: number; y: number } | null = null;
+  private edgeX = 0;
+  private edgeY = 0;
+
+  /** options.events: where footsteps are announced */
+  constructor(camera: THREE.Camera, dom: HTMLElement, terrain: Terrain, collision: CollisionWorld, options: { debug?: boolean; events?: EventBus<GameEvents> } = {}) {
+    this.events = options.events;
+    this.debug = options.debug ?? false;
     this.camera = camera;
     this.dom = dom;
     this.terrain = terrain;
     this.collision = collision;
-    this.debug = debug;
-
-    this.x = SPAWN.x; this.z = SPAWN.z;
     this.groundY = terrain.heightAt(this.x, this.z);
     this.y = this.groundY + WORLD.eyeHeight;
-    this.yaw = SPAWN.yaw; this.pitch = -0.04;
-    this.vx = 0; this.vz = 0;
-    this.speed = 0;
-    this.running = false;
-    this.sensitivity = 1;
-    this.walkSpeed = 1.9;
-    this.runSpeed = 4.6;
-    this.keys = new Set();
-    // on-screen controls (phones): analog stick, run toggle
-    this.touchMode = false;
-    this.touchMove = { x: 0, z: 0 };
-    this.touchRun = false;
-    this.bobPhase = 0;
-    this.stepIndex = 0;
-    this.idleT = 0;
 
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
@@ -47,10 +72,6 @@ export class PlayerController {
     // Mouse look: hold the RIGHT mouse button and drag, or rest the cursor
     // near the edge of the view to keep turning that way. Moving the mouse
     // elsewhere does nothing; the cursor is never locked or hidden.
-    this.dragging = false;
-    this.freeMode = false; // set once the player has entered the forest
-    this.pointer = null; // last cursor position over the view
-    this.edgeX = 0; this.edgeY = 0;
     const stopDrag = () => { this.dragging = false; this.dom.style.cursor = ''; };
     window.addEventListener('blur', () => { this.keys.clear(); stopDrag(); this.pointer = null; });
     // The cursor leaving the page (e.g. up to the tabs / address bar) stops
@@ -73,25 +94,25 @@ export class PlayerController {
     });
   }
 
-  // turn the view by a pointer / finger movement in pixels
-  look(dx, dy, k) {
+  /** turn the view by a pointer / finger movement in pixels */
+  look(dx: number, dy: number, k: number): void {
     k *= this.sensitivity;
     this.yaw -= dx * k;
     this.pitch = clamp(this.pitch - dy * k, -1.45, 1.45);
   }
 
-  get active() { return this.debug || this.freeMode; }
+  get active(): boolean { return this.debug || this.freeMode; }
 
   // Turn while the cursor rests in a band along the window edge; faster the
   // closer it is to the edge (the cursor stops at the monitor edge, so a
   // maximised window keeps turning).
-  edgeTurn(dt) {
+  private edgeTurn(dt: number): void {
     let ex = 0, ey = 0;
     const p = this.pointer;
     if (this.active && !this.dragging && p && !this.touchMode) {
       const w = window.innerWidth, h = window.innerHeight;
       const m = Math.max(28, Math.min(w, h) * 0.06);
-      const edge = (v, size) => {
+      const edge = (v: number, size: number) => {
         const t = v < m ? -(1 - v / m) : v > size - 1 - m ? 1 - (size - 1 - v) / m : 0;
         return Math.sign(t) * t * t;
       };
@@ -103,12 +124,12 @@ export class PlayerController {
     this.pitch = clamp(this.pitch - this.edgeY * 1.3 * this.sensitivity * dt, -1.45, 1.45);
   }
 
-  surfaceAt(x, z) {
+  surfaceAt(x: number, z: number): 'water' | 'mud' | 'leaves' {
     for (const p of PUDDLES) if (Math.hypot((x - p[0]) / p[2], (z - p[1]) / p[3]) < 0.9) return 'water';
     return this.terrain.pathDistance(x, z) < 1.3 ? 'mud' : 'leaves';
   }
 
-  update(dt, time) {
+  update(dt: number): void {
     let fx = 0, fz = 0;
     if (this.active) {
       const k = this.keys;
@@ -154,7 +175,7 @@ export class PlayerController {
     if (idx !== this.stepIndex) {
       this.stepIndex = idx;
       if (this.speed > 0.4 && this.events) {
-        this.events?.emit(EV.PLAYER_STEP, { running: this.running, surface: this.surfaceAt(this.x, this.z), side: idx % 2 ? 1 : -1, speed: this.speed });
+        this.events.emit(EV.PLAYER_STEP, { running: this.running, surface: this.surfaceAt(this.x, this.z), side: idx % 2 ? 1 : -1, speed: this.speed });
       }
     }
     const moveK = clamp(this.speed / this.walkSpeed, 0, 1.6);
@@ -163,7 +184,7 @@ export class PlayerController {
     const sway = Math.sin(this.bobPhase) * 0.012 * Math.min(1, moveK);
 
     this.groundY = this.terrain.heightAt(this.x, this.z);
-    this.y = damp(this.y, this.groundY + 1.68 + (this.eyeOffset || 0), 12, dt);
+    this.y = damp(this.y, this.groundY + 1.68 + this.eyeOffset, 12, dt);
 
     // tiny breathing motion when standing still
     this.idleT += dt;
@@ -172,10 +193,9 @@ export class PlayerController {
     const cam = this.camera;
     cam.position.set(this.x + cy * sway, this.y + bobY + breath, this.z - sy * sway);
     cam.rotation.set(this.pitch + Math.sin(this.idleT * 0.7) * 0.002, this.yaw, Math.sin(this.bobPhase) * 0.003 * moveK, 'YXZ');
-    void time;
   }
 
-  teleport(x, z, yaw) {
+  teleport(x: number, z: number, yaw?: number): void {
     this.x = x; this.z = z;
     if (yaw !== undefined) this.yaw = yaw;
     this.y = this.terrain.heightAt(x, z) + 1.68;

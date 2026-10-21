@@ -6,15 +6,17 @@
   "description": "First-person rainy forest environment built with Three.js + Vite",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && node scripts/check-layers.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource/vazirmatn": "^5.3.0",
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/three": "^0.170.0",
     "typescript": "^5.6.3",
     "vite": "^6.3.5"
