@@ -18,6 +18,7 @@ export const EV = {
   GUITAR_STRUM: 'guitar:strum',
   PLAYER_STEP: 'player:step',
   CREATURE_SOUND: 'creature:sound',
+  STORE_DOOR: 'store:door',
 
   // the weather (src/game/weather/Weather.ts)
   LIGHTNING: 'weather:lightning',
@@ -40,10 +41,12 @@ export interface GameEvents {
   /** lower the ambience while he speaks */
   [EV.INTRO_DUCK]: boolean;
   [EV.GUITAR_STRUM]: { position: Vector3; chord: number; down: boolean; velocity: number };
-  [EV.PLAYER_STEP]: { running: boolean; surface: 'water' | 'mud' | 'leaves'; side: number; speed: number };
+  [EV.PLAYER_STEP]: { running: boolean; surface: 'water' | 'mud' | 'leaves' | 'wood'; side: number; speed: number };
   [EV.CREATURE_SOUND]:
     | { type: 'birdSong' | 'birdFlap'; source: { species: string; pos: Vector3 } }
     | { type: 'deerStep' | 'deerSnort'; source: { x: number; z: number } };
+  /** the shop's door swings open (its bell rings) */
+  [EV.STORE_DOOR]: { position: Vector3; open: boolean };
   /** a soft, distant flash; the rumble arrives `delay` seconds later */
   [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };

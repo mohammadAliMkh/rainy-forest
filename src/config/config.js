@@ -43,6 +43,20 @@ export const CAMP = {
   canopy: { halfX: 3.1, halfZ: 2.75 },
 };
 
+// The little forest supermarket, off the trail, well away from the cabin.
+// x / z: centre of the building; yaw: which way its front (door, porch)
+// faces (0 = +Z); w / d: outside size of the room; path: a narrow footpath
+// from the porch steps to the trail (x, z points, ending on the trail).
+export const STORE = {
+  x: -14,
+  z: 31,
+  yaw: 0.91, // facing the trail
+  w: 6.2,
+  d: 5.2,
+  path: [[-9.6, 34.4], [-7.6, 35.4], [-5.4, 36.9], [-3.3, 38.8]],
+  sign: { x: -4.4, z: 36.6 }, // signpost where the footpath leaves the trail
+};
+
 // Control points of the narrow trail (x, z). It comes out of the far forest,
 // passes the spawn point and ends at the campfire in front of the cabin.
 export const PATH_POINTS = [

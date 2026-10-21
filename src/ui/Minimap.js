@@ -3,7 +3,8 @@ import { WORLD, CABIN, FIRE, CAMP, PUDDLES } from '../config/config.js';
 // Small round map in the corner (bottom right on desktop; small, top right under the sound button on
 // phones). It turns with the player, who is the arrow in the middle: the
 // trail, the trees, the cabin, the fire with the friends around it, Luna,
-// the carport with the Patrol and the Hornet, puddles and the deer.
+// the carport with the Patrol and the Hornet, puddles, the deer, and the
+// little supermarket at the end of its footpath.
 // A click / tap switches between a close and a wide view. When the camp is
 // off the map, a small marker on the rim points the way back.
 
@@ -15,12 +16,14 @@ const ZOOMS = [28, 75]; // map radius in metres (close / wide)
  * What moves on the map, handed in by app/ (the map doesn't know the game).
  * @typedef {{ x: number, z: number }} MapPoint
  * @typedef {{ people: () => MapPoint[], dog: () => MapPoint | null, deer: () => MapPoint[] }} MapSource
+ * @typedef {{ x: number, z: number, w: number, d: number, yaw: number, path: number[][] }} MapStore the shop (with its porch) and its footpath
  */
 
 export class Minimap {
-  /** @param {{ container: HTMLElement, trees: { x: number, z: number, height: number, kind: string }[], pathLine: number[][], source: MapSource }} parts */
-  constructor({ container, trees, pathLine, source }) {
+  /** @param {{ container: HTMLElement, trees: { x: number, z: number, height: number, kind: string }[], pathLine: number[][], source: MapSource, store?: MapStore }} parts */
+  constructor({ container, trees, pathLine, source, store }) {
     this.source = source;
+    this.store = store ?? null;
     this.zoom = 0;
     this.time = 0;
     this.visible = true;
@@ -68,16 +71,21 @@ export class Minimap {
       g.fill();
     }
     // the trail
-    const trail = (w, color) => {
+    const trail = (w, color, line = pathLine) => {
       g.strokeStyle = color;
       g.lineWidth = w * K;
       g.lineJoin = g.lineCap = 'round';
       g.beginPath();
-      pathLine.forEach(([x, z], i) => (i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))));
+      line.forEach(([x, z], i) => (i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))));
       g.stroke();
     };
     trail(2.6, '#5d4a35');
     trail(1.5, '#8a6f4e');
+    // the shop's narrow footpath
+    if (this.store) {
+      trail(1.5, '#5d4a35', this.store.path);
+      trail(0.8, '#8a6f4e', this.store.path);
+    }
     // clearing around the camp and the cabin
     g.fillStyle = 'rgba(110, 90, 64, 0.55)';
     g.beginPath();
@@ -114,6 +122,9 @@ export class Minimap {
     rect(cp.cx, cp.cz, cp.halfX * 2, cp.halfZ * 2, 0, 'rgba(120, 124, 128, 0.45)', 'rgba(170, 174, 178, 0.7)');
     rect(CAMP.car.x, CAMP.car.z, 1.9, 4.7, CAMP.car.yaw, '#1c1d1f', '#9aa0a6');
     rect(CAMP.bike.x, CAMP.bike.z, 0.75, 2.05, CAMP.bike.yaw, '#2f6fd6', '#bcd3ff');
+    // the supermarket: a red tin roof
+    const st = this.store;
+    if (st) rect(st.x, st.z, st.w, st.d, st.yaw, '#8a3b2a', '#d08a62');
     return c;
   }
 
@@ -220,6 +231,7 @@ export class Minimap {
     const labels = [
       ['آتش', FIRE.x, FIRE.z],
       ['کلبه', CABIN.x, CABIN.z],
+      ['سوپرمارکت', this.store?.x, this.store?.z],
       ...(small ? [] : [['ماشین', CAMP.car.x, CAMP.car.z], ['موتور', CAMP.bike.x, CAMP.bike.z], ['لونا', d?.x, d?.z]]),
     ];
     const northA = Math.atan2(-cos, sin); // direction of world -Z on screen

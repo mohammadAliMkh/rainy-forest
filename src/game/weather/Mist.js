@@ -140,6 +140,9 @@ export class Mist {
   }
 
   addTo(scene) { scene.add(this.mesh, this.motes); }
+
+  /** under a roof (in the shop): no floating droplets */
+  setIndoor(on) { this.motes.visible = !on; }
   setCount(n) { this.mesh.geometry.instanceCount = Math.min(this.count, n); }
   setPixelRatio(pr) { this.moteUniforms.uPixel.value = pr; }
 
