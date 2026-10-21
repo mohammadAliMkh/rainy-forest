@@ -13,8 +13,10 @@ export interface ModelPart {
   box: THREE.Box3;
 }
 export type ModelParts = Record<string, ModelPart>;
+/** whole models built by Blender scripts (cabin, shop, vehicles), placed as one piece */
+export type ModelScenes = Record<string, THREE.Group>;
 
-interface Manifest { models: Record<string, { file: string; parts: string[] }> }
+interface Manifest { models: Record<string, { file: string; parts: string[]; scene?: boolean }> }
 
 /** meshopt-compressed files store quantized vertices; instancing needs plain floats */
 function toFloatGeometry(src: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.BufferGeometry {
@@ -39,7 +41,7 @@ function toFloatGeometry(src: THREE.BufferGeometry, matrix: THREE.Matrix4): THRE
   return geo;
 }
 
-export async function loadEnvModels(anisotropy: number): Promise<ModelParts | null> {
+export async function loadEnvModels(anisotropy: number): Promise<{ parts: ModelParts; scenes: ModelScenes } | null> {
   const base = import.meta.env.BASE_URL;
   let manifest: Manifest;
   try {
@@ -52,10 +54,19 @@ export async function loadEnvModels(anisotropy: number): Promise<ModelParts | nu
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const parts: ModelParts = {};
+  const scenes: ModelScenes = {};
   try {
     await Promise.all(
-      Object.values(manifest.models).map(async (m) => {
+      Object.entries(manifest.models).map(async ([name, m]) => {
         const gltf = await loader.loadAsync(base + m.file);
+        if (m.scene) {
+          gltf.scene.traverse((o) => {
+            const mat = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+            if (mat) for (const t of [mat.map, mat.normalMap, mat.roughnessMap]) if (t) t.anisotropy = anisotropy;
+          });
+          scenes[name] = gltf.scene;
+          return;
+        }
         gltf.scene.updateMatrixWorld(true);
         gltf.scene.traverse((o) => {
           const mesh = o as THREE.Mesh;
@@ -71,7 +82,7 @@ export async function loadEnvModels(anisotropy: number): Promise<ModelParts | nu
     console.warn('Forest models unavailable, keeping procedural ones', err);
     return null;
   }
-  return parts;
+  return { parts, scenes };
 }
 
 /** a copy of the part's geometry scaled so its widest horizontal half-extent is `halfWidth` */

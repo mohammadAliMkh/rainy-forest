@@ -128,24 +128,28 @@ export class Cabin {
       addLog('x', -half, half, y, -D / 2);
     }
 
+    // the hand-coded shell (walls, roof, chimney, door, windows, interior):
+    // used only when the Blender model isn't available
+    const shell = new THREE.Group();
+    this.group.add(shell);
     const walls = new THREE.Mesh(merge(sides), woodMat);
     walls.castShadow = true; walls.receiveShadow = true;
     const ends = new THREE.Mesh(merge(caps), endMat);
     ends.castShadow = true;
-    this.group.add(walls, ends);
+    shell.add(walls, ends);
 
     // stone plinth
     const plinthMesh = new THREE.Mesh(new THREE.BoxGeometry(W + 0.2, plinth + 0.5, D + 0.2), stoneMat);
     plinthMesh.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(plinthMesh.geometry.attributes.position.count * 3).fill(0.75), 3));
     plinthMesh.position.y = (plinth - 0.5) / 2;
     plinthMesh.receiveShadow = true;
-    this.group.add(plinthMesh);
+    shell.add(plinthMesh);
 
     // floor + interior shell (dark, so the doorway reads as a deep interior)
     const floor = new THREE.Mesh(new THREE.BoxGeometry(W - 0.2, 0.05, D - 0.2), plankMat);
     floor.position.y = plinth + 0.02;
     floor.receiveShadow = true;
-    this.group.add(floor);
+    shell.add(floor);
 
     // ---------- roof ----------
     const eave = 0.55, front = 0.85, back = 0.45;
@@ -159,24 +163,24 @@ export class Cabin {
       slab.rotation.z = -s * angle;
       slab.position.set(s * (slopeLen / 2) * Math.cos(angle) - s * 0.03, ridgeY - (slopeLen / 2) * Math.sin(angle), (front - back) / 2);
       slab.castShadow = true; slab.receiveShadow = true;
-      this.group.add(slab);
+      shell.add(slab);
       // fascia board along the eave
       const fascia = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, roofDepth + 0.04), plankMat);
       fascia.position.set(s * (slopeLen * Math.cos(angle) - 0.02), ridgeY - slopeLen * Math.sin(angle) - 0.02, (front - back) / 2);
       fascia.rotation.z = -s * angle;
-      this.group.add(fascia);
+      shell.add(fascia);
     }
     const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, roofDepth + 0.1, 8), new THREE.MeshStandardMaterial({ map: T.wood, roughness: 0.7 }));
     ridge.rotation.x = Math.PI / 2;
     ridge.position.set(0, ridgeY + 0.05, (front - back) / 2);
     ridge.castShadow = true;
-    this.group.add(ridge);
+    shell.add(ridge);
     // barge boards on the front gable
     for (const s of [-1, 1]) {
       const b = new THREE.Mesh(new THREE.BoxGeometry(slopeLen, 0.22, 0.06), plankMat);
       b.rotation.z = -s * angle;
       b.position.set(s * (slopeLen / 2) * Math.cos(angle), ridgeY - (slopeLen / 2) * Math.sin(angle) - 0.1, D / 2 + front + 0.01);
-      this.group.add(b);
+      shell.add(b);
     }
 
     // ---------- chimney (right side, outside) ----------
@@ -184,13 +188,13 @@ export class Cabin {
     const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.9, chH + 0.3, 0.95), chimneyMat);
     chimney.position.set(W / 2 + 0.55, (chH - 0.3) / 2, -0.6);
     chimney.castShadow = true; chimney.receiveShadow = true;
-    this.group.add(chimney);
+    shell.add(chimney);
     const cap = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.12, 1.1), chimneyMat);
     cap.position.set(W / 2 + 0.55, chH - 0.06, -0.6);
-    this.group.add(cap);
+    shell.add(cap);
     const flue = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.5), darkMat);
     flue.position.set(W / 2 + 0.55, chH + 0.005, -0.6);
-    this.group.add(flue);
+    shell.add(flue);
 
     // ---------- door (open inward) & frames ----------
     const frameMat = new THREE.MeshStandardMaterial({ map: T.wood, roughness: 0.75, color: 0xb8a38f });
@@ -206,7 +210,7 @@ export class Cabin {
       const m = new THREE.Mesh(g, frameMat);
       if (axis === 'x') m.position.set(cx, cy, z); else m.position.set(z, cy, cx);
       m.castShadow = true;
-      this.group.add(m);
+      shell.add(m);
     };
     frame(door.c, (door.y0 + door.y1) / 2, door.w, door.y1 - door.y0, D / 2);
     frame(winFront.c, (winFront.y0 + winFront.y1) / 2, winFront.w, winFront.y1 - winFront.y0, D / 2);
@@ -219,14 +223,14 @@ export class Cabin {
     doorMesh.castShadow = true;
     doorPivot.add(doorMesh);
     doorPivot.rotation.y = 1.15; // swung inward
-    this.group.add(doorPivot);
+    shell.add(doorPivot);
 
     // threshold step
     const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.18, 0.55), stoneMat);
     step.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(step.geometry.attributes.position.count * 3).fill(0.8), 3));
     step.position.set(door.c, 0.06, D / 2 + 0.38);
     step.receiveShadow = true;
-    this.group.add(step);
+    shell.add(step);
 
     // glowing windows (warm interior light like the reference)
     this.windowMat = new THREE.MeshStandardMaterial({
@@ -243,7 +247,7 @@ export class Cabin {
       g.add(m1, m2);
       if (axis === 'x') { g.position.set(o.c, (o.y0 + o.y1) / 2, D / 2 - 0.02); }
       else { g.rotation.y = -Math.PI / 2; g.position.set(-W / 2 - 0.02, (o.y0 + o.y1) / 2, o.c); }
-      this.group.add(g);
+      shell.add(g);
     };
     addWindow(winFront, 'x');
     addWindow(winSide, 'z');
@@ -252,11 +256,11 @@ export class Cabin {
     const hearth = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.4, 0.6), chimneyMat);
     hearth.position.set(W / 2 - 0.45, plinth + 0.7, -0.6);
     hearth.rotation.y = Math.PI / 2;
-    this.group.add(hearth);
+    shell.add(hearth);
     const hole = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.6), darkMat);
     hole.rotation.y = -Math.PI / 2;
     hole.position.set(W / 2 - 0.76, plinth + 0.4, -0.6);
-    this.group.add(hole);
+    shell.add(hole);
     this.innerFlames = new Flames({ count: 3, width: 0.5, height: 0.5, intensity: 0.8 });
     this.innerFlames.group.position.set(W / 2 - 0.8, plinth + 0.12, -0.6);
     this.group.add(this.innerFlames.group);
@@ -266,11 +270,28 @@ export class Cabin {
     // a little table and a bench silhouette inside
     const table = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.7), plankMat);
     table.position.set(-1.2, plinth + 0.75, -1.2);
-    this.group.add(table);
+    shell.add(table);
     for (const [x, z] of [[-1.7, -1.5], [-0.7, -1.5], [-1.7, -0.9], [-0.7, -0.9]]) {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.72, 0.06), plankMat);
       leg.position.set(x, plinth + 0.38, z);
-      this.group.add(leg);
+      shell.add(leg);
+    }
+
+    // ---------- the Blender model (pipeline/blender_cabin.py) replaces the shell ----------
+    const model = T.scenes && T.scenes.cabin;
+    if (model) {
+      this.group.remove(shell);
+      const m = model.clone(true);
+      m.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = true;
+        o.receiveShadow = true;
+        if (o.name.startsWith('glass_')) { o.material = this.windowMat; o.castShadow = false; }
+      });
+      const doorNode = m.getObjectByName('door');
+      if (doorNode) doorNode.rotation.y = 1.15; // swung inward, like before
+      this.group.add(m);
+      this.model = m;
     }
 
     // ---------- woodpile along the front wall, under the window ----------

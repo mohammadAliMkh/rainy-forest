@@ -96,7 +96,26 @@ def process(name: str, cfg: dict) -> dict:
     return {"file": f"assets/models/{out.name}", "source": cfg["src"], "parts": [o["as"] for o in cfg["objects"].values()], "kb": kb}
 
 
+def optimize_scene(name: str, raw: str, tex: int = 1024) -> None:
+    """A whole model built by a Blender script (cabin, shop, vehicles): just
+    compress it and register it as a scene (placed as one piece by the game)."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    out = OUT / f"{name}.glb"
+    run([str(GLTF_TRANSFORM), "optimize", raw, str(out),
+         "--compress", "meshopt", "--texture-compress", "webp", "--texture-size", str(tex),
+         "--simplify", "false", "--join", "false", "--instance", "false", "--flatten", "false", "--palette", "false"])
+    kb = out.stat().st_size // 1024
+    manifest_path = OUT / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["models"][name] = {"file": f"assets/models/{out.name}", "source": "Blender build script", "scene": True, "parts": [], "kb": kb}
+    write_json(manifest_path, manifest)
+    print(f"  {name}: {kb} KB (scene)")
+
+
 def main() -> None:
+    if len(sys.argv) >= 4 and sys.argv[1] == "--scene":
+        optimize_scene(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) > 4 else 1024)
+        return
     names = sys.argv[1:] or list(JOBS)
     manifest_path = OUT / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {

@@ -131,6 +131,13 @@
         "shrub_d_lo"
       ],
       "kb": 85
+    },
+    "cabin": {
+      "file": "assets/models/cabin.glb",
+      "source": "Blender build script",
+      "scene": true,
+      "parts": [],
+      "kb": 2837
     }
   }
 }

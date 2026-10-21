@@ -85,7 +85,8 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   await step(0.12, 'بارگذاری بافت‌های اسکن‌شده از طبیعت…');
   const aniso = Math.min(8, renderer.renderer.capabilities.getMaxAnisotropy());
   const [, models] = await Promise.all([loadScannedTextures(T, aniso), loadEnvModels(aniso)]);
-  (T as TextureSet).models = models;
+  (T as TextureSet).models = models ? models.parts : null;
+  (T as TextureSet).scenes = models ? models.scenes : null;
 
   await step(0.2, 'شکل دادن زمین و مسیر جنگلی…');
   const terrain = new Terrain(T);
