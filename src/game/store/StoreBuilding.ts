@@ -31,7 +31,8 @@ const ROOF_SLOPE = RIDGE / (W / 2);
 /** height of the roof's underside at x (shop frame) */
 export const roofY = (x: number) => F + H + RIDGE * (1 - Math.abs(x) / (W / 2));
 
-export function buildBuilding(S: StoreTextures, T0: Tex): BuildingParts {
+/** `model`: the shell built in Blender (pipeline/blender_store.py); replaces the hand-coded one */
+export function buildBuilding(S: StoreTextures, T0: Tex, model?: THREE.Group): BuildingParts {
   const group = new THREE.Group();
   const rand = mulberry32(512);
   const m = (o: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial({ roughness: 0.85, ...o });
@@ -57,7 +58,11 @@ export function buildBuilding(S: StoreTextures, T0: Tex): BuildingParts {
   });
   const lanternGlow = new THREE.MeshStandardMaterial({ color: 0xffe2a8, emissive: 0xffb050, emissiveIntensity: 2.2, roughness: 0.4 });
   const parts: Record<string, Geo[]> = {};
-  const add = (key: keyof typeof mats, g: Geo) => (parts[key] ??= []).push(g);
+  // the building shell (base, floors, walls, roof, frames, porch) is collected
+  // apart from the things lying around, so a Blender model can replace it
+  const shellParts: Record<string, Geo[]> = {};
+  let shellPhase = true;
+  const add = (key: keyof typeof mats, g: Geo) => ((shellPhase ? shellParts : parts)[key] ??= []).push(g);
 
   // ---- stone base: a plinth, with irregular stones around it ----
   {
@@ -276,6 +281,7 @@ export function buildBuilding(S: StoreTextures, T0: Tex): BuildingParts {
   }
 
   // ---- the lantern beside the door ----
+  shellPhase = false;
   const lanternPos = new THREE.Vector3(DOOR.x0 - 0.26, F + 1.85, Z1 + 0.16);
   {
     add('metal', box(lanternPos.x - 0.015, lanternPos.y + 0.12, Z1, lanternPos.x + 0.015, lanternPos.y + 0.15, lanternPos.z, 1));
@@ -388,12 +394,22 @@ export function buildBuilding(S: StoreTextures, T0: Tex): BuildingParts {
   }
 
   // ---- meshes, one per material ----
-  for (const [key, list] of Object.entries(parts)) {
-    const mesh = new THREE.Mesh(merge(list), mats[key as keyof typeof mats]);
-    mesh.castShadow = key !== 'trim';
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  }
+  const addMeshes = (src: Record<string, Geo[]>) => {
+    for (const [key, list] of Object.entries(src)) {
+      const mesh = new THREE.Mesh(merge(list), mats[key as keyof typeof mats]);
+      mesh.castShadow = key !== 'trim';
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+  };
+  addMeshes(parts);
+  if (model) {
+    const m = model.clone(true);
+    m.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; }
+    });
+    group.add(m);
+  } else addMeshes(shellParts);
   const gm = new THREE.Mesh(merge(glass), windowGlass);
   gm.renderOrder = 2;
   group.add(gm);

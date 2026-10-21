@@ -43,7 +43,8 @@ function plateTexture() {
 }
 
 export class Patrol {
-  constructor() {
+  /** `model`: the Blender build (pipeline/blender_patrol.py); without it the car is built here */
+  constructor(model) {
     const C = createCampTextures();
     const paint = new THREE.MeshPhysicalMaterial({ color: 0x15171a, roughness: 0.42, metalness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.25, envMapIntensity: 1.0 });
     const matte = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: 0.75, metalness: 0.2 });
@@ -57,6 +58,22 @@ export class Patrol {
     const red = new THREE.MeshStandardMaterial({ color: 0x5a0606, roughness: 0.2, emissive: 0x200000 });
     const amber = new THREE.MeshStandardMaterial({ color: 0xc87a10, roughness: 0.25 });
     this.group = new THREE.Group();
+    this.halfSize = { x: WIDTH / 2 + 0.12, z: (FRONT - REAR) / 2 + 0.35 };
+    this.wheels = [];
+    if (model) {
+      const m = model.clone(true);
+      m.userData.keep = true; // already merged by material in Blender
+      const plateMat = new THREE.MeshStandardMaterial({ map: plateTexture(), roughness: 0.5 });
+      m.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = true;
+        o.receiveShadow = true;
+        if (o.name.startsWith('plate_front')) { o.material = plateMat; o.castShadow = false; }
+        else if (o.name.startsWith('halo')) { o.material = this.haloMat; o.castShadow = false; }
+      });
+      this.group.add(m);
+      return;
+    }
     const G = this.group;
     const add = (geo, mat, x = 0, y = 0, z = 0, cast = true) => {
       const m = new THREE.Mesh(geo, mat);

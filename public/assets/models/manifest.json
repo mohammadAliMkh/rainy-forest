@@ -138,6 +138,27 @@
       "scene": true,
       "parts": [],
       "kb": 2837
+    },
+    "store": {
+      "file": "assets/models/store.glb",
+      "source": "Blender build script",
+      "scene": true,
+      "parts": [],
+      "kb": 1842
+    },
+    "patrol": {
+      "file": "assets/models/patrol.glb",
+      "source": "Blender build script",
+      "scene": true,
+      "parts": [],
+      "kb": 386
+    },
+    "hornet": {
+      "file": "assets/models/hornet.glb",
+      "source": "Blender build script",
+      "scene": true,
+      "parts": [],
+      "kb": 213
     }
   }
 }

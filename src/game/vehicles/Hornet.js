@@ -52,7 +52,8 @@ function sideExtrude(points, width, bevel, taper) {
 }
 
 export class Hornet {
-  constructor() {
+  /** `model`: the Blender build (pipeline/blender_hornet.py); without it the bike is built here */
+  constructor(model) {
     const C = createCampTextures();
     const blue = new THREE.MeshPhysicalMaterial({ color: 0x1a4cb4, roughness: 0.5, metalness: 0.3, clearcoat: 0.25, clearcoatRoughness: 0.5 });
     const grey = new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 0.55, metalness: 0.3 });
@@ -70,6 +71,19 @@ export class Hornet {
     const decal = new THREE.MeshStandardMaterial({ map: decalTexture(), transparent: true, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, depthWrite: false });
 
     this.group = new THREE.Group();
+    this.halfSize = { x: 0.45, z: 1.05 };
+    if (model) {
+      const m = model.clone(true);
+      m.userData.keep = true; // already merged by material in Blender
+      m.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = true;
+        o.receiveShadow = true;
+        if (o.name.startsWith('decal_')) { o.material = decal; o.castShadow = false; }
+      });
+      this.group.add(m);
+      return;
+    }
     const bike = new THREE.Group();
     this.group.add(bike);
     const add = (geo, mat, x = 0, y = 0, z = 0, parent = bike, cast = true) => {

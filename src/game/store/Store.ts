@@ -80,7 +80,8 @@ export class Store {
     g.position.set(STORE.x, pad, STORE.z);
     g.rotation.y = STORE.yaw;
 
-    this.building = buildBuilding(S, T0);
+    const scenes = (T0 as unknown as { scenes?: Record<string, THREE.Group> | null }).scenes;
+    this.building = buildBuilding(S, T0, scenes?.store);
     g.add(this.building.group);
     this.goods = buildGoods(S);
     g.add(this.goods.group);

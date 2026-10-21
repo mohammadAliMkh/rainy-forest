@@ -319,3 +319,107 @@ def export_glb(path):
 def tris(ob):
     ob.data.calc_loop_triangles()
     return len(ob.data.loop_triangles)
+
+
+# ------------------------------------------------------- modelling tools ---
+def curve_tube(name, pts, radius, material, resolution=12, bevel_res=4, closed=False):
+    """a smooth tube along game-frame points (bars, pipes, snorkel, frames)"""
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    sp = cu.splines.new("NURBS" if len(pts) > 2 else "POLY")
+    sp.points.add(len(pts) - 1)
+    for p, c in zip(sp.points, pts):
+        v = B(*c)
+        p.co = (v.x, v.y, v.z, 1)
+    if len(pts) > 2:
+        sp.order_u = min(4, len(pts))
+        sp.use_endpoint_u = True
+    sp.use_cyclic_u = closed
+    cu.bevel_depth = radius
+    cu.bevel_resolution = bevel_res
+    cu.resolution_u = resolution
+    cu.use_fill_caps = True
+    ob = bpy.data.objects.new(name, cu)
+    bpy.context.scene.collection.objects.link(ob)
+    bpy.ops.object.select_all(action="DESELECT")
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.convert(target="MESH")
+    ob = bpy.context.view_layer.objects.active
+    ob.data.materials.clear()
+    ob.data.materials.append(material)
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    return ob
+
+
+def lathe(name, profile, material, segments=32, center=(0, 0, 0), axis="x"):
+    """revolve a (radius, offset) profile around a game axis through center"""
+    bm = bmesh.new()
+    verts = [bm.verts.new((r, 0, o)) for r, o in profile]
+    edges = [bm.edges.new((verts[i], verts[i + 1])) for i in range(len(verts) - 1)]
+    bmesh.ops.spin(bm, geom=verts + edges, cent=(0, 0, 0), axis=(0, 0, 1), angle=2 * math.pi, steps=segments, use_merge=True)
+    ob = new_obj(name, bm, material)
+    # local Z is the revolve axis -> point it along the requested game axis
+    tgt = {"x": B(1, 0, 0), "y": B(0, 1, 0), "z": B(0, 0, 1)}[axis]
+    ob.rotation_mode = "QUATERNION"
+    ob.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(tgt)
+    ob.location = B(*center)
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    return ob
+
+
+def profile_extrude(name, pts_zy, x0, x1, material):
+    """side profile in the game's (z, y) plane, extruded across x0..x1"""
+    bm = bmesh.new()
+    vs = [bm.verts.new(B(x0, y, z)) for z, y in pts_zy]
+    f = bm.faces.new(vs)
+    bmesh.ops.recalc_face_normals(bm, faces=[f])
+    res = bmesh.ops.extrude_face_region(bm, geom=[f])
+    moved = [e for e in res["geom"] if isinstance(e, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, verts=moved, vec=B(x1 - x0, 0, 0))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return new_obj(name, bm, material)
+
+
+def boolean_cut(ob, cutter, apply=True):
+    m = ob.modifiers.new("cut", "BOOLEAN")
+    m.operation = "DIFFERENCE"
+    m.object = cutter
+    m.solver = "EXACT"
+    if apply:
+        apply_mods(ob)
+        bpy.data.objects.remove(cutter, do_unlink=True)
+
+
+def bevel_mod(ob, width, segments=3, angle_deg=40):
+    m = ob.modifiers.new("bevel", "BEVEL")
+    m.width = width
+    m.segments = segments
+    m.limit_method = "ANGLE"
+    m.angle_limit = math.radians(angle_deg)
+    m.harden_normals = False
+    apply_mods(ob)
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    ob.data.set_sharp_from_angle(angle=math.radians(35)) if hasattr(ob.data, "set_sharp_from_angle") else None
+
+
+def box_obj(name, center, dims, material, rot=(0, 0, 0), bevel=0.0, segments=2):
+    bm = bmesh.new()
+    bm_obox(bm, center, dims, rot)
+    ob = new_obj(name, bm, material)
+    if bevel:
+        bevel_mod(ob, bevel, segments)
+    return ob
+
+
+def cyl_obj(name, a, b, r, material, seg=24, caps=True, r1=None):
+    bm = bmesh.new()
+    bm_tube(bm, a, b, r, r1, seg=seg, rings=1, caps=caps, cap_index=0)
+    ob = new_obj(name, bm, material)
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    ob.data.set_sharp_from_angle(angle=math.radians(40)) if hasattr(ob.data, "set_sharp_from_angle") else None
+    return ob

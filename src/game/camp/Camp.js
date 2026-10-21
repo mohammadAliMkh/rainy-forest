@@ -229,7 +229,7 @@ export class Camp {
 
     // ---- the Patrol beside the cabin ----
     {
-      const car = new Patrol();
+      const car = new Patrol(T.scenes && T.scenes.patrol);
       const P = CAMP.car;
       car.group.position.set(P.x, terrain.heightAt(P.x, P.z), P.z);
       car.group.rotation.y = P.yaw;
@@ -240,7 +240,7 @@ export class Camp {
     }
     // ---- the Hornet on its side stand ----
     {
-      const bike = new Hornet();
+      const bike = new Hornet(T.scenes && T.scenes.hornet);
       const B = CAMP.bike;
       bike.group.position.set(B.x, terrain.heightAt(B.x, B.z), B.z);
       bike.group.rotation.y = B.yaw;
