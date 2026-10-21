@@ -19,8 +19,30 @@ float fFbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++){ s += a 
 `;
 
 // ---------------------------------------------------------------------------
+// flipbook of a fire simulated in Blender (pipeline/blender_fire.py): 8 x 8
+// frames, played at 24 fps with a cross-fade between neighbouring frames
+const FLIPBOOK_FRAG = /* glsl */ `
+uniform sampler2D tAtlas; uniform float uFrame; uniform float uIntensity; uniform float uFlip;
+varying vec2 vUv;
+vec2 cellUv(float f, vec2 uv){
+  float i = mod(f, 64.0);
+  vec2 cell = vec2(mod(i, 8.0), 7.0 - floor(i / 8.0));
+  return (cell + clamp(uv, vec2(0.004), vec2(0.996))) / 8.0;
+}
+void main(){
+  vec2 uv = vec2(mix(vUv.x, 1.0 - vUv.x, uFlip), vUv.y);
+  float f = floor(uFrame);
+  vec3 a = texture2D(tAtlas, cellUv(f, uv)).rgb;
+  vec3 b = texture2D(tAtlas, cellUv(f + 1.0, uv)).rgb;
+  vec3 c = mix(a, b, fract(uFrame));
+  // soften the frame edges and the very bottom (the logs hide the base)
+  float edge = smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x) * smoothstep(0.0, 0.05, vUv.y);
+  gl_FragColor = vec4(c * edge * uIntensity * 1.35, 1.0);
+}`;
+
 export class Flames {
-  constructor({ count = 5, width = 0.9, height = 1.5, intensity = 1 } = {}) {
+  constructor({ count = 5, width = 0.9, height = 1.5, intensity = 1, atlas = null } = {}) {
+    if (atlas) count = Math.min(count, 3);
     this.group = new THREE.Group();
     this.flames = [];
     this.intensity = intensity;
@@ -28,7 +50,18 @@ export class Flames {
     const geo = new THREE.PlaneGeometry(1, 1);
     geo.translate(0, 0.5, 0);
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.ShaderMaterial({
+      const mat = atlas ? new THREE.ShaderMaterial({
+        uniforms: { tAtlas: { value: atlas }, uFrame: { value: 0 }, uIntensity: { value: intensity }, uFlip: { value: i % 2 } },
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: FLIPBOOK_FRAG,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        fog: false,
+      }) : new THREE.ShaderMaterial({
         uniforms: {
           uTime: { value: 0 },
           uSeed: { value: rand() * 100 },
@@ -66,8 +99,10 @@ export class Flames {
         fog: false,
       });
       const m = new THREE.Mesh(geo, mat);
-      const s = 1 - i / (count * 1.6);
-      m.scale.set(width * s * (0.8 + rand() * 0.4), height * s * (0.8 + rand() * 0.4), 1);
+      const s = atlas ? 1 - i * 0.12 : 1 - i / (count * 1.6);
+      // the simulated frame is 0.95 m wide and 1.9 m tall (twice as tall as wide)
+      if (atlas) m.scale.set(width * s * (0.9 + rand() * 0.2), width * 2 * s * (0.9 + rand() * 0.2), 1);
+      else m.scale.set(width * s * (0.8 + rand() * 0.4), height * s * (0.8 + rand() * 0.4), 1);
       m.position.set((rand() - 0.5) * width * 0.3, 0, (rand() - 0.5) * width * 0.3);
       m.userData.baseH = m.scale.y;
       m.userData.phase = rand() * 10;
@@ -80,7 +115,9 @@ export class Flames {
   update(time, camera, flicker = 1) {
     const wp = new THREE.Vector3();
     for (const m of this.flames) {
-      m.material.uniforms.uTime.value = time + m.userData.phase;
+      const u = m.material.uniforms;
+      if (u.uFrame) u.uFrame.value = (time + m.userData.phase * 3.7) * 24;
+      else u.uTime.value = time + m.userData.phase;
       m.material.uniforms.uIntensity.value = this.intensity * flicker;
       m.getWorldPosition(wp);
       m.rotation.y = Math.atan2(camera.position.x - wp.x, camera.position.z - wp.z) - (this.group.parent ? this.group.parent.rotation.y : 0);
@@ -383,7 +420,7 @@ export class Campfire {
     this.group.add(this.glow);
 
     // flames
-    this.flames = new Flames({ count: 6, width: 0.95, height: 1.45, intensity: 1 });
+    this.flames = new Flames({ count: 6, width: 0.95, height: 1.45, intensity: 1, atlas: T.scanned && T.scanned.fire ? T.scanned.fire.map : null });
     this.flames.group.position.y = 0.05;
     this.group.add(this.flames.group);
 

@@ -119,6 +119,19 @@
       "maps": {
         "diff": "assets/tex/needles_diff.webp"
       }
+    },
+    "fire": {
+      "asset": "campfire (Blender Mantaflow simulation)",
+      "size": [
+        0.95,
+        1.9
+      ],
+      "card": true,
+      "frames": 64,
+      "grid": 8,
+      "maps": {
+        "diff": "assets/tex/fire_flipbook.webp"
+      }
     }
   }
 }

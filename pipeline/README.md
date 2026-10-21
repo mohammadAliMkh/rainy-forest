@@ -48,6 +48,37 @@ graphVenv/Scripts/python.exe pipeline/finish_card.py graphVenv/cache/bake/needle
 | `blender_bake_card.py` | داخل بلندر: رندر رنگ خالص یک شاخه‌ی واقعی به یک کارت شفاف |
 | `finish_card.py` | نرم کردن لبه‌های کارت، پر کردن رنگ زیر پیکسل‌های شفاف، WebP |
 
+## مدل‌های ساخته‌شده در بلندر (با اسکریپت)
+
+این‌ها از صفر با اسکریپت پایتون داخل بلندر ساخته می‌شوند، با همان اندازه‌هایی که کد بازی استفاده می‌کند. بعد سایه‌ی محیطی در رنگ رأس‌ها پخت می‌شود و خروجی با `process_models.py --scene` فشرده می‌شود.
+
+| اسکریپت | چه می‌سازد |
+|---|---|
+| `bkit.py` | جعبه‌ابزار مشترک: متریال‌های اسکن‌شده، نگاشت بافت به اندازه‌ی واقعی، لوله و چرخش و برش، پخت سایه، خروجی glb |
+| `blender_cabin.py` | کلبه‌ی چوبی: کنده‌ها، سقف با حدود ۱۴۰۰ زونا، دودکش سنگی، در لولا‌دار، پنجره‌ها، داخل |
+| `blender_store.py` | پوسته‌ی سوپرمارکت: پایه‌ی سنگی، دیوار تخته‌ای، سقف شیروانی موج‌دار، ایوان، نرده، پله |
+| `blender_patrol.py` | پاترول Y60 آفرود: بدنه، چرخ با آج واقعی، اسنورکل، باربند، سپر، داخل |
+| `blender_hornet.py` | هورنت ۲.۰: باک، دوشاخ طلایی، رینگ، موتور، اگزوز، تکیه روی جک |
+| `blender_trees.py` | چهار نوع سوزنی‌برگ با ساختار واقعی صنوبر و نسخه‌ی سبک برای دور |
+| `blender_fire.py` + `fire_atlas.py` | شبیه‌سازی آتش (Mantaflow) و فیلم‌برگه‌ی ۶۴ فریمی شعله |
+| `blender_preview.py` | رندر پیش‌نمایش هر مدل برای بررسی قبل از ورود به بازی |
+| `make_log_end.py` | بافت مقطع کنده (حلقه‌های سالانه) |
+| `fetch_kit_textures.py` | بافت‌های اسکن‌شده‌ای که فقط داخل بلندر برای ساختمان‌ها لازم‌اند |
+
+نمونه:
+
+```bash
+set KIT_DIR=graphVenv/cache/kit
+graphVenv/tools/blender/blender.exe -b --factory-startup -P pipeline/blender_cabin.py -- graphVenv/cache/work/cabin_raw.glb
+graphVenv/Scripts/python.exe pipeline/process_models.py --scene cabin graphVenv/cache/work/cabin_raw.glb 1024
+```
+
+درخت‌ها بدون حذف ویژگی‌ها فشرده می‌شوند (رنگ رأس و مختصات بافتشان لازم است):
+
+```bash
+graphVenv/node/node_modules/.bin/gltf-transform meshopt graphVenv/cache/work/trees_raw.glb public/assets/models/trees.glb
+```
+
 ## در بازی
 
 - `src/game/world/scannedTextures.ts` بافت‌ها را قبل از ساختن دنیا جایگزین بافت‌های نقاشی‌شده می‌کند و به هر متریال نقشه‌ی زبری و سایه هم می‌دهد.
