@@ -1,4 +1,4 @@
-import { WORLD, CABIN, FIRE, CAMP, PUDDLES } from '../core/config.js';
+import { WORLD, CABIN, FIRE, CAMP, PUDDLES } from '../config/config.js';
 
 // Small round map in the corner (bottom right on desktop, top left on
 // phones). It turns with the player, who is the arrow in the middle: the
