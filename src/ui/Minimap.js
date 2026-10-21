@@ -1,6 +1,6 @@
 import { WORLD, CABIN, FIRE, CAMP, PUDDLES } from '../config/config.js';
 
-// Small round map in the corner (bottom right on desktop, top left on
+// Small round map in the corner (bottom right on desktop; small, top right under the sound button on
 // phones). It turns with the player, who is the arrow in the middle: the
 // trail, the trees, the cabin, the fire with the friends around it, Luna,
 // the carport with the Patrol and the Hornet, puddles and the deer.
@@ -225,7 +225,7 @@ export class Minimap {
     const northA = Math.atan2(-cos, sin); // direction of world -Z on screen
     const northX = R + Math.cos(northA) * (R - 9 * dpr), northY = R + Math.sin(northA) * (R - 9 * dpr);
     if (this.zoom === 0) {
-      g.font = `600 ${10 * dpr}px Vazirmatn, Tahoma, sans-serif`;
+      g.font = `600 ${(small ? 8.5 : 10) * dpr}px Vazirmatn, Tahoma, sans-serif`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       const boxes = [[northX - 8 * dpr, northY - 8 * dpr, 16 * dpr, 16 * dpr]]; // the north letter
