@@ -1,5 +1,9 @@
 import { QUALITY_PRESETS } from '../../config/config.js';
-import { EV } from '../../config/events.js';
+import type { QualityName, QualityPreset } from '../../config/config.js';
+import { EV } from '../../config/events.ts';
+import type { GameEvents } from '../../config/events.ts';
+import type { EventBus } from '../events.ts';
+import type { Renderer } from '../render/Renderer.js';
 import { TIERS } from '../render/gpuTier.js';
 
 // Graphics quality: applies a level (low .. ultra) and, in automatic mode,
@@ -17,23 +21,44 @@ import { TIERS } from '../render/gpuTier.js';
 // screens / battery savers that cap at 30 FPS don't drag the quality down
 // for nothing.
 
+/** the automatic mode's bookkeeping (exposed for tests) */
+interface Governor {
+  t0: number; frames: number; holdUntil: number; highStreak: number; calm: number;
+  wait: number; fails: number; retried: boolean; retriedAt: number;
+  ceiling: number; maxCeiling: number;
+  reset(holdSeconds?: number): void;
+}
+
+const isLevel = (s: string): s is QualityName => s in QUALITY_PRESETS;
+
 export class QualityManager {
-  constructor({ renderer, events, gpuTier, setting }) {
+  readonly renderer: Renderer;
+  readonly events: EventBus<GameEvents>;
+  readonly gpuTier: QualityName;
+  auto: boolean;
+  name: QualityName;
+  /** set by the app: adapt only while actually playing */
+  active: () => boolean = () => true;
+  readonly gov: Governor;
+
+  constructor({ renderer, events, gpuTier, setting }: { renderer: Renderer; events: EventBus<GameEvents>; gpuTier: QualityName; setting: string }) {
     this.renderer = renderer;
     this.events = events;
     this.gpuTier = gpuTier;
-    this.auto = setting === 'auto' || !QUALITY_PRESETS[setting];
-    this.name = this.auto ? gpuTier : setting;
-    this.active = () => true; // set by the app: adapt only while actually playing
-    const gov = { t0: 0, frames: 0, holdUntil: 0, highStreak: 0, calm: 0, wait: 15, fails: 0, retried: false, ceiling: Math.min(TIERS.length - 1, TIERS.indexOf(gpuTier) + 1) };
-    gov.maxCeiling = gov.ceiling;
-    gov.reset = (hold = 3) => { gov.t0 = 0; gov.frames = 0; gov.holdUntil = performance.now() + hold * 1000; gov.highStreak = 0; };
+    this.auto = setting === 'auto' || !isLevel(setting);
+    this.name = isLevel(setting) && !this.auto ? setting : gpuTier;
+    const ceiling = Math.min(TIERS.length - 1, TIERS.indexOf(gpuTier) + 1);
+    const gov: Governor = {
+      t0: 0, frames: 0, holdUntil: 0, highStreak: 0, calm: 0, wait: 15, fails: 0, retried: false, retriedAt: 0,
+      ceiling, maxCeiling: ceiling,
+      reset: (hold = 3) => { gov.t0 = 0; gov.frames = 0; gov.holdUntil = performance.now() + hold * 1000; gov.highStreak = 0; },
+    };
     this.gov = gov;
   }
 
-  get preset() { return QUALITY_PRESETS[this.name] || QUALITY_PRESETS.high; }
+  get preset(): QualityPreset { return QUALITY_PRESETS[this.name] || QUALITY_PRESETS.high; }
 
-  apply(name) {
+  apply(name: QualityName): void {
     this.name = name;
     const q = this.preset;
     this.renderer.setQuality(q);
@@ -41,29 +66,29 @@ export class QualityManager {
     this.syncPixelRatio();
   }
 
-  syncPixelRatio() {
+  syncPixelRatio(): void {
     this.events.emit(EV.PIXEL_RATIO, this.renderer.renderer.getPixelRatio());
   }
 
-  // the menu choice: 'auto' or a level name
-  setSetting(setting) {
-    this.auto = setting === 'auto';
-    this.apply(this.auto ? this.gpuTier : setting);
+  /** the menu choice: 'auto' or a level name */
+  setSetting(setting: string): void {
+    this.auto = setting === 'auto' || !isLevel(setting);
+    this.apply(isLevel(setting) && !this.auto ? setting : this.gpuTier);
     this.gov.reset();
   }
 
-  _setLevel(name) {
+  private setLevel(name: QualityName): void {
     this.apply(name);
     this.gov.reset(4);
   }
 
-  // system: runs once per frame, after rendering
-  update() {
-    if (this.auto && this.active()) this._governor(performance.now());
+  /** system: runs once per frame, after rendering */
+  update(): void {
+    if (this.auto && this.active()) this.governor(performance.now());
     else this.gov.reset(1);
   }
 
-  _governor(now) {
+  private governor(now: number): void {
     const gov = this.gov;
     if (now < gov.holdUntil) return;
     if (!gov.t0) { gov.t0 = now; gov.frames = 0; return; }
@@ -72,7 +97,7 @@ export class QualityManager {
     const fps = (gov.frames * 1000) / (now - gov.t0);
     gov.t0 = now; gov.frames = 0;
     const q = QUALITY_PRESETS[this.name];
-    const i = TIERS.indexOf(this.name);
+    const i = TIERS.indexOf(this.name) as number;
     const renderer = this.renderer;
     const pr = renderer.renderer.getPixelRatio();
     if (fps < 27) {
@@ -86,14 +111,14 @@ export class QualityManager {
           if (++gov.fails >= 2) gov.maxCeiling = Math.min(gov.maxCeiling, i - 1);
         }
         gov.ceiling = Math.min(gov.ceiling, i - 1);
-        this._setLevel(TIERS[i - 1]);
+        this.setLevel(TIERS[i - 1]);
       }
     } else if (fps > 55) {
       if (++gov.calm >= gov.wait && gov.ceiling < gov.maxCeiling) { gov.ceiling++; gov.calm = 0; gov.retried = true; gov.retriedAt = now; }
       if (++gov.highStreak < 2) return;
       gov.highStreak = 0;
       if (pr < q.maxScale - 0.01) { renderer.setScale(pr + 0.1); this.syncPixelRatio(); gov.reset(1); }
-      else if (i < gov.ceiling) this._setLevel(TIERS[i + 1]);
+      else if (i < gov.ceiling) this.setLevel(TIERS[i + 1]);
     } else { gov.highStreak = 0; gov.calm = 0; }
   }
 }

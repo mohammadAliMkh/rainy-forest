@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { INTRO } from './introScript.js';
-import { EV } from '../../config/events.js';
+import { EV } from '../../config/events.ts';
 
 // The owner's welcome and introductions, played like a film scene: the
 // player's camera hands over to a film camera that cuts (a quick dip to

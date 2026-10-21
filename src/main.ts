@@ -7,7 +7,7 @@ import '@fontsource/vazirmatn/600.css';
 import '@fontsource/vazirmatn/800.css';
 import './ui/style.css';
 import { UI } from './ui/UI.js';
-import { createGame } from './app/createGame.js';
+import { createGame } from './app/createGame.ts';
 
 const ui = new UI();
 ui.bind();

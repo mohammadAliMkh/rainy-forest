@@ -71,6 +71,15 @@ export const DAY = {
 // in automatic mode the resolution then floats between minScale and maxScale
 // to hold a smooth frame rate. "high" suits a dedicated (even older) GPU,
 // "medium" typical laptop iGPUs, "ultra" recent dedicated GPUs.
+/**
+ * @typedef {object} QualityPreset
+ * @property {number} renderScale @property {number} minScale @property {number} maxScale
+ * @property {number} msaa @property {boolean} fxaa @property {boolean} shadows @property {number} shadowSize
+ * @property {boolean} bloom @property {boolean} reflections @property {number} [reflectionSize] @property {number} [reflectEvery]
+ * @property {boolean} richFoliage @property {number} treeHiDist @property {number} vegDist @property {number} mistCount @property {number} texDetail
+ */
+/** @typedef {'low' | 'medium' | 'high' | 'ultra'} QualityName */
+/** @type {Record<QualityName, QualityPreset>} */
 export const QUALITY_PRESETS = {
   low: { renderScale: 0.6, minScale: 0.45, maxScale: 0.75, msaa: 0, fxaa: true, shadows: false, shadowSize: 1024, bloom: false, reflections: false, richFoliage: false, treeHiDist: 30, vegDist: 30, mistCount: 28, texDetail: 1 },
   medium: { renderScale: 0.75, minScale: 0.55, maxScale: 1.0, msaa: 0, fxaa: true, shadows: false, shadowSize: 1024, bloom: true, reflections: true, reflectionSize: 256, reflectEvery: 3, richFoliage: false, treeHiDist: 42, vegDist: 36, mistCount: 36, texDetail: 1 },

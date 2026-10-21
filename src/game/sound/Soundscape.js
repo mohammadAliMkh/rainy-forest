@@ -5,7 +5,7 @@ import { FireSound } from './sounds/FireSound.js';
 import { WildlifeSound } from './sounds/WildlifeSound.js';
 import { Footsteps } from './sounds/Footsteps.js';
 import { GuitarSound } from './sounds/GuitarSound.js';
-import { EV } from '../../config/events.js';
+import { EV } from '../../config/events.ts';
 
 // Orchestrates the whole forest soundscape. Must be started from a user
 // gesture (the "enter the forest" button) because of browser autoplay rules.

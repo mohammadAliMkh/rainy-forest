@@ -1,19 +1,21 @@
 import * as THREE from 'three';
 import { FIRE } from '../config/config.js';
-import { EV } from '../config/events.js';
-import { EventBus } from '../engine/events.js';
-import { Game } from '../engine/Game.js';
+import { EV } from '../config/events.ts';
+import type { GameEvents } from '../config/events.ts';
+import { EventBus } from '../engine/events.ts';
+import { Game } from '../engine/Game.ts';
+import type { FrameBase } from '../engine/Game.ts';
 import { installFogChunks } from '../engine/render/shaderPatches.js';
 import { Renderer } from '../engine/render/Renderer.js';
 import { detectGpu } from '../engine/render/gpuTier.js';
-import { QualityManager } from '../engine/quality/QualityManager.js';
+import { QualityManager } from '../engine/quality/QualityManager.ts';
 import { createTextures, setMaxAnisotropy } from '../game/world/textures.js';
 import { Terrain } from '../game/world/Terrain.js';
 import { Forest } from '../game/world/Forest.js';
 import { Vegetation, DETAIL_LAYER } from '../game/world/Vegetation.js';
 import { Cabin } from '../game/world/Cabin.js';
 import { Puddles, PUDDLE_LAYER } from '../game/world/Puddles.js';
-import { Culling } from '../game/world/Culling.js';
+import { Culling } from '../game/world/Culling.ts';
 import { Campfire } from '../game/camp/Fire.js';
 import { Camp } from '../game/camp/Camp.js';
 import { Rain } from '../game/weather/Rain.js';
@@ -21,16 +23,29 @@ import { Mist } from '../game/weather/Mist.js';
 import { Sky } from '../game/weather/Sky.js';
 import { DayCycle } from '../game/weather/DayCycle.js';
 import { Wind } from '../game/weather/Wind.js';
-import { Lighting } from '../game/lighting/Lighting.js';
+import { Lighting } from '../game/lighting/Lighting.ts';
 import { DeerHerd } from '../game/creatures/Deer.js';
 import { Wildlife } from '../game/creatures/Wildlife.js';
 import { CollisionWorld } from '../game/player/Collision.js';
 import { PlayerController } from '../game/player/PlayerController.js';
 import { Soundscape } from '../game/sound/Soundscape.js';
 import { Minimap } from '../ui/Minimap.js';
-import { Session } from './Session.js';
-import { Hud } from './Hud.js';
-import { connectSettings } from './settings.js';
+import { Session } from './Session.ts';
+import { Hud } from './Hud.ts';
+import { connectSettings } from './settings.ts';
+import type { UI } from '../ui/UI.js';
+
+/** what every system gets each frame */
+export interface ForestFrame extends FrameBase {
+  camera: THREE.PerspectiveCamera;
+  /** light level, fog colour, bird activity... from the day cycle */
+  env: DayCycle['env'];
+}
+
+declare global {
+  // the game's parts, for tests and the browser console (only with ?debug)
+  interface Window { forest?: Record<string, unknown> }
+}
 
 // Builds the whole game (with the loading bar), connects the parts and
 // lists the systems that run every frame, in order. This is the one place
@@ -38,11 +53,11 @@ import { connectSettings } from './settings.js';
 // bus and the few services they are handed.
 
 // setTimeout (not rAF) so loading also progresses in a background tab
-const nextFrame = () => new Promise((r) => setTimeout(r, 16));
+const nextFrame = () => new Promise<void>((r) => setTimeout(r, 16));
 
-export async function createGame({ ui, debug = false }) {
+export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolean }): Promise<Game<ForestFrame>> {
   installFogChunks();
-  const events = new EventBus();
+  const events = new EventBus<GameEvents>();
   const renderer = new Renderer(document.getElementById('app'));
   setMaxAnisotropy(renderer.renderer.capabilities.getMaxAnisotropy());
 
@@ -54,7 +69,7 @@ export async function createGame({ ui, debug = false }) {
   camera.layers.enable(DETAIL_LAYER);
   scene.add(camera);
 
-  const step = async (p, text) => { ui.setLoading(p, text); await nextFrame(); };
+  const step = async (p: number, text: string) => { ui.setLoading(p, text); await nextFrame(); };
 
   // ---------- building the world ----------
   await step(0.05, 'نقاشی بافت‌ها: پوست درخت، خاک خیس، خزه و برگ‌ها…');
@@ -99,7 +114,10 @@ export async function createGame({ ui, debug = false }) {
 
   await step(0.82, 'آهوها، پرندگان و خرگوش‌ها…');
   // shared context the creatures use; their sounds go out on the event bus
-  const world = { terrain, collision, cabin, fire, camp, forest, player: null, emit: (type, source) => events.emit(EV.CREATURE_SOUND, { type, source }) };
+  const world = {
+    terrain, collision, cabin, fire, camp, forest, player: null as PlayerController | null,
+    emit: (type: GameEvents[typeof EV.CREATURE_SOUND]['type'], source: unknown) => events.emit(EV.CREATURE_SOUND, { type, source }),
+  };
   const player = new PlayerController(camera, renderer.domElement, terrain, collision, { debug, events });
   world.player = player;
   const deer = new DeerHerd(T, world);
@@ -113,7 +131,7 @@ export async function createGame({ ui, debug = false }) {
   const sound = new Soundscape(world, events);
   // the camp's introductions keep the ambience lowered across all of their lines
   camp.voices = {
-    play: (key, pos) => sound.playVoice(key, pos, { duck: false, flat: true }),
+    play: (key: string, pos: THREE.Vector3) => sound.playVoice(key, pos, { duck: false, flat: true }),
     ready: () => !!sound.engine.filesLoaded,
   };
 
@@ -155,10 +173,8 @@ export async function createGame({ ui, debug = false }) {
   try { await renderer.renderer.compileAsync(scene, camera); } catch { renderer.renderer.compile(scene, camera); }
 
   // ---------- the systems, in the order they run every frame ----------
-  const game = new Game();
-  const frame = game.frameState;
-  frame.camera = camera;
-  const sys = (name, update) => game.add({ name, update });
+  const game = new Game<ForestFrame>({ camera, env: day.env });
+  const sys = (name: string, update: (f: ForestFrame) => void) => game.add({ name, update });
   sys('day', (f) => { day.update(f.dt); f.env = day.env; });
   sys('wind', (f) => wind.update(f.dt, f.time));
   sys('player', (f) => player.update(f.dt, f.time));
@@ -189,9 +205,9 @@ export async function createGame({ ui, debug = false }) {
   if (debug) {
     // for tests and the browser console (?debug)
     window.forest = {
-      game, events, frame: (dt) => game.frame(dt), THREE, frustum: culling.frustum, scene, camera, renderer, gpu, gov: quality.gov, quality,
+      game, events, frame: (dt?: number) => game.frame(dt), THREE, frustum: culling.frustum, scene, camera, renderer, gpu, gov: quality.gov, quality,
       player, day, sound, world, deer, wildlife, fire, cabin, camp, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
-      applyQuality: (name) => quality.apply(name), FIRE,
+      applyQuality: (name: Parameters<QualityManager['apply']>[0]) => quality.apply(name), FIRE,
     };
   }
   return game;

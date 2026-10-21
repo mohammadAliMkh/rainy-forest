@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Human } from './Human.js';
 import { damp, clamp } from '../../utils/noise.js';
-import { EV } from '../../config/events.js';
+import { EV } from '../../config/events.ts';
 
 // The friends sitting around the fire: who talks, who listens, sips of tea,
 // laughter, glances at the dog and a greeting when the player walks up.

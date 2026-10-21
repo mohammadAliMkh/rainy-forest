@@ -1,6 +1,29 @@
 import { FIRE } from '../config/config.js';
-import { EV } from '../config/events.js';
+import { EV } from '../config/events.ts';
+import type { GameEvents } from '../config/events.ts';
+import type { EventBus } from '../engine/events.ts';
+import type { FrameBase } from '../engine/Game.ts';
+import type { QualityManager } from '../engine/quality/QualityManager.ts';
+import type { PlayerController } from '../game/player/PlayerController.js';
+import type { Camp } from '../game/camp/Camp.js';
+import type { Soundscape } from '../game/sound/Soundscape.js';
+import type { UI } from '../ui/UI.js';
+import type { Minimap } from '../ui/Minimap.js';
 import { TouchControls, isTouchFirst } from '../ui/TouchControls.js';
+
+interface SessionParts {
+  ui: UI;
+  events: EventBus<GameEvents>;
+  player: PlayerController;
+  camp: Camp;
+  sound: Soundscape;
+  quality: QualityManager;
+  minimap: Minimap;
+  canvas: HTMLCanvasElement;
+}
+
+// screen.orientation.lock() exists on Android browsers but not in the DOM types
+type LockableOrientation = ScreenOrientation & { lock?: (o: 'landscape') => Promise<void> };
 
 // The flow of a visit, between the screens and the game: entering the
 // forest, the settings menu (Esc / the gear button), the introductions
@@ -8,10 +31,22 @@ import { TouchControls, isTouchFirst } from '../ui/TouchControls.js';
 // in a hidden tab, and which on-screen parts (touch controls, map) show.
 
 export class Session {
-  constructor({ ui, events, player, camp, sound, quality, minimap, canvas }) {
-    Object.assign(this, { ui, events, player, camp, sound, quality, minimap });
-    this.entered = false;
-    this._waitHintAt = 0;
+  /** the player has clicked "enter the forest" */
+  entered = false;
+  readonly touch: TouchControls;
+  private ui: UI;
+  private player: PlayerController;
+  private camp: Camp;
+  private sound: Soundscape;
+  private minimap: Minimap;
+  private _waitHintAt = 0;
+
+  constructor({ ui, events, player, camp, sound, quality, minimap, canvas }: SessionParts) {
+    this.ui = ui;
+    this.player = player;
+    this.camp = camp;
+    this.sound = sound;
+    this.minimap = minimap;
 
     // phones / tablets: joystick + drag-to-look + buttons instead of keys & mouse
     const touch = new TouchControls(player, canvas, { onMenu: () => this.openMenu() });
@@ -53,9 +88,9 @@ export class Session {
     if (isTouchFirst()) touch.enable();
   }
 
-  menuOpen() { return !document.getElementById('pause').classList.contains('hidden'); }
+  menuOpen(): boolean { return !document.getElementById('pause')?.classList.contains('hidden'); }
 
-  openMenu() {
+  openMenu(): void {
     const { player } = this;
     player.freeMode = false;
     player.keys.clear();
@@ -63,22 +98,22 @@ export class Session {
     this.ui.showPause('');
   }
 
-  closeMenu() {
+  closeMenu(): void {
     this.ui.hidePause();
     this.player.freeMode = !this.camp.intro.active;
     this.touch.show(!this.camp.intro.active);
   }
 
-  showMap() {
+  showMap(): void {
     this.minimap.setVisible(this.entered && this.ui.settings.minimap && !this.camp.intro.active);
   }
 
-  enter() {
+  enter(): void {
     if (this.entered) return;
     const { ui, sound, touch } = this;
     // the audio context is created inside this click; the recordings load in
     // the background, so the forest opens right away
-    sound.start().catch((e) => {
+    sound.start().catch((e: unknown) => {
       console.warn('Audio failed to start', e);
       sound.engine.filesLoaded = true; // no sound: the introductions must not wait forever
     });
@@ -90,14 +125,14 @@ export class Session {
       // full screen + landscape where the browser allows it (not on iPhone)
       touch.show(true);
       const fs = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
-      Promise.resolve(fs).then(() => screen.orientation?.lock?.('landscape')).catch(() => { /* not allowed / supported */ });
+      Promise.resolve(fs).then(() => (screen.orientation as LockableOrientation | undefined)?.lock?.('landscape')).catch(() => { /* not allowed / supported */ });
       setTimeout(() => ui.toast('حرکت: دایره پایین سمت چپ · نگاه: انگشت را روی صفحه بکشید', 6000), 900);
     } else {
       setTimeout(() => ui.toast('نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc', 6000), 900);
     }
   }
 
-  _onKey(e) {
+  private _onKey(e: KeyboardEvent): void {
     if (!this.entered) return;
     const intro = this.camp.intro;
     // during the introductions Esc / Space / Enter skip them
@@ -112,8 +147,8 @@ export class Session {
     else this.closeMenu();
   }
 
-  // system: a hint while the recordings are still loading at the fire
-  update(frame) {
+  /** system: a hint while the recordings are still loading at the fire */
+  update(frame: FrameBase & { camera: { position: { x: number; z: number } } }): void {
     if (!this.entered || this.camp.intro.done || this.sound.engine.filesLoaded || frame.time <= this._waitHintAt) return;
     const cam = frame.camera.position;
     if (Math.hypot(cam.x - FIRE.x, cam.z - FIRE.z) < 5.2) {

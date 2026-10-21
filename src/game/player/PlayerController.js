@@ -1,13 +1,18 @@
 import { WORLD, SPAWN, PUDDLES } from '../../config/config.js';
 import { damp, clamp } from '../../utils/noise.js';
-import { EV } from '../../config/events.js';
+import { EV } from '../../config/events.ts';
 
 // First-person controller: right-drag / screen-edge mouse look (cursor stays visible), WASD (physical keys, so
 // it works with a Persian keyboard layout too), Shift to run, smooth
 // acceleration, terrain following, gentle head-bob and footstep events.
 
 export class PlayerController {
-  constructor(camera, dom, terrain, collision, { debug = false, events = null } = {}) {
+  /**
+   * @param {{ debug?: boolean, events?: import('../../engine/events.ts').EventBus<import('../../config/events.ts').GameEvents> }} [options]
+   *   debug: free look before entering; events: where footsteps are announced
+   */
+  constructor(camera, dom, terrain, collision, options = {}) {
+    const { debug = false, events } = options;
     this.events = events;
     this.camera = camera;
     this.dom = dom;

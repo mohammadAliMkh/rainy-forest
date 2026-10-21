@@ -1,14 +1,21 @@
+import type { UI } from '../ui/UI.js';
+import type { DayCycle } from '../game/weather/DayCycle.js';
+
 // The small readouts on screen: the FPS counter (optional) and the clock in
 // the settings menu, refreshed twice a second.
 
 export class Hud {
-  constructor({ ui, day }) {
-    Object.assign(this, { ui, day });
-    this._t0 = 0;
-    this._frames = 0;
+  private ui: UI;
+  private day: DayCycle;
+  private _t0 = 0;
+  private _frames = 0;
+
+  constructor({ ui, day }: { ui: UI; day: DayCycle }) {
+    this.ui = ui;
+    this.day = day;
   }
 
-  update() {
+  update(): void {
     const now = performance.now();
     if (!this._t0) this._t0 = now;
     this._frames++;

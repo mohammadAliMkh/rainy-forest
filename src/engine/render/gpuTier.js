@@ -2,8 +2,10 @@
 // (on laptops with two GPUs this is whichever one the browser runs on).
 // The in-game governor then refines it from the measured frame rate.
 
+/** @type {import('../../config/config.js').QualityName[]} */
 export const TIERS = ['low', 'medium', 'high', 'ultra'];
 
+/** @returns {{ name: string, tier: import('../../config/config.js').QualityName, mobile: boolean }} */
 export function detectGpu(renderer) {
   let name = '';
   try {
@@ -14,6 +16,7 @@ export function detectGpu(renderer) {
   const n = name.toLowerCase();
   const ua = navigator.userAgent || '';
   const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  /** @type {import('../../config/config.js').QualityName} */
   let tier = 'medium';
   if (/swiftshader|llvmpipe|softpipe|software|basic render/.test(n)) tier = 'low';
   else if (mobile) tier = /apple gpu|adreno.*(7[3-9]\d|[89]\d\d)|immortalis|mali-g(7[1-9]|[6-9]\d\d)/.test(n) ? 'medium' : 'low';
