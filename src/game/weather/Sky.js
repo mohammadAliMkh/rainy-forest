@@ -2,6 +2,8 @@ import * as THREE from 'three';
 
 // Overcast sky dome with slowly drifting clouds, a sun/moon glow diffused
 // through the cloud layer and a few stars visible through gaps at night.
+// uCover thins the clouds in dry weather; uFlash lights them softly from
+// behind when there is a distant lightning flash (toward uFlashDir).
 
 export class Sky {
   constructor() {
@@ -15,6 +17,9 @@ export class Sky {
       uSunGlow: { value: 0.4 },
       uStars: { value: 0 },
       uTime: { value: 0 },
+      uCover: { value: 1 },
+      uFlash: { value: 0 },
+      uFlashDir: { value: new THREE.Vector3(1, 0.3, 0) },
     };
     const material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -30,7 +35,8 @@ export class Sky {
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uTop, uHorizon, uBottom, uSunColor, uSunDir, uMoonDir;
-        uniform float uSunGlow, uStars, uTime;
+        uniform float uSunGlow, uStars, uTime, uCover, uFlash;
+        uniform vec3 uFlashDir;
         varying vec3 vDir;
         float h21(vec2 p){ p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
         float h31(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
@@ -47,7 +53,7 @@ export class Sky {
           cp += vec2(uTime * 0.006, uTime * 0.0035);
           float c = fbm(cp * 1.4);
           float c2 = fbm(cp * 4.3 + 7.0);
-          float cloud = smoothstep(0.38, 0.78, c * 0.75 + c2 * 0.3);
+          float cloud = smoothstep(0.38 + (1.0 - uCover) * 0.14, 0.78, c * 0.75 + c2 * 0.3);
           vec3 cloudDark = mix(uTop, uHorizon, 0.35) * 0.78;
           vec3 cloudLight = uHorizon * 1.04;
           vec3 cc = mix(cloudLight, cloudDark, cloud);
@@ -65,6 +71,11 @@ export class Sky {
             float st = step(0.9975, h31(sp));
             float tw = 0.6 + 0.4 * sin(uTime * 3.0 + h31(sp + 1.0) * 40.0);
             col += vec3(0.8, 0.85, 1.0) * st * tw * uStars * (1.0 - smoothstep(0.2, 0.55, cloud)) * smoothstep(0.08, 0.35, h) * 0.6;
+          }
+          // lightning: the clouds glow from inside, mostly toward the flash
+          if (uFlash > 0.001) {
+            float fd = max(dot(d, normalize(uFlashDir)), 0.0);
+            col += vec3(0.78, 0.82, 0.95) * uFlash * (0.25 + 0.75 * pow(fd, 3.0)) * (0.4 + 0.6 * cloud) * cloudVis;
           }
           gl_FragColor = vec4(col, 1.0);
         }`,

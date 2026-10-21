@@ -19,6 +19,9 @@ export const EV = {
   PLAYER_STEP: 'player:step',
   CREATURE_SOUND: 'creature:sound',
 
+  // the weather (src/game/weather/Weather.ts)
+  LIGHTNING: 'weather:lightning',
+
   // graphics quality (src/engine/quality)
   QUALITY_CHANGED: 'quality:changed',
   PIXEL_RATIO: 'quality:pixelRatio',
@@ -41,6 +44,8 @@ export interface GameEvents {
   [EV.CREATURE_SOUND]:
     | { type: 'birdSong' | 'birdFlap'; source: { species: string; pos: Vector3 } }
     | { type: 'deerStep' | 'deerSnort'; source: { x: number; z: number } };
+  /** a soft, distant flash; the rumble arrives `delay` seconds later */
+  [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };
   /** the render resolution (pixel ratio) changed */
   [EV.PIXEL_RATIO]: number;

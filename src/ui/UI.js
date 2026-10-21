@@ -19,6 +19,7 @@ export class UI {
       showFps: false,
       subtitles: false, // subtitles for the introductions (off unless the visitor wants them)
       minimap: true,
+      weather: 'auto', // the rain comes and goes by itself
     };
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -150,6 +151,9 @@ export class UI {
     });
 
     $('time-of-day').addEventListener('input', () => this.emit('time', parseFloat($('time-of-day').value)));
+    $('weather').value = s.weather;
+    $('weather').addEventListener('change', () => { s.weather = $('weather').value; this.emit('weather', s.weather); this.save(); });
+
     $('day-speed').value = String(s.daySpeed);
     $('day-speed').addEventListener('change', () => { s.daySpeed = parseInt($('day-speed').value, 10); this.emit('daySpeed', s.daySpeed); this.save(); });
 

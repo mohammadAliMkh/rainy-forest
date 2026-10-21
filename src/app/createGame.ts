@@ -23,6 +23,8 @@ import { Mist } from '../game/weather/Mist.js';
 import { Sky } from '../game/weather/Sky.js';
 import { DayCycle } from '../game/weather/DayCycle.js';
 import { Wind } from '../game/weather/Wind.js';
+import { Weather } from '../game/weather/Weather.ts';
+import type { WeatherMode } from '../game/weather/Weather.ts';
 import { Lighting } from '../game/lighting/Lighting.ts';
 import { DeerHerd } from '../game/creatures/Deer.js';
 import { Wildlife } from '../game/creatures/Wildlife.js';
@@ -127,6 +129,9 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   scene.add(wildlife.group);
 
   const wind = new Wind();
+  const weather = new Weather({ events });
+  weather.setMode(ui.settings.weather as WeatherMode);
+  events.on(EV.LIGHTNING, ({ direction, strength }) => lighting.flash(direction, strength));
   const day = new DayCycle({ scene, sky, sun: lighting.sun, hemi: lighting.hemi, ambient: lighting.ambient, renderer: renderer.renderer });
   lighting.connect({ day, player, cinematic: () => camp.intro.active });
   const sound = new Soundscape(world, events);
@@ -155,7 +160,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   if (quality.auto) ui.setAutoQualityLabel(quality.name);
 
   // ---------- settings, screens and the flow of a visit ----------
-  connectSettings({ ui, sound, day, player, quality, lighting });
+  connectSettings({ ui, sound, day, player, quality, lighting, weather });
   // small map in the corner (hidden during the introductions)
   const minimap = new Minimap({
     container: document.body, trees: forest.trees, pathLine: terrain.pathLine,
@@ -186,6 +191,17 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const sys = (name: string, update: (f: ForestFrame) => void) => game.add({ name, update });
   // 1. time and the player: the hour (and so the light) first, then movement
   sys('day', (f) => { day.update(f.dt); f.env = day.env; });
+  sys('weather', (f) => {
+    weather.update(f.dt);
+    // dry spells: a little more sun, thinner mist and clouds, more birdsong
+    const dry = 1 - weather.intensity;
+    lighting.sun.intensity *= 1 + 0.35 * dry;
+    (scene.fog as THREE.FogExp2).density *= 1 - 0.2 * dry;
+    sky.uniforms.uCover.value = 0.35 + 0.65 * weather.intensity;
+    f.env.birdActivity = Math.min(1, f.env.birdActivity * (0.55 + 0.75 * dry));
+    rain.setIntensity(weather.intensity);
+    sound.setRain(weather.intensity, weather.wetness);
+  });
   sys('wind', (f) => wind.update(f.dt, f.time));
   sys('player', (f) => player.update(f.dt));
   // 2. the camera is final for this frame: the introductions may take it over,
@@ -201,7 +217,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('rain', (f) => rain.update(f.dt, f.time, f.camera, f.env));
   sys('mist', (f) => mist.update(f.dt, f.time, f.camera, f.env));
-  sys('puddles', (f) => puddles.update(f.time, f.camera, f.env));
+  sys('puddles', (f) => puddles.update(f.time, f.camera, f.env, weather.intensity));
   sys('deer', (f) => deer.update(f.dt, f.time, player));
   sys('wildlife', (f) => wildlife.update(f.dt, f.time, player, f.env));
   // 4. output: sound, the map (after everyone has moved), the picture
@@ -221,7 +237,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     // for tests and the browser console (?debug)
     window.forest = {
       game, events, frame: (dt?: number) => game.frame(dt), THREE, frustum: culling.frustum, scene, camera, renderer, gpu, gov: quality.gov, quality,
-      player, day, sound, world, deer, wildlife, fire, cabin, camp, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
+      player, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
       applyQuality: (name: Parameters<QualityManager['apply']>[0]) => quality.apply(name), FIRE,
     };
   }

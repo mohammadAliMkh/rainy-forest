@@ -16,6 +16,8 @@ interface LightingFrame extends FrameBase {
 // environment map (wet reflections) made from the sky. The day cycle sets
 // the colours and strengths; this keeps the shadow following the player,
 // fades the lantern and refreshes the environment map as the day goes on.
+// A distant lightning flash (LIGHTNING) lights the sky and the forest
+// softly for a moment: two gentle pulses, no harsh strobe.
 
 export class Lighting {
   readonly scene: THREE.Scene;
@@ -30,12 +32,17 @@ export class Lighting {
   private day!: DayCycle;
   private player!: PlayerController;
   private cinematic: () => boolean = () => false;
+  private sky: Sky;
+  /** current lightning flashes: start time and strength */
+  private flashes: { t: number; strength: number }[] = [];
+  private clock = 0;
   private _rot = new THREE.Matrix4();
   private _rotInv = new THREE.Matrix4();
   private _v = new THREE.Vector3();
 
   constructor({ scene, renderer, sky }: { scene: THREE.Scene; renderer: Renderer; sky: Sky }) {
     this.scene = scene;
+    this.sky = sky;
     this.hemi = new THREE.HemisphereLight(0xaab8c4, 0x2b2a1e, 1);
     this.ambient = new THREE.AmbientLight(0xaab8c4, 0.2);
     // a lantern the player carries: warm light a few metres around them, only
@@ -89,9 +96,31 @@ export class Lighting {
     this.envRT = rt;
   }
 
-  /** system "lighting": shadow camera + lantern (after the camera has moved) */
+  /** LIGHTNING: a soft flash toward `direction` */
+  flash(direction: THREE.Vector3, strength: number): void {
+    this.flashes.push({ t: this.clock, strength });
+    this.sky.uniforms.uFlashDir.value.copy(direction);
+  }
+
+  // two gentle pulses (quick rise, slower fade), then a faint afterglow
+  private _flashLevel(): number {
+    let v = 0;
+    for (const f of this.flashes) {
+      const x = this.clock - f.t;
+      const pulse = (at: number, a: number) => { const d = x - at; return d < 0 ? 0 : a * Math.min(1, d / 0.07) * Math.exp(-d / 0.28); };
+      v += f.strength * (pulse(0, 1) + pulse(0.22, 0.55) + pulse(0.5, 0.2));
+    }
+    this.flashes = this.flashes.filter((f) => this.clock - f.t < 3);
+    return Math.min(1.2, v);
+  }
+
+  /** system "lighting": shadow camera + lantern + lightning (after the camera has moved) */
   update(frame: LightingFrame): void {
     const camera = frame.camera;
+    this.clock += frame.dt;
+    const flash = this._flashLevel();
+    this.sky.uniforms.uFlash.value = flash * 0.32;
+    this.hemi.intensity += flash * 0.85;
     this._followShadow(camera);
     const dark = THREE.MathUtils.clamp((0.48 - frame.env.ambientLevel) / 0.12, 0, 1);
     const on = this.cinematic() ? 0 : dark;

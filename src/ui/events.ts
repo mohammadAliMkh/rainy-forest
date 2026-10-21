@@ -20,4 +20,6 @@ export interface UiEvents {
   /** 'auto' or a quality level name */
   quality: string;
   minimap: boolean;
+  /** 'auto' (rain comes and goes), 'rain' (always) or 'dry' */
+  weather: string;
 }

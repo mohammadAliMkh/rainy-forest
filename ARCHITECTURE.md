@@ -37,7 +37,7 @@ utils/    ابزارهای کوچک ریاضی و نویز (به هیچ‌چیز
 | `src/engine/audio/` | موتور صدای سه‌بعدی و ابزار ساخت صدا |
 | `src/engine/quality/` | سطح کیفیت و کیفیت خودکار |
 | `src/game/world/` | زمین و مسیر، درخت‌ها، گیاهان، کلبه، گودال‌ها، بافت‌ها، حذف چیزهای بیرون از دید |
-| `src/game/weather/` | باران، مه، باد، آسمان، شبانه‌روز |
+| `src/game/weather/` | آب‌وهوا (برنامه‌ی تصادفی باران و رعدوبرق)، باران، مه، باد، آسمان، شبانه‌روز |
 | `src/game/lighting/` | نورها، سایه، فانوس، انعکاس آسمان |
 | `src/game/camp/` | دور آتش: آتش، نشیمن‌ها، سایه‌بان، پارکینگ |
 | `src/game/intro/` | معرفی سینمایی و متن آن |
@@ -61,7 +61,7 @@ utils/    ابزارهای کوچک ریاضی و نویز (به هیچ‌چیز
 ترتیب در **یک جا** نوشته شده، آخر `app/createGame.ts`، و در پنج مرحله:
 
 ```
-۱. زمان و بازیکن:   day → wind → player
+۱. زمان و بازیکن:   day → weather → wind → player
 ۲. دوربین:           film camera → culling → lighting
 ۳. حرکت دنیا:        session → sky → fire → cabin → camp → rain → mist → puddles → deer → wildlife
 ۴. خروجی:           sound → minimap → environment map → render

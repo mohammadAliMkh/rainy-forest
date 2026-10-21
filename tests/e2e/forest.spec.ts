@@ -99,3 +99,34 @@ test('phone: touch controls show, the gear opens the menu', async ({ browser }) 
   expect(errors).toEqual([]);
   await context.close();
 });
+
+test('weather: the rain stops and comes back; a soft lightning flash with a rumble', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await enter(page);
+  await page.waitForFunction(() => (window as any).forest.sound.started, null, { timeout: 60_000 });
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, w = f.weather;
+    const levels = () => f.sound.rain.levels.map((g: GainNode) => g.gain.value);
+    w.setMode('dry');
+    for (let t = 0; t < 300; t += 0.5) w.update(0.5);
+    f.frame(0.05);
+    const dry = { intensity: w.intensity, rainShown: f.rain.lines.visible };
+    w.setMode('rain');
+    for (let t = 0; t < 200; t += 0.5) w.update(0.5);
+    f.frame(0.05);
+    const wet = { intensity: w.intensity, rainShown: f.rain.lines.visible };
+    let bolts = 0;
+    f.events.on('weather:lightning', () => bolts++);
+    w.strike();
+    f.frame(0.1);
+    return { dry, wet, bolts, flash: f.sky.uniforms.uFlash.value, levelsNow: levels() };
+  });
+  expect(r.dry.intensity).toBeLessThan(0.02);
+  expect(r.dry.rainShown).toBe(false);
+  expect(r.wet.intensity).toBeGreaterThan(0.5);
+  expect(r.wet.rainShown).toBe(true);
+  expect(r.bolts).toBe(1);
+  expect(r.flash).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});

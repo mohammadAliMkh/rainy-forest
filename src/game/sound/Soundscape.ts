@@ -6,6 +6,7 @@ import { FireSound } from './sounds/FireSound.js';
 import { WildlifeSound } from './sounds/WildlifeSound.js';
 import { Footsteps } from './sounds/Footsteps.js';
 import { GuitarSound } from './sounds/GuitarSound.js';
+import { ThunderSound } from './sounds/ThunderSound.js';
 import { EV } from '../../config/events.ts';
 import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
@@ -34,6 +35,7 @@ export class Soundscape {
   readonly wildlife: WildlifeSound;
   readonly steps: Footsteps;
   readonly guitar: GuitarSound;
+  readonly thunder: ThunderSound;
   started = false;
 
   /** world: what the ambient layers listen to (terrain, fire, creatures) */
@@ -44,7 +46,9 @@ export class Soundscape {
     this.wildlife = new WildlifeSound(this.engine, world);
     this.steps = new Footsteps(this.engine);
     this.guitar = new GuitarSound(this.engine);
+    this.thunder = new ThunderSound(this.engine);
     if (events) {
+      events.on(EV.LIGHTNING, ({ strength, delay }) => { if (this.started) this.thunder.rumble(strength, delay); });
       events.on(EV.PLAYER_STEP, (info) => this.footstep(info));
       events.on(EV.GUITAR_STRUM, ({ position, chord, down, velocity }) => this.strum(position, chord, down, velocity));
       events.on(EV.CREATURE_SOUND, (sound) => this.onEvent(sound));
@@ -61,6 +65,7 @@ export class Soundscape {
     this.wildlife.start();
     this.steps.start();
     this.guitar.start();
+    this.thunder.start();
     this.started = true;
   }
 
@@ -118,6 +123,11 @@ export class Soundscape {
 
   footstep(info: GameEvents[typeof EV.PLAYER_STEP]): void {
     if (this.started) this.steps.step(info);
+  }
+
+  /** how hard it rains (0..1) and how wet the leaves still are */
+  setRain(intensity: number, wetness: number): void {
+    this.rain.setIntensity(intensity, wetness);
   }
 
   update(dt: number, camera: THREE.Camera, env: { birdActivity: number }, wind: { strength: number }): void {
