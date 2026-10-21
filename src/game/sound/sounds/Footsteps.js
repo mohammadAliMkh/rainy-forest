@@ -2,7 +2,8 @@ import { makeBuffer, addClick, addTick, biquad, normalize } from '../../../engin
 import { rnd, pick } from './shared.js';
 
 // Player footsteps on wet ground: soft leaf-litter crunch, muddy squelch on
-// the trail, and splashes in puddles. Several pre-rendered variants per
+// the trail, splashes in puddles, and hollow knocks on wooden boards (the
+// shop's porch and floor). Several pre-rendered variants per
 // surface + random pitch so consecutive steps never sound identical.
 
 function thud(d, sr, amp) {
@@ -61,6 +62,31 @@ export class Footsteps {
             d[at + i] += Math.sin(ph) * Math.exp(-t / 0.012) * rnd(0.1, 0.25);
           }
         }
+      }),
+      wood: variants((d, sr) => {
+        // a hollow board: low "tok" with a short body resonance, a little creak sometimes
+        const f0 = rnd(150, 210);
+        let ph = 0;
+        for (let i = 0; i < sr * 0.12; i++) {
+          const t = i / sr;
+          ph += (2 * Math.PI * f0 * (1 - t * 1.2)) / sr;
+          d[i] += Math.sin(ph) * Math.min(1, t / 0.002) * Math.exp(-t / 0.03) * 0.7;
+        }
+        addClick(d, sr, 0, rnd(0.0008, 0.0016), 0.45);
+        addTick(d, sr, Math.floor(sr * 0.002), rnd(700, 1100), 0.006, 0.25);
+        if (Math.random() < 0.3) {
+          // creak: a slow, rough, rising squeak, quiet
+          const at = Math.floor(sr * rnd(0.03, 0.08)), n = Math.floor(sr * rnd(0.08, 0.16));
+          const c0 = rnd(380, 620);
+          let cp = 0;
+          for (let i = 0; i < n; i++) {
+            const t = i / sr;
+            cp += (2 * Math.PI * c0 * (1 + t * 2)) / sr;
+            const grain = (Math.random() < 0.5 ? 1 : 0.4);
+            d[at + i] += Math.sin(cp) * Math.sin((i / n) * Math.PI) * grain * 0.07;
+          }
+        }
+        biquad(d, sr, 'lowpass', 2600, 0.7);
       }),
       water: variants((d, sr) => {
         thud(d, sr, 0.35);

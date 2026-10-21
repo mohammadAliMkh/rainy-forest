@@ -7,6 +7,7 @@ import { WildlifeSound } from './sounds/WildlifeSound.js';
 import { Footsteps } from './sounds/Footsteps.js';
 import { GuitarSound } from './sounds/GuitarSound.js';
 import { ThunderSound } from './sounds/ThunderSound.js';
+import { StoreSound } from './sounds/StoreSound.js';
 import { EV } from '../../config/events.ts';
 import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
@@ -36,10 +37,13 @@ export class Soundscape {
   readonly steps: Footsteps;
   readonly guitar: GuitarSound;
   readonly thunder: ThunderSound;
+  readonly store: StoreSound;
+  private readonly world: { store?: { playerInside: boolean } };
   started = false;
 
   /** world: what the ambient layers listen to (terrain, fire, creatures) */
   constructor(world: object, events?: EventBus<GameEvents>) {
+    this.world = world;
     this.rain = new RainSound(this.engine, world);
     this.wind = new WindSound(this.engine, world);
     this.fire = new FireSound(this.engine, world);
@@ -47,7 +51,9 @@ export class Soundscape {
     this.steps = new Footsteps(this.engine);
     this.guitar = new GuitarSound(this.engine);
     this.thunder = new ThunderSound(this.engine);
+    this.store = new StoreSound(this.engine, world);
     if (events) {
+      events.on(EV.STORE_DOOR, () => { if (this.started) this.store.door(); });
       events.on(EV.LIGHTNING, ({ strength, delay }) => { if (this.started) this.thunder.rumble(strength, delay); });
       events.on(EV.PLAYER_STEP, (info) => this.footstep(info));
       events.on(EV.GUITAR_STRUM, ({ position, chord, down, velocity }) => this.strum(position, chord, down, velocity));
@@ -66,6 +72,7 @@ export class Soundscape {
     this.steps.start();
     this.guitar.start();
     this.thunder.start();
+    this.store.start();
     this.started = true;
   }
 
@@ -138,6 +145,8 @@ export class Soundscape {
     this.wind.update(dt, listener, wind);
     this.fire.update(dt);
     this.wildlife.update(dt, listener, env);
+    this.store.update();
+    this.rain.setIndoor(this.world.store?.playerInside ? 1 : 0);
   }
 
   get state(): string { return this.engine.ctx ? this.engine.ctx.state : 'none'; }

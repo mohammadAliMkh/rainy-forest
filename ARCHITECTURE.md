@@ -39,6 +39,7 @@ utils/    ابزارهای کوچک ریاضی و نویز (به هیچ‌چیز
 | `src/game/world/` | زمین و مسیر، درخت‌ها، گیاهان، کلبه، گودال‌ها، بافت‌ها، حذف چیزهای بیرون از دید |
 | `src/game/weather/` | آب‌وهوا (برنامه‌ی تصادفی باران و رعدوبرق)، باران، مه، باد، آسمان، شبانه‌روز |
 | `src/game/lighting/` | نورها، سایه، فانوس، انعکاس آسمان |
+| `src/game/store/` | سوپرمارکت جنگل: ساختمان، جنس‌ها، فروشنده‌ی پیر، تابلوی مسیر |
 | `src/game/camp/` | دور آتش: آتش، نشیمن‌ها، سایه‌بان، پارکینگ |
 | `src/game/intro/` | معرفی سینمایی و متن آن |
 | `src/game/people/` | آدم‌ها، رفتارشان، گیتار، مشخصات دوستان |
@@ -63,7 +64,7 @@ utils/    ابزارهای کوچک ریاضی و نویز (به هیچ‌چیز
 ```
 ۱. زمان و بازیکن:   day → weather → wind → player
 ۲. دوربین:           film camera → culling → lighting
-۳. حرکت دنیا:        session → sky → fire → cabin → camp → rain → mist → puddles → deer → wildlife
+۳. حرکت دنیا:        session → sky → fire → cabin → camp → store → rain → mist → puddles → deer → wildlife
 ۴. خروجی:           sound → minimap → environment map → render
 ۵. بعد از فریم:      hud → quality
 ```

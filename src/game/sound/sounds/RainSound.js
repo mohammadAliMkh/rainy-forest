@@ -37,6 +37,13 @@ export class RainSound {
     for (const g of this.levels) g.gain.setTargetAtTime(v, t, 0.5);
   }
 
+  // under a roof (0..1): the wide hiss of the forest gives way to the roof overhead
+  setIndoor(k) {
+    if (!this.bedGain || k === this._indoor) return;
+    this._indoor = k;
+    this.bedGain.gain.setTargetAtTime(1 - 0.6 * k, this.e.ctx.currentTime, 0.35);
+  }
+
   start() {
     const e = this.e, ctx = e.ctx, bus = e.buses.rain;
     this.bedGain = ctx.createGain();
@@ -114,6 +121,14 @@ export class RainSound {
         bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 0.8;
         bp.connect(metalPanner);
         e.loop(roof, this._level(bp), { gain: 0.9, rate: 1.18 });
+      }
+      // ...and drumming on the supermarket's corrugated tin roof
+      if (this.world.store) {
+        const tinPanner = e.panner(this.world.store.roofCenter, 'rain', { ref: 3.0, rolloff: 1.35, reverb: 0.1 });
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.6;
+        bp.connect(tinPanner);
+        e.loop(roof, this._level(bp), { gain: 1.0, rate: 1.06 });
       }
     }
 

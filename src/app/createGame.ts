@@ -16,6 +16,7 @@ import { Vegetation, DETAIL_LAYER } from '../game/world/Vegetation.js';
 import { Cabin } from '../game/world/Cabin.js';
 import { Puddles, PUDDLE_LAYER } from '../game/world/Puddles.js';
 import { Culling } from '../game/world/Culling.ts';
+import { Store } from '../game/store/Store.ts';
 import { Campfire } from '../game/camp/Fire.js';
 import { Camp } from '../game/camp/Camp.js';
 import { Rain } from '../game/weather/Rain.js';
@@ -90,6 +91,8 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const fire = new Campfire(T, terrain, collision);
   await step(0.38, 'دوستان دور آتش، لونا، پاترول و هورنت…');
   const camp = new Camp(T, terrain, collision, { events }); // before the forest: keeps trees off the car & bike
+  await step(0.42, 'سوپرمارکت کوچک جنگل و صاحب پیرش…');
+  const store = await Store.create(T, terrain, collision, { events, shared: camp.shared }); // before the forest too
   const forest = new Forest(T, terrain, collision);
   scene.add(forest.group);
 
@@ -101,12 +104,13 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   cabin.addTo(scene);
   fire.addTo(scene);
   camp.addTo(scene);
+  store.addTo(scene);
 
   await step(0.72, 'باران، مه و گودال‌های آب…');
   const puddles = new Puddles(terrain, T);
   scene.add(puddles.group);
   const rain = new Rain(terrain);
-  rain.setShelters([camp.canopy.shelter, camp.carport.shelter]);
+  rain.setShelters([camp.canopy.shelter, camp.carport.shelter, store.shelter]);
   rain.addTo(scene);
   const mist = new Mist(terrain);
   mist.addTo(scene);
@@ -117,7 +121,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   await step(0.82, 'آهوها، پرندگان و خرگوش‌ها…');
   // shared context the creatures use; their sounds go out on the event bus
   const world = {
-    terrain, collision, cabin, fire, camp, forest, player: null as PlayerController | null,
+    terrain, collision, cabin, fire, camp, store, forest, player: null as PlayerController | null,
     // (the creatures are plain JS: deer send { x, z }, birds { species, pos })
     emit: (type: string, source: unknown) => events.emit(EV.CREATURE_SOUND, { type, source } as GameEvents[typeof EV.CREATURE_SOUND]),
   };
@@ -170,6 +174,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
       dog: () => camp.dog?.root.position ?? null,
       deer: () => deer.agents,
     },
+    store: { ...store.mapShape(), path: terrain.storePath },
   });
   const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement });
   const hud = new Hud({ ui, day });
@@ -215,8 +220,9 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('fire', (f) => fire.update(f.dt, f.time, f.camera, f.env));
   sys('cabin', (f) => cabin.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
+  sys('store', (f) => store.update(f.dt, f.camera, f.env));
   sys('rain', (f) => rain.update(f.dt, f.time, f.camera, f.env));
-  sys('mist', (f) => mist.update(f.dt, f.time, f.camera, f.env));
+  sys('mist', (f) => { mist.setIndoor(store.playerInside); mist.update(f.dt, f.time, f.camera, f.env); });
   sys('puddles', (f) => puddles.update(f.time, f.camera, f.env, weather.intensity));
   sys('deer', (f) => deer.update(f.dt, f.time, player));
   sys('wildlife', (f) => wildlife.update(f.dt, f.time, player, f.env));
@@ -237,7 +243,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     // for tests and the browser console (?debug)
     window.forest = {
       game, events, frame: (dt?: number) => game.frame(dt), THREE, frustum: culling.frustum, scene, camera, renderer, gpu, gov: quality.gov, quality,
-      player, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
+      player, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, store, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
       applyQuality: (name: Parameters<QualityManager['apply']>[0]) => quality.apply(name), FIRE,
     };
   }

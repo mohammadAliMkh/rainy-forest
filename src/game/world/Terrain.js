@@ -1,10 +1,13 @@
 import * as THREE from 'three';
-import { WORLD, CABIN, FIRE, PATH_POINTS, PUDDLES, SPAWN } from '../../config/config.js';
+import { WORLD, CABIN, FIRE, PATH_POINTS, PUDDLES, SPAWN, STORE } from '../../config/config.js';
 import { worldNoise, detailNoise, fbm2, smoothstep, clamp } from '../../utils/noise.js';
 
 // Heightfield terrain with a carved, muddy trail, a flattened cabin clearing
-// and shallow depressions for puddles. Exposes fast height / path queries
-// used by every other system (player, deer, vegetation...).
+// and shallow depressions for puddles, plus a level pad for the forest shop
+// with a narrow footpath to the trail. Exposes fast height / path queries
+// used by every other system (player, deer, vegetation...). Walkable
+// platforms (porch, steps, floors) can be added on top: heightAt then
+// returns their height, so the player steps up onto them.
 
 const GRID = 1.0; // meters per height sample
 
@@ -29,6 +32,8 @@ export class Terrain {
     this.half = this.size / 2;
     this.res = Math.round(this.size / GRID) + 1;
     this.pathLine = catmullRom(PATH_POINTS);
+    this.storePath = catmullRom(STORE.path, 12);
+    this.platforms = [];
     this._buildFields();
     this.mesh = this._buildMesh(textures);
   }
@@ -49,9 +54,8 @@ export class Terrain {
       + smoothstep(90, 190, Math.hypot(x, z)) * 9;
   }
 
-  distanceToPathRaw(x, z) {
+  distanceToPathRaw(x, z, L = this.pathLine) {
     let best = Infinity;
-    const L = this.pathLine;
     for (let i = 0; i < L.length - 1; i++) {
       const ax = L[i][0], az = L[i][1], bx = L[i + 1][0], bz = L[i + 1][1];
       const dx = bx - ax, dz = bz - az;
@@ -71,12 +75,19 @@ export class Terrain {
     this.pathDist = new Float32Array(n * n);
     const cabinH = this.smoothHeight(CABIN.x, CABIN.z + 2);
     this.clearingHeight = cabinH;
+    const storeH = this.smoothHeight(STORE.x, STORE.z);
+    this.storePadHeight = storeH;
+    const sc = Math.cos(STORE.yaw), ss = Math.sin(STORE.yaw);
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
         const x = -this.half + i * GRID, z = -this.half + j * GRID;
         // path distance (cheap reject for cells far away from the trail's bbox)
         let pd = 999;
         if (x > -60 && x < 40 && z > -40 && z < 140) pd = this.distanceToPathRaw(x, z);
+        // the shop's footpath: narrower than the trail (counts as path, so nothing grows on it)
+        if (x > STORE.x - 14 && x < STORE.x + 18 && z > STORE.z - 12 && z < STORE.z + 16) {
+          pd = Math.min(pd, this.distanceToPathRaw(x, z, this.storePath) + 1.05);
+        }
         // trail wobble so the edge isn't perfectly regular
         const wob = detailNoise(x * 0.25, z * 0.25) * 0.35;
         this.pathDist[j * n + i] = pd + wob;
@@ -89,6 +100,15 @@ export class Terrain {
         const dc = Math.hypot((x - CABIN.x) * 0.85, z - (CABIN.z + 2.5));
         const cm = 1 - smoothstep(7, 13, dc);
         h = h * (1 - cm) + (cabinH + detailNoise(x * 0.3, z * 0.3) * 0.05) * cm;
+
+        // level pad under the shop and its porch (in the shop's own frame)
+        {
+          const dx = x - STORE.x, dz = z - STORE.z;
+          const lx = dx * sc - dz * ss, lz = dx * ss + dz * sc;
+          const dp = Math.hypot(Math.max(0, Math.abs(lx) - STORE.w / 2 - 1.2), Math.max(0, Math.abs(lz - 0.9) - STORE.d / 2 - 2.0));
+          const pm = 1 - smoothstep(0.5, 5, dp);
+          h = h * (1 - pm) + (storeH + detailNoise(x * 0.3, z * 0.3) * 0.04) * pm;
+        }
 
         // puddle depressions
         for (const p of PUDDLES) {
@@ -114,7 +134,34 @@ export class Terrain {
     return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   }
 
-  heightAt(x, z) { return this._sample(this.heights, x, z); }
+  heightAt(x, z) {
+    const h = this._sample(this.heights, x, z);
+    if (!this.platforms.length) return h;
+    const p = this.platformAt(x, z);
+    return p ? Math.max(h, p.heightAt(x, z)) : h;
+  }
+
+  /**
+   * A walkable surface above the ground (porch, floor, a flight of steps):
+   * a rectangle centred at x / z, turned by `yaw`, half sizes hx / hz; its
+   * height goes from y0 at local -z to y1 at local +z (equal for a floor).
+   */
+  addPlatform({ x, z, yaw = 0, hx, hz, y0, y1 = y0, surface = 'wood' }) {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const local = (px, pz) => [(px - x) * c - (pz - z) * s, (px - x) * s + (pz - z) * c];
+    const p = {
+      surface,
+      contains: (px, pz) => { const [lx, lz] = local(px, pz); return Math.abs(lx) <= hx && Math.abs(lz) <= hz; },
+      heightAt: (px, pz) => { const lz = local(px, pz)[1]; return y0 + (y1 - y0) * clamp((lz + hz) / (2 * hz), 0, 1); },
+    };
+    this.platforms.push(p);
+    return p;
+  }
+
+  platformAt(x, z) {
+    for (const p of this.platforms) if (p.contains(x, z)) return p;
+    return null;
+  }
   pathDistance(x, z) { return this._sample(this.pathDist, x, z); }
   isOnPath(x, z) { return this.pathDistance(x, z) < 1.4; }
 

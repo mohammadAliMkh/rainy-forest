@@ -32,7 +32,7 @@ test('entering: the start screen closes at once, the scene is complete, the map 
     return { meshes, lights, map: !document.querySelector('.minimap')!.classList.contains('hidden') };
   });
   expect(stats.meshes).toBeGreaterThan(400);
-  expect(stats.lights).toBe(6);
+  expect(stats.lights).toBe(7);
   expect(stats.map).toBe(true);
   expect(errors).toEqual([]);
 });
@@ -128,5 +128,41 @@ test('weather: the rain stops and comes back; a soft lightning flash with a rumb
   expect(r.wet.rainShown).toBe(true);
   expect(r.bolts).toBe(1);
   expect(r.flash).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+test('the shop: up the steps and in, the door opens with its bell, the shopkeeper greets you, no rain inside', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await enter(page);
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, s = f.store, V = f.THREE.Vector3, pl = f.player;
+    f.camp.intro.done = true;
+    // on the footpath in front of the steps, facing the door
+    const a = s.group.localToWorld(new V(1.05, 0, 8)), b = s.group.localToWorld(new V(1.05, 0, -1));
+    pl.teleport(a.x, a.z, Math.atan2(-(b.x - a.x), -(b.z - a.z)));
+    const ground = pl.y;
+    let bells = 0, woodSteps = 0, doorOpened = 0;
+    f.events.on('store:door', () => bells++);
+    f.events.on('player:step', (e: { surface: string }) => { if (e.surface === 'wood') woodSteps++; });
+    pl.touchMove.z = 1;
+    for (let k = 0; k < 80; k++) { f.frame(0.05); doorOpened = Math.max(doorOpened, s.building.door.rotation.y); }
+    pl.touchMove.z = 0;
+    for (let k = 0; k < 20; k++) f.frame(0.05);
+    const local = s.group.worldToLocal(new V(pl.x, pl.y, pl.z));
+    return {
+      inside: s.playerInside, climbed: pl.y - ground, local: [local.x, local.z], bells, woodSteps, doorOpened,
+      greeted: s.shopkeeper.greeted, // nodded to the customer who came in
+      shelteredInside: f.rain._sheltered(pl.x, pl.z),
+    };
+  });
+  expect(r.inside).toBe(true);
+  expect(r.climbed).toBeGreaterThan(0.35); // the floor is above the ground
+  expect(r.local[1]).toBeGreaterThan(-1.5); // stopped by the fridges, not through the back wall
+  expect(r.bells).toBeGreaterThan(0);
+  expect(r.doorOpened).toBeGreaterThan(1);
+  expect(r.woodSteps).toBeGreaterThan(0);
+  expect(r.greeted).toBe(true);
+  expect(r.shelteredInside).toBe(true);
   expect(errors).toEqual([]);
 });

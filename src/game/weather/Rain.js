@@ -36,16 +36,18 @@ export class Rain {
       uColor: { value: new THREE.Color(0.75, 0.8, 0.85) },
       uOpacity: { value: 0.32 },
       uIntensity: { value: 1 },
-      // roofed rectangles (minX, minZ, maxX, maxZ) and their heights
-      // (at the edges / in the middle); unused slots are empty
-      uShelter: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(1e9, 1e9, -1e9, -1e9)) },
-      uShelterY: { value: [0, 1, 2, 3].map(() => new THREE.Vector2(0, 0)) },
+      // roofed rectangles: centre x / z and half sizes, their turn (cos, sin)
+      // and roof heights (at the edges, in the middle, shape: 0 = rising to a
+      // peak in the middle, 1 = a ridge along the local z axis); unused slots are empty
+      uShelter: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(1e9, 1e9, 0, 0)) },
+      uShelterRot: { value: [0, 1, 2, 3].map(() => new THREE.Vector2(1, 0)) },
+      uShelterY: { value: [0, 1, 2, 3].map(() => new THREE.Vector3(0, 0, 0)) },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `
         uniform float uTime; uniform vec3 uCam; uniform vec3 uBox; uniform vec2 uWind; uniform float uLen; uniform float uIntensity;
-        uniform vec4 uShelter[4]; uniform vec2 uShelterY[4];
+        uniform vec4 uShelter[4]; uniform vec2 uShelterRot[4]; uniform vec3 uShelterY[4];
         attribute float aSpeed; attribute float aEnd;
         varying float vAlpha; varying float vEnd;
         void main(){
@@ -60,12 +62,13 @@ export class Rain {
           // fewer drops when intensity is low (hash on the start position)
           float keep = step(fract(position.x * 91.7 + position.z * 37.3), uIntensity);
           vAlpha = keep * (1.0 - smoothstep(uBox.x * 0.25, uBox.x * 0.5, dist)) * smoothstep(0.25, 1.1, dist);
-          // no rain under the tarp
+          // no rain under the roofs
           for (int i = 0; i < 4; i++) {
             vec4 S = uShelter[i];
-            vec2 sc = (S.xy + S.zw) * 0.5, sh = max((S.zw - S.xy) * 0.5, vec2(1e-3));
-            vec2 sd = abs(p.xz - sc) / sh;
-            float roofY = mix(uShelterY[i].y, uShelterY[i].x, max(sd.x, sd.y)); // high middle, low edges
+            vec2 q = p.xz - S.xy, r = uShelterRot[i];
+            vec2 sd = abs(vec2(q.x * r.x - q.y * r.y, q.x * r.y + q.y * r.x)) / max(S.zw, vec2(1e-3));
+            float across = mix(max(sd.x, sd.y), sd.x, uShelterY[i].z);
+            float roofY = mix(uShelterY[i].y, uShelterY[i].x, across); // high middle, low edges
             if (max(sd.x, sd.y) < 1.0 && p.y < roofY) vAlpha = 0.0;
           }
           vEnd = aEnd;
@@ -126,12 +129,28 @@ export class Rain {
   addTo(scene) { scene.add(this.lines, this.splashes); }
 
   // keep drops and splashes out of roofed rectangles (up to 4):
-  // {minX, maxX, minZ, maxZ, y: height at the edges, peak: height in the middle}
+  // {minX, maxX, minZ, maxZ} or {x, z, hx, hz, yaw} (turned), with
+  // y: height at the edges, peak: height in the middle, ridge: true for a
+  // gable roof whose ridge runs along the local z axis
   setShelters(list) {
-    this.shelters = list.slice(0, 4);
-    this.shelters.forEach((s, i) => {
-      this.uniforms.uShelter.value[i].set(s.minX, s.minZ, s.maxX, s.maxZ);
-      this.uniforms.uShelterY.value[i].set(s.y, s.peak ?? s.y);
+    this.shelters = list.slice(0, 4).map((s) => {
+      const box = s.hx !== undefined ? s : { x: (s.minX + s.maxX) / 2, z: (s.minZ + s.maxZ) / 2, hx: (s.maxX - s.minX) / 2, hz: (s.maxZ - s.minZ) / 2 };
+      const yaw = s.yaw ?? 0;
+      return { ...box, c: Math.cos(yaw), s: Math.sin(yaw) };
+    });
+    this.shelters.forEach((sh, i) => {
+      const src = list[i];
+      this.uniforms.uShelter.value[i].set(sh.x, sh.z, sh.hx, sh.hz);
+      this.uniforms.uShelterRot.value[i].set(sh.c, sh.s);
+      this.uniforms.uShelterY.value[i].set(src.y, src.peak ?? src.y, src.ridge ? 1 : 0);
+    });
+  }
+
+  // is a point under one of the roofs?
+  _sheltered(x, z) {
+    return this.shelters?.some((sh) => {
+      const dx = x - sh.x, dz = z - sh.z;
+      return Math.abs(dx * sh.c - dz * sh.s) < sh.hx && Math.abs(dx * sh.s + dz * sh.c) < sh.hz;
     });
   }
 
@@ -165,7 +184,7 @@ export class Rain {
         if (Math.random() > (this.intensity ?? 1)) { s.life = 0.1; this.spLife[i] = 0; continue; }
         const a = Math.random() * Math.PI * 2, r = 2.0 + Math.sqrt(Math.random()) * 12;
         const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
-        if (this.shelters?.some((sh) => x > sh.minX && x < sh.maxX && z > sh.minZ && z < sh.maxZ)) { s.life = 0.1; this.spLife[i] = 0; continue; }
+        if (this._sheltered(x, z)) { s.life = 0.1; this.spLife[i] = 0; continue; }
         this.spPos[i * 3] = x;
         this.spPos[i * 3 + 1] = this.terrain.heightAt(x, z) + 0.03;
         this.spPos[i * 3 + 2] = z;

@@ -124,7 +124,8 @@ export class PlayerController {
     this.pitch = clamp(this.pitch - this.edgeY * 1.3 * this.sensitivity * dt, -1.45, 1.45);
   }
 
-  surfaceAt(x: number, z: number): 'water' | 'mud' | 'leaves' {
+  surfaceAt(x: number, z: number): 'water' | 'mud' | 'leaves' | 'wood' {
+    if (this.terrain.platformAt(x, z)) return 'wood'; // porch, steps, the shop's floor
     for (const p of PUDDLES) if (Math.hypot((x - p[0]) / p[2], (z - p[1]) / p[3]) < 0.9) return 'water';
     return this.terrain.pathDistance(x, z) < 1.3 ? 'mud' : 'leaves';
   }

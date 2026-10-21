@@ -420,6 +420,8 @@ function scalpMask(h, x, y, z) {
   let m = sstep(line - 0.05, line + 0.04, y);
   // sideburns
   if (h.sideburns) m = Math.max(m, sstep(0.86, 0.95, ax) * sstep(-0.05, 0.12, z) * sstep(0.32, 0.22, z) * sstep(-h.sideburns - 0.05, -h.sideburns + 0.05, y));
+  // bald crown (older men): no hair above `bald` on the top and front, a fringe around the sides and back
+  if (h.bald !== undefined) m *= 1 - sstep(h.bald - 0.07, h.bald + 0.05, y) * sstep(-0.75, -0.2, z);
   return m;
 }
 
@@ -437,6 +439,7 @@ function beardMask(b, x, y, z, forStubble = false) {
   const lipsZone = front * Math.max(gauss(x, y, 0, -0.6, 0.22 + op * 0.08, 0.05 + op * 0.035), gauss(x, y, 0, -0.64, 0.16, 0.05));
   m *= 1 - Math.min(1, lipsZone * 1.4);
   const must = front * gauss(x, y, 0, -0.48, 0.28 + (b.mustacheWidth ?? 0), 0.055) * (b.mustache ?? 1);
+  if (b.style === 'mustache') return Math.min(1, must) * (1 - front * gauss(x, y, 0, -0.4, 0.1, 0.03));
   // the region under the nose stays clear
   m = Math.max(m, must) * (1 - front * gauss(x, y, 0, -0.4, 0.1, 0.03));
   // goatee-like beards are thinner on the cheeks
@@ -789,6 +792,30 @@ export class Human {
       g.rotation.x = -0.75;
       head.group.add(g);
     }
+    // reading glasses: thin round metal rims in front of the eyes, arms to the ears
+    if (spec.glasses) {
+      const parts = [];
+      const [eL, eR] = head.eyes.map((e) => e.position);
+      for (const [s, e] of [[-1, eL], [1, eR]]) {
+        const rim = new THREE.TorusGeometry(0.021, 0.0022, 6, 22);
+        rim.translate(e.x, e.y + 0.002, e.z + 0.017);
+        parts.push(rim);
+        const [ex, ey, ez] = head.sculpt(s * 0.97, -0.12, -0.15);
+        const a = new THREE.Vector3(e.x + s * 0.021, e.y + 0.004, e.z + 0.014), b = new THREE.Vector3(ex + s * 0.004, ey + 0.01, ez);
+        const len = a.distanceTo(b);
+        const arm = new THREE.CylinderGeometry(0.0015, 0.0015, len, 4);
+        arm.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()));
+        arm.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+        parts.push(arm);
+      }
+      const bridge = new THREE.CylinderGeometry(0.0018, 0.0018, eR.x - eL.x - 0.04, 4);
+      bridge.rotateZ(Math.PI / 2);
+      bridge.translate((eL.x + eR.x) / 2, eL.y + 0.008, eL.z + 0.022);
+      parts.push(bridge);
+      head.group.add(new THREE.Mesh(merge(parts), mat({ color: 0xb9a36a, metalness: 0.9, roughness: 0.3 })));
+      const lenses = [eL, eR].map((e) => new THREE.CircleGeometry(0.02, 18).translate(e.x, e.y + 0.002, e.z + 0.017));
+      head.group.add(new THREE.Mesh(merge(lenses), mat({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.12, envMapIntensity: 1.5, depthWrite: false })));
+    }
     if (spec.earrings) {
       for (const s of [-1, 1]) {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(0.006, 0.0013, 6, 14), mats.metal);
@@ -904,6 +931,47 @@ export class Human {
       shoe.castShadow = true;
       ankle.add(shoe);
       this.legs.push({ side: s, hip, knee, ankle, thighLen, shinLen });
+    }
+
+    // a work apron (the shopkeeper): a bib that follows the chest, neck straps,
+    // and a skirt hanging from the waist (for a standing person)
+    if (out.apron) {
+      const am = mat({ color: out.apron.color, map: C.denim.map, normalMap: C.denim.normal, roughness: 0.9, side: THREE.DoubleSide });
+      const tp = torso.geometry.attributes.position;
+      const surfaceZ = (x, y) => {
+        let best = -1;
+        for (let i = 0; i < tp.count; i++) {
+          const vx = tp.getX(i), vy = tp.getY(i), vz = tp.getZ(i);
+          if (vz > 0 && Math.abs(vx - x) < 0.035 && Math.abs(vy - y) < 0.035 && vz > best) best = vz;
+        }
+        return best;
+      };
+      const bib = new THREE.PlaneGeometry(0.25, 0.32, 6, 8);
+      bib.translate(0, 0.25, 0);
+      const bp = bib.attributes.position;
+      for (let i = 0; i < bp.count; i++) {
+        const z = surfaceZ(bp.getX(i), bp.getY(i));
+        bp.setZ(i, (z > 0 ? z : 0.12) + 0.008);
+      }
+      bib.computeVertexNormals();
+      const bm = new THREE.Mesh(bib, am);
+      bm.castShadow = true;
+      spine.add(bm);
+      for (const sx of [-1, 1]) {
+        const a = new THREE.Vector3(sx * 0.115, 0.41, surfaceZ(sx * 0.115, 0.41) + 0.006), b = new THREE.Vector3(sx * 0.06, 0.56, -0.03);
+        const strap = new THREE.CylinderGeometry(0.008, 0.008, a.distanceTo(b), 4);
+        strap.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()));
+        strap.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+        spine.add(new THREE.Mesh(strap, am));
+      }
+      const skirt = new THREE.PlaneGeometry(0.4, 0.58, 6, 4);
+      const sp = skirt.attributes.position;
+      for (let i = 0; i < sp.count; i++) sp.setZ(i, 0.11 * (spec.build ?? 1) - sp.getX(i) * sp.getX(i) * 0.6);
+      skirt.computeVertexNormals();
+      skirt.translate(0, -0.27, 0);
+      const sm = new THREE.Mesh(skirt, am);
+      sm.castShadow = true;
+      pelvis.add(sm);
     }
 
     // animation state
