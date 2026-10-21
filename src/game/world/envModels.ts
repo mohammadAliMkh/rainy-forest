@@ -33,6 +33,13 @@ function toFloatGeometry(src: THREE.BufferGeometry, matrix: THREE.Matrix4): THRE
     }
     geo.setAttribute(name, new THREE.BufferAttribute(out, s));
   }
+  // vertex colors (moss / crown shading), always as RGB
+  const c = src.getAttribute('color');
+  if (c) {
+    const out = new Float32Array(c.count * 3);
+    for (let i = 0; i < c.count; i++) { out[i * 3] = c.getX(i); out[i * 3 + 1] = c.getY(i); out[i * 3 + 2] = c.getZ(i); }
+    geo.setAttribute('color', new THREE.BufferAttribute(out, 3));
+  }
   if (src.index) geo.setIndex(Array.from(src.index.array as ArrayLike<number>));
   geo.applyMatrix4(matrix);
   if (!geo.getAttribute('normal')) geo.computeVertexNormals();

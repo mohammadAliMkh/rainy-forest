@@ -159,6 +159,29 @@
       "scene": true,
       "parts": [],
       "kb": 213
+    },
+    "trees": {
+      "file": "assets/models/trees.glb",
+      "source": "Blender tree generator (pipeline/blender_trees.py)",
+      "parts": [
+        "conifer_0_trunk",
+        "conifer_0_leaves",
+        "conifer_0_trunk_lo",
+        "conifer_0_leaves_lo",
+        "conifer_1_trunk",
+        "conifer_1_leaves",
+        "conifer_1_trunk_lo",
+        "conifer_1_leaves_lo",
+        "conifer_2_trunk",
+        "conifer_2_leaves",
+        "conifer_2_trunk_lo",
+        "conifer_2_leaves_lo",
+        "conifer_3_trunk",
+        "conifer_3_leaves",
+        "conifer_3_trunk_lo",
+        "conifer_3_leaves_lo"
+      ],
+      "kb": 138
     }
   }
 }

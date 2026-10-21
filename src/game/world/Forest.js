@@ -69,7 +69,23 @@ function buildTemplates(T) {
     { height: 32, r0: 0.6, crownStart: 0.55, radius: 3.9, tiers: 14, perTier: 6, seed: 9 },
     { height: 17, r0: 0.3, crownStart: 0.22, radius: 2.6, tiers: 12, perTier: 5, seed: 12 },
   ];
-  for (const d of coniferDefs) {
+  const M = T.models || null;
+  for (const [ci, d] of coniferDefs.entries()) {
+    // the conifers grown in Blender (pipeline/blender_trees.py), same sizes
+    const grown = M && M[`conifer_${ci}_trunk`];
+    if (grown) {
+      const g = (n) => M[`conifer_${ci}_${n}`].geometry;
+      templates.push({
+        kind: 'conifer',
+        height: d.height,
+        radius: d.r0 * 1.15,
+        parts: [
+          { hi: g('trunk'), lo: g('trunk_lo'), material: trunkMat, castShadow: true },
+          { hi: g('leaves'), lo: g('leaves_lo'), material: needleMat, castShadow: true },
+        ],
+      });
+      continue;
+    }
     const trunk = trunkGeometry({ height: d.height, r0: d.r0, r1: 0.06, radial: 10, rings: 14, bend: 0.5, flare: 0.55, seed: d.seed, mossHeight: 3 });
     const trunkLo = trunkGeometry({ height: d.height, r0: d.r0, r1: 0.06, radial: 6, rings: 5, bend: 0.5, flare: 0.55, seed: d.seed, mossHeight: 3 });
     // a few dead stub branches on the bare lower trunk

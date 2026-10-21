@@ -302,12 +302,15 @@ def bevel(ob, width=0.01, segments=2):
     apply_mods(ob)
 
 
-def export_glb(path):
+def export_glb(path, color_name=None):
     kw = dict(filepath=path, export_format="GLB", export_yup=True, export_apply=True,
               export_texcoords=True, export_normals=True, export_materials="EXPORT", export_image_format="AUTO")
     props = bpy.ops.export_scene.gltf.get_rna_type().properties.keys()
     if "export_vertex_color" in props:
         kw["export_vertex_color"] = "ACTIVE"
+        if color_name and "export_vertex_color_name" in props:
+            kw["export_vertex_color"] = "NAME"
+            kw["export_vertex_color_name"] = color_name
     elif "export_colors" in props:
         kw["export_colors"] = True
     if "export_all_vertex_colors" in props:
