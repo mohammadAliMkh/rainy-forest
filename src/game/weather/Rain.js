@@ -137,6 +137,13 @@ export class Rain {
 
   setPixelRatio(pr) { this.splashMat.uniforms.uPixel.value = pr; }
 
+  // how hard it rains, 0 (dry) .. 1 (heavy): fewer, fainter drops and fewer splashes
+  setIntensity(x) {
+    this.intensity = x;
+    this.uniforms.uIntensity.value = x;
+    this.lines.visible = this.splashes.visible = x > 0.005;
+  }
+
   update(dt, time, camera, env) {
     const u = this.uniforms;
     u.uTime.value = time;
@@ -147,7 +154,7 @@ export class Rain {
     // rain is lit by the sky (and very faintly visible at night)
     const l = env ? env.ambientLevel : 1;
     u.uColor.value.setRGB(0.07 + 0.68 * l, 0.08 + 0.72 * l, 0.1 + 0.74 * l);
-    u.uOpacity.value = 0.16 + 0.18 * l;
+    u.uOpacity.value = (0.16 + 0.18 * l) * (0.65 + 0.35 * (this.intensity ?? 1));
 
     // splashes around the player
     const cx = camera.position.x, cz = camera.position.z;
@@ -155,6 +162,7 @@ export class Rain {
       const s = this.sp[i];
       s.life -= dt;
       if (s.life <= 0) {
+        if (Math.random() > (this.intensity ?? 1)) { s.life = 0.1; this.spLife[i] = 0; continue; }
         const a = Math.random() * Math.PI * 2, r = 2.0 + Math.sqrt(Math.random()) * 12;
         const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
         if (this.shelters?.some((sh) => x > sh.minX && x < sh.maxX && z > sh.minZ && z < sh.maxZ)) { s.life = 0.1; this.spLife[i] = 0; continue; }

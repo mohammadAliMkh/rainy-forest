@@ -79,6 +79,13 @@
         <section>
           <h3>زمان</h3>
           <label class="row"><span>ساعت روز <b id="clock">07:12</b></span><input type="range" id="time-of-day" min="0" max="23.99" step="0.01" /></label>
+          <label class="row"><span>آب‌وهوا</span>
+            <select id="weather">
+              <option value="auto">گاهی می‌بارد، گاهی بند می‌آید</option>
+              <option value="rain">همیشه ببارد</option>
+              <option value="dry">نبارد</option>
+            </select>
+          </label>
           <label class="row"><span>سرعت گذر زمان</span>
             <select id="day-speed">
               <option value="3600">یک شبانه‌روز در ۱ ساعت</option>

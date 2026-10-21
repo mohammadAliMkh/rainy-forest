@@ -45,6 +45,7 @@ const PuddleShader = {
     uTime: { value: 0 },
     uWater: { value: new THREE.Color(0.02, 0.025, 0.03) },
     uSeed: { value: 0 },
+    uRain: { value: 1 },
   },
   vertexShader: /* glsl */ `
     uniform mat4 textureMatrix;
@@ -58,11 +59,11 @@ const PuddleShader = {
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }`,
   fragmentShader: /* glsl */ `
-    uniform vec3 color; uniform sampler2D tDiffuse; uniform float uTime; uniform vec3 uWater; uniform float uSeed;
+    uniform vec3 color; uniform sampler2D tDiffuse; uniform float uTime; uniform vec3 uWater; uniform float uSeed; uniform float uRain;
     varying vec4 vUv; varying vec3 vWorld; varying vec2 vLocal;
     ${RIPPLE_GLSL}
     void main(){
-      vec2 n = ripples(vWorld.xz, uTime);
+      vec2 n = ripples(vWorld.xz, uTime) * uRain; // no rain, no ripples
       vec4 uvp = vUv;
       uvp.xy += n * 0.035 * uvp.w;
       vec3 refl = texture2DProj(tDiffuse, uvp).rgb;
@@ -144,7 +145,8 @@ export class Puddles {
     for (const it of this.items) it.refl.getRenderTarget().setSize(size, size);
   }
 
-  update(time, camera, env) {
+  // rain: 0..1, how many drops ripple the water
+  update(time, camera, env, rain = 1) {
     let best = null, bestD = 22;
     for (const it of this.items) {
       const d = Math.hypot(it.x - camera.position.x, it.z - camera.position.z);
@@ -157,6 +159,7 @@ export class Puddles {
       if (useRefl) {
         const u = it.refl.material.uniforms;
         u.uTime.value = time;
+        u.uRain.value = Math.min(1, rain * 1.4);
         if (env) u.uWater.value.copy(env.fogColor).multiplyScalar(0.12);
       }
     }

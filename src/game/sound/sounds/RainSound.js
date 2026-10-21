@@ -4,19 +4,44 @@ import { PUDDLES } from '../../../config/config.js';
 
 // Rain: a wide stereo bed (canopy hiss + thousands of tiny droplet ticks),
 // rain drumming on the cabin roof (positional), eave drips, and 3D drips /
-// puddle plinks that happen around the listener.
+// puddle plinks that happen around the listener. Follows the weather:
+// setIntensity(rain, wetness) - every layer has its own level (so their
+// echoes go quiet too), and leaves keep dripping for a while after a shower.
 
 export class RainSound {
   constructor(engine, world) {
     this.e = engine;
     this.world = world;
+    this.intensity = 1;
+    this.wetness = 1;
+    this.levels = []; // one gain per rain layer, all following the intensity
+  }
+
+  // a gain in front of a rain layer that follows the intensity
+  _level(dest) {
+    const g = this.e.ctx.createGain();
+    g.gain.value = this._curve(this.intensity);
+    g.connect(dest);
+    this.levels.push(g);
+    return g;
+  }
+
+  // loudness from rain intensity: drizzle is clearly quieter, dry is silent
+  _curve(x) { return Math.pow(Math.max(0, x), 0.85); }
+
+  setIntensity(rain, wetness = rain) {
+    this.intensity = rain;
+    this.wetness = wetness;
+    if (!this.started) return;
+    const t = this.e.ctx.currentTime, v = this._curve(rain);
+    for (const g of this.levels) g.gain.setTargetAtTime(v, t, 0.5);
   }
 
   start() {
     const e = this.e, ctx = e.ctx, bus = e.buses.rain;
     this.bedGain = ctx.createGain();
     this.bedGain.gain.value = 1;
-    this.bedGain.connect(bus);
+    this.bedGain.connect(this._level(bus));
 
     const file = e.file('rain_loop');
     if (file) {
@@ -50,7 +75,7 @@ export class RainSound {
     // rain on the cabin roof
     const roofFile = e.file('roof_rain_loop');
     this.roofPanner = e.panner(this.world.cabin.roofCenter, 'rain', { ref: 3.2, rolloff: 1.3, reverb: 0.12 });
-    if (roofFile) e.loop(roofFile, this.roofPanner, { gain: 0.8 });
+    if (roofFile) e.loop(roofFile, this._level(this.roofPanner), { gain: 0.8 });
     else {
       const roof = loopBuffer(ctx, 8.3, 1, (d, sr) => {
         const count = Math.floor((d.length / sr) * 150);
@@ -73,14 +98,14 @@ export class RainSound {
         biquad(d, sr, 'highpass', 300, 0.7);
         normalize(d, 0.6);
       });
-      e.loop(roof, this.roofPanner, { gain: 0.85 });
+      e.loop(roof, this._level(this.roofPanner), { gain: 0.85 });
       // the same patter, duller, drumming on the camp's canvas tarp
       if (this.world.camp?.canopy) {
         const tarpPanner = e.panner(this.world.camp.canopy.center, 'rain', { ref: 2.6, rolloff: 1.4, reverb: 0.08 });
         const lp = ctx.createBiquadFilter();
         lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = 0.5;
         lp.connect(tarpPanner);
-        e.loop(roof, lp, { gain: 0.75, rate: 0.82 });
+        e.loop(roof, this._level(lp), { gain: 0.75, rate: 0.82 });
       }
       // ...and pinging on the carport's metal roof
       if (this.world.camp?.carport) {
@@ -88,7 +113,7 @@ export class RainSound {
         const bp = ctx.createBiquadFilter();
         bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 0.8;
         bp.connect(metalPanner);
-        e.loop(roof, bp, { gain: 0.9, rate: 1.18 });
+        e.loop(roof, this._level(bp), { gain: 0.9, rate: 1.18 });
       }
     }
 
@@ -130,8 +155,8 @@ export class RainSound {
       const k = rnd(0.82, 1.12);
       this.bedGain.gain.setTargetAtTime(k, ctx.currentTime, 2.5);
     }
-    // drips off leaves around the listener
-    this._dripAcc += dt * 3.2 * rnd(0.3, 1.7);
+    // drips off leaves around the listener (they go on for a while after the rain)
+    this._dripAcc += dt * 3.2 * rnd(0.3, 1.7) * Math.min(1, this.wetness * 1.3);
     while (this._dripAcc > 1) {
       this._dripAcc -= 1;
       const a = Math.random() * Math.PI * 2, r = rnd(1.5, 9);
@@ -144,7 +169,7 @@ export class RainSound {
       const p = PUDDLES[i];
       const d = Math.hypot(p[0] - listener.x, p[1] - listener.z);
       if (d > 16) continue;
-      if (Math.random() < dt * 5 * (p[2] * p[3])) {
+      if (Math.random() < dt * 5 * (p[2] * p[3]) * this.intensity) {
         const x = p[0] + (Math.random() - 0.5) * p[2] * 1.4, z = p[1] + (Math.random() - 0.5) * p[3] * 1.4;
         this.pool.play(pick(this.plinks), { x, y: this.world.terrain.puddleLevels[i], z }, { gain: rnd(0.12, 0.4), rate: rnd(0.9, 1.15) });
       }
