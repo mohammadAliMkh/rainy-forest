@@ -3,6 +3,7 @@ import { createNoise2D, mulberry32 } from '../../utils/noise.js';
 import { merge } from '../world/plantGeometry.js';
 import { createCampTextures } from './clothTextures.js';
 import { buildGuitar } from './Guitar.js';
+import { SkinBinding } from '../creatures/skinBinding.ts';
 
 // Procedural seated person: a sculpted head (brow, eye sockets, nose, lips,
 // chin, jaw), hair / beard / eyebrows grown as shells over the scalp, real
@@ -980,6 +981,114 @@ export class Human {
     this.talk = 0;
     this.laugh = 0;
     this._t = Math.random() * 100;
+    if (spec.model) this._useModel(spec.model);
+  }
+
+  // ---- the person built in Blender (pipeline/blender_people.py) -----------
+  // The skinned MakeHuman body replaces the hand-built meshes; this rig keeps
+  // animating it. First the rig is fitted to the model: every joint moves to
+  // the matching bone and points along it, and the limb lengths the IK uses
+  // become the model's own. Blink and smile are morph targets, the jaw bone
+  // opens the mouth.
+  _useModel(src) {
+    const MAP = {
+      root: this.pelvis, pelvisL: this.pelvis, pelvisR: this.pelvis,
+      spine05: this.spine, spine04: this.spine, spine03: this.spine, spine02: this.spine, spine01: this.spine,
+      breastL: this.spine, breastR: this.spine, clavicleL: this.spine, clavicleR: this.spine, shoulder01L: this.spine, shoulder01R: this.spine,
+      neck01: this.neck, neck02: this.neck, neck03: this.neck, head: this.headPivot,
+    };
+    // arms[0] / legs[0] are the character's right side (MakeHuman ".R")
+    const SIDES = [[0, 'R'], [1, 'L']];
+    for (const [i, side] of SIDES) {
+      const A = this.arms[i], L = this.legs[i];
+      Object.assign(MAP, {
+        ['upperarm01' + side]: A.shoulder, ['upperarm02' + side]: A.shoulder,
+        ['lowerarm01' + side]: A.elbow, ['lowerarm02' + side]: A.elbow, ['wrist' + side]: A.wrist,
+        ['upperleg01' + side]: L.hip, ['upperleg02' + side]: L.hip,
+        ['lowerleg01' + side]: L.knee, ['lowerleg02' + side]: L.knee, ['foot' + side]: L.ankle,
+      });
+    }
+    const keep = new Set();
+    for (const A of this.arms) A.glass?.traverse((o) => keep.add(o));
+    this.guitar?.group.traverse((o) => keep.add(o));
+    const root = this.root;
+    const P = (o) => o.getWorldPosition(new THREE.Vector3());
+    // aim joint j so its -Y axis points at world point `to` (smallest turn)
+    const aim = (j, to) => {
+      j.parent.updateWorldMatrix(true, false);
+      const pq = j.parent.getWorldQuaternion(new THREE.Quaternion());
+      const down = new THREE.Vector3(0, -1, 0).applyQuaternion(pq);
+      const dir = to.clone().sub(P(j)).normalize();
+      const wq = new THREE.Quaternion().setFromUnitVectors(down, dir).multiply(pq);
+      j.quaternion.copy(pq.invert().multiply(wq));
+      j.updateWorldMatrix(false, false);
+    };
+    const prepare = (model) => {
+      model.scale.setScalar(1 / root.scale.x); // the model keeps its real size
+      root.updateMatrixWorld(true);
+      const bone = (n) => model.getObjectByName(n);
+      const W = (n) => P(bone(n));
+      const hipMid = W('upperleg01L').add(W('upperleg01R')).multiplyScalar(0.5);
+      model.position.add(root.worldToLocal(P(this.pelvis)).sub(root.worldToLocal(hipMid)));
+      root.updateMatrixWorld(true);
+      const local = (parent, w) => parent.worldToLocal(w.clone());
+      this.neck.position.copy(local(this.spine, W('neck01')));
+      this.neck.updateWorldMatrix(false, false);
+      this.headPivot.position.copy(local(this.neck, W('head')));
+      const s = root.scale.x;
+      for (const [i, side] of SIDES) {
+        const A = this.arms[i], L = this.legs[i];
+        const sh = W('upperarm01' + side), el = W('lowerarm01' + side), wr = W('wrist' + side);
+        A.shoulder.position.copy(local(this.spine, sh));
+        aim(A.shoulder, el);
+        A.upperLen = el.distanceTo(sh) / s;
+        A.elbow.position.set(0, -A.upperLen, 0);
+        aim(A.elbow, wr);
+        A.foreLen = wr.distanceTo(el) / s;
+        A.wrist.position.set(0, -A.foreLen, 0);
+        const hp = W('upperleg01' + side), kn = W('lowerleg01' + side), an = W('foot' + side);
+        L.hip.position.copy(local(this.pelvis, hp));
+        aim(L.hip, kn);
+        L.thighLen = kn.distanceTo(hp) / s;
+        L.knee.position.set(0, -L.thighLen, 0);
+        aim(L.knee, an);
+        L.shinLen = an.distanceTo(kn) / s;
+        L.ankle.position.set(0, -L.shinLen, 0);
+      }
+      root.updateMatrixWorld(true);
+      // the front of the lips, kept in the head's frame (for sips of tea)
+      let rigNode = null;
+      model.traverse((o) => { if (o.userData && o.userData.mouth) rigNode = o; });
+      if (rigNode) {
+        const m = rigNode.userData.mouth;
+        this._mouthLocal = this.headPivot.worldToLocal(rigNode.localToWorld(new THREE.Vector3(m[0], m[1], m[2])));
+      }
+      this._jaw = bone('jaw');
+      this._jawRest = this._jaw ? this._jaw.quaternion.clone() : null;
+    };
+    this.binding = new SkinBinding(root, src, MAP, (mesh) => {
+      const m = mesh.material;
+      if (/hair|eyebrow|eyelash|beard/.test(m.name)) {
+        m.transparent = false;
+        m.depthWrite = true;
+        m.alphaTest = /eyelash/.test(m.name) ? 0.3 : 0.5;
+        m.side = THREE.DoubleSide;
+        mesh.castShadow = !/eyelash|eyebrow/.test(m.name);
+      }
+      if (mesh.morphTargetDictionary && 'blink' in mesh.morphTargetDictionary) this._face = mesh;
+    }, { keep: (o) => keep.has(o), prepare });
+    // back to the rig's rest pose (the animation sets the rotations it needs)
+    for (const j of [this.spine, this.neck, this.headPivot]) j.rotation.set(0, 0, 0);
+    for (const A of this.arms) for (const j of [A.shoulder, A.elbow, A.wrist]) j.rotation.set(0, 0, 0);
+    for (const L of this.legs) for (const j of [L.hip, L.knee, L.ankle]) j.rotation.set(0, 0, 0);
+    this.model = this.binding.model;
+  }
+
+  /** after the rig has been posed for this frame */
+  syncModel() {
+    if (!this.binding) return;
+    this.root.updateMatrixWorld(true);
+    this.binding.sync();
   }
 
   _collar(j, mats, spine, jc) {
@@ -1112,6 +1221,7 @@ export class Human {
   }
 
   mouthWorld(target) {
+    if (this._mouthLocal) return this.headPivot.localToWorld(target.copy(this._mouthLocal));
     const [mx, my, mz] = facePoint(this.head.sculpt, 0, -0.59);
     return this.head.group.localToWorld(target.set(mx, my, mz + 0.01));
   }
@@ -1119,6 +1229,7 @@ export class Human {
   // per-frame face animation (blink, mouth, gaze)
   updateFace(dt) {
     this._t += dt;
+    if (this.binding) { this._updateModelFace(dt); return; }
     this.blinkT -= dt;
     let lid = 0;
     if (this.blinkT < 0) {
@@ -1134,4 +1245,28 @@ export class Human {
     m.userData.inner.scale.y = 0.002 + open * (0.011 + this.mouthOpenBase * 0.004);
     m.userData.teeth.visible = open > 0.25;
   }
+
+  _updateModelFace(dt) {
+    this.blinkT -= dt;
+    let lid = 0;
+    if (this.blinkT < 0) {
+      lid = Math.sin(Math.min(1, -this.blinkT / 0.16) * Math.PI);
+      if (this.blinkT < -0.16) this.blinkT = 2 + Math.random() * 4.5;
+    }
+    const smile = Math.min(1, (this.spec.face?.smile ?? 0) * 0.6 + this.laugh);
+    const talkOpen = this.voiceLevel != null ? this.voiceLevel : this.talk * (0.35 + 0.65 * Math.abs(Math.sin(this._t * 11) * Math.sin(this._t * 4.3 + 1)));
+    const open = Math.min(1, this.mouthOpenBase * (0.3 + this.laugh * 0.5) + talkOpen * 0.8 + this.laugh * 0.7);
+    const f = this._face;
+    if (f) {
+      const d = f.morphTargetDictionary;
+      f.morphTargetInfluences[d.blink] = Math.max(lid, smile * 0.15);
+      if (d.smile != null) f.morphTargetInfluences[d.smile] = smile;
+    }
+    if (this._jaw) this._jaw.quaternion.copy(this._jawRest).multiply(_jawQ.setFromAxisAngle(_X, open * JAW_OPEN));
+  }
 }
+
+const _X = new THREE.Vector3(1, 0, 0);
+const _jawQ = new THREE.Quaternion();
+const JAW_OPEN = 0.22; // radians at a full laugh
+

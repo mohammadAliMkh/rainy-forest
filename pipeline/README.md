@@ -62,6 +62,7 @@ graphVenv/Scripts/python.exe pipeline/finish_card.py graphVenv/cache/bake/needle
 | `blender_trees.py` | چهار نوع سوزنی‌برگ با ساختار واقعی صنوبر و نسخه‌ی سبک برای دور |
 | `blender_animals.py` + `bcreature.py` | گوزن ماده و نر (با شاخ)، خرگوش و لونا: بدن پیوسته‌ی نرم با متابال، اسکلت هم‌جای مفصل‌های کد بازی، وزن‌دهی خودکار، گوش و چشم و بینی و شاخ و قلاده‌ی ثابت روی استخوان خودشان. در بازی `skinBinding.ts` حرکت مفصل‌های قبلی را هر فریم روی استخوان‌ها می‌گذارد، پس همه‌ی رفتارها همان قبلی است |
 | `blender_fire.py` + `fire_atlas.py` | شبیه‌سازی آتش (Mantaflow) و فیلم‌برگه‌ی ۶۴ فریمی شعله |
+| `blender_people.py` | چهار دوستِ کنار آتش با MPFB (میک‌هیومن برای بلندر، CC0): بدن و شکل صورت هر نفر، پوست اسکن‌شده با رنگ پوست خودش، چشم و ابرو و مژه و دندان، مو و لباس، ریش کوتاه نقاشی‌شده روی پوست (ریش بلند با مدل ریش)، کلاه و عینک آفتابی و گوشواره روی استخوان سر، اسکلت کامل؛ پلک‌زدن و لبخند به‌صورت مورف و باز شدن دهان با استخوان فک. ویژگی‌ها با دست از روی عکس‌ها تنظیم شده‌اند؛ خود عکس‌ها هیچ‌جا در پروژه نیستند |
 | `blender_preview.py` | رندر پیش‌نمایش هر مدل برای بررسی قبل از ورود به بازی |
 | `make_log_end.py` | بافت مقطع کنده (حلقه‌های سالانه) |
 | `fetch_kit_textures.py` | بافت‌های اسکن‌شده‌ای که فقط داخل بلندر برای ساختمان‌ها لازم‌اند |
@@ -72,6 +73,14 @@ graphVenv/Scripts/python.exe pipeline/finish_card.py graphVenv/cache/bake/needle
 set KIT_DIR=graphVenv/cache/kit
 graphVenv/tools/blender/blender.exe -b --factory-startup -P pipeline/blender_cabin.py -- graphVenv/cache/work/cabin_raw.glb
 graphVenv/Scripts/python.exe pipeline/process_models.py --scene cabin graphVenv/cache/work/cabin_raw.glb 1024
+```
+
+آدم‌ها (MPFB باید در پوشه‌ی کاربری بلندرِ خود `graphVenv` نصب باشد، با بسته‌های دارایی CC0 میک‌هیومن: system assets، skins02، hair01، eyebrows01، bodyparts05، shirts01، pants01، shoes01):
+
+```bash
+set BLENDER_USER_RESOURCES=graphVenv/tools/blender_user
+graphVenv/tools/blender/blender.exe -b --factory-startup -P pipeline/blender_people.py -- owner graphVenv/cache/work/person_owner.glb
+graphVenv/node/node_modules/.bin/gltf-transform meshopt graphVenv/cache/work/person_owner.glb public/assets/models/person_owner.glb
 ```
 
 درخت‌ها بدون حذف ویژگی‌ها فشرده می‌شوند (رنگ رأس و مختصات بافتشان لازم است):

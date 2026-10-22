@@ -259,7 +259,7 @@ export class Gathering {
       h.spine.rotation.y = p.yaw * 0.12;
 
       // ---- Amin and his guitar ----
-      if (h.guitar) { this._guitar(p, dt, talking || laughing || !!line); h.updateFace(dt); continue; }
+      if (h.guitar) { this._guitar(p, dt, talking || laughing || !!line); h.updateFace(dt); h.syncModel(); continue; }
 
       // ---- sipping tea ----
       p.nextSip -= dt;
@@ -362,6 +362,7 @@ export class Gathering {
       }
       h.reach(1, tL, poleL, thumbL, fingL);
       h.updateFace(dt);
+      h.syncModel();
     }
   }
 }

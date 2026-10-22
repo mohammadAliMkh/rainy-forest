@@ -23,11 +23,18 @@ export class SkinBinding {
     source: THREE.Object3D,
     joints: Record<string, THREE.Object3D>,
     material: (mesh: THREE.SkinnedMesh) => void,
+    opts: {
+      /** hand-built meshes that stay visible (things held in the hands...) */
+      keep?: (o: THREE.Object3D) => boolean;
+      /** fit the rig to the model before the offsets are measured */
+      prepare?: (model: THREE.Object3D) => void;
+    } = {},
   ) {
     // hide the hand-built meshes of the rig (their joints keep animating)
-    root.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.visible = false; });
+    root.traverse((o) => { if ((o as THREE.Mesh).isMesh && !opts.keep?.(o)) o.visible = false; });
     this.model = SkeletonUtils.clone(source);
     root.add(this.model);
+    opts.prepare?.(this.model);
     this.model.traverse((o) => {
       const m = o as THREE.SkinnedMesh;
       if (!m.isSkinnedMesh && !(o as THREE.Mesh).isMesh) return;

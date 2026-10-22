@@ -76,13 +76,16 @@ export class Camp {
       }
       // the person (plus their legs / feet) blocks the player
       collision.addCircle(x + fwd.x * 0.2, z + fwd.z * 0.2, 0.45, 'person');
-      seats.push({ key: s.key, spec: FRIENDS[s.key], x, y: top, z, facing, lean: s.lean, kneeSpread: s.kneeSpread, waves: s.waves, center: F });
+      // the person built in Blender from MakeHuman (pipeline/blender_people.py), when loaded
+      const model = T.scenes && T.scenes[`person_${s.key}`];
+      seats.push({ key: s.key, spec: model ? { ...FRIENDS[s.key], model } : FRIENDS[s.key], x, y: top, z, facing, lean: s.lean, kneeSpread: s.kneeSpread, waves: s.waves, center: F });
     }
     this.gathering = new Gathering(seats, shared, rand, this.events);
     this.group.add(this.gathering.group);
     // static parts of each person merged per material (heads keep eyes / lids / mouth separate)
     for (const p of this.gathering.people) {
       const h = p.h;
+      if (h.model) continue; // skinned: nothing to merge
       bakeByMaterial(h.head.group, (m) => h.head.eyes.some((e) => e.children.includes(m)) || h.head.lids.some((l) => l.children.includes(m)) || m.parent === h.head.mouth);
       for (const e of h.head.eyes) e.userData.keep = true;
       for (const l of h.head.lids) l.userData.keep = true;

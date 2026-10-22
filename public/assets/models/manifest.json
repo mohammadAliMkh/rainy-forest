@@ -210,6 +210,34 @@
       "scene": true,
       "parts": [],
       "kb": 78
+    },
+    "person_owner": {
+      "file": "assets/models/person_owner.glb",
+      "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 1168
+    },
+    "person_amir": {
+      "file": "assets/models/person_amir.glb",
+      "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 1241
+    },
+    "person_amin": {
+      "file": "assets/models/person_amin.glb",
+      "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 1285
+    },
+    "person_alireza": {
+      "file": "assets/models/person_alireza.glb",
+      "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 901
     }
   }
 }
