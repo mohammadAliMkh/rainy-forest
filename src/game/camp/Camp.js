@@ -103,7 +103,7 @@ export class Camp {
       });
       const wander = [[8.3, -14.6], [0.8, -17.6], [4.6, -12.0], [-1.8, -12.8]].map(([x, z]) => ({ x, z }));
       const start = spots.find((s) => s.key === 'owner');
-      this.dog = new Dog();
+      this.dog = new Dog(T.scenes && T.scenes.luna);
       this.dog.place(start.x, terrain.heightAt(start.x, start.z), start.z, start.heading, 'owner');
       this.dog.setWorld({ terrain, collision, spots, wander, ring: { x: F.x, z: F.z, r: 2.6 } });
       this.group.add(this.dog.root);

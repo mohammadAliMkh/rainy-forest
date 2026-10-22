@@ -336,7 +336,7 @@ def curve_tube(name, pts, radius, material, resolution=12, bevel_res=4, closed=F
         p.co = (v.x, v.y, v.z, 1)
     if len(pts) > 2:
         sp.order_u = min(4, len(pts))
-        sp.use_endpoint_u = True
+        sp.use_endpoint_u = not closed  # closed loops: a plain periodic curve, no end spur
     sp.use_cyclic_u = closed
     cu.bevel_depth = radius
     cu.bevel_resolution = bevel_res

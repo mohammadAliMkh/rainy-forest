@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CABIN, FIRE } from '../../config/config.js';
 import { mulberry32, damp } from '../../utils/noise.js';
+import { SkinBinding } from './skinBinding.ts';
 
 // Procedural deer with a jointed skeleton (hips/knees, neck, head, ears,
 // tail) and a small behaviour brain: wander, graze, look around, notice the
@@ -193,6 +194,21 @@ class DeerAgent {
     this.model = buildDeerModel(T, { buck: opts.buck, tone: opts.tone });
     this.scale = opts.scale;
     this.model.root.scale.setScalar(this.scale);
+    // the skinned deer built in Blender, driven by this rig
+    const src = T.scenes && (opts.buck ? T.scenes.deer_buck : T.scenes.deer_doe);
+    if (src) {
+      const m = this.model;
+      m.neckPivot.rotation.x = 0.42; // the pose the Blender model was built in
+      m.headPivot.rotation.x = -0.1;
+      const joints = { body: m.body, neck: m.neckPivot, head: m.headPivot, tail: m.tailPivot };
+      m.ears.forEach((e, i) => { joints[`ear_${i}`] = e; });
+      m.legs.forEach((L, i) => { joints[`hip_${i}`] = L.hip; joints[`knee_${i}`] = L.knee; });
+      const fur = new THREE.MeshStandardMaterial({
+        map: T.fur, normalMap: T.furNormal, normalScale: new THREE.Vector2(0.4, 0.4), vertexColors: true, roughness: 0.88,
+        color: new THREE.Color().setScalar(opts.tone ?? 1),
+      });
+      this.binding = new SkinBinding(m.root, src, joints, (mesh) => { if (mesh.material.name === 'fur') mesh.material = fur; });
+    }
     this.home = opts.home;
     this.x = opts.x; this.z = opts.z;
     this.heading = this.rand() * TAU;
@@ -456,6 +472,10 @@ class DeerAgent {
     if (this.tailTimer <= 0) { this.tailFlick = 1; this.tailTimer = 2 + this.rand() * 6; }
     this.tailFlick = Math.max(0, this.tailFlick - dt * 2.5);
     m.tailPivot.rotation.x = 0.35 - (alert ? 0.9 * Math.max(this.alertAmt, running ? 1 : 0) : 0) + Math.sin(this.tailFlick * 25) * 0.3 * this.tailFlick;
+    if (this.binding) {
+      m.root.updateMatrixWorld(true);
+      this.binding.sync();
+    }
   }
 }
 

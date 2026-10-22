@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CABIN } from '../../config/config.js';
 import { mulberry32 } from '../../utils/noise.js';
+import { SkinBinding } from './skinBinding.ts';
 
 // Small birds that perch on branches / logs / the cabin roof, hop, sing
 // (audio events), and fly between perches with flapping & gliding;
@@ -156,10 +157,17 @@ function rabbitModel() {
 }
 
 class Rabbit {
-  constructor(world, home, seed) {
+  constructor(world, home, seed, model = null) {
     this.world = world;
     this.rand = mulberry32(seed);
     this.m = rabbitModel();
+    if (model) {
+      // the skinned rabbit built in Blender, driven by this little rig
+      const fur = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+      this.binding = new SkinBinding(this.m.root, model, { body: this.m.body, head: this.m.head }, (mesh) => {
+        if (mesh.material.name === 'fur') mesh.material = fur;
+      });
+    }
     this.home = home;
     this.x = home.x + (this.rand() - 0.5) * 4;
     this.z = home.z + (this.rand() - 0.5) * 4;
@@ -215,11 +223,16 @@ class Rabbit {
     this.m.root.position.set(this.x, terrain.heightAt(this.x, this.z) + lift, this.z);
     this.m.root.rotation.y = this.heading;
     this.m.body.rotation.x = this.state === 'hop' ? Math.sin(this.hopT * TAU) * 0.25 : 0;
+    if (this.binding) {
+      this.m.root.updateMatrixWorld(true);
+      this.binding.sync();
+    }
   }
 }
 
 export class Wildlife {
-  constructor(world, forest) {
+  /** `scenes`: models built in Blender (the rabbit) */
+  constructor(world, forest, scenes = null) {
     this.group = new THREE.Group();
     const rand = mulberry32(4242);
     // perch points: branch stubs on trees, logs, rocks, the cabin ridge, woodpile
@@ -251,7 +264,7 @@ export class Wildlife {
     this.rabbits = [];
     const homes = [{ x: -6, z: 6 }, { x: 8, z: -4 }, { x: -9, z: -18 }];
     homes.forEach((h, i) => {
-      const r = new Rabbit(world, h, 300 + i);
+      const r = new Rabbit(world, h, 300 + i, scenes && scenes.rabbit);
       this.rabbits.push(r);
       this.group.add(r.m.root);
     });

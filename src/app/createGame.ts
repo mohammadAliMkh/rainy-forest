@@ -136,7 +136,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   world.player = player;
   const deer = new DeerHerd(T, world);
   scene.add(deer.group);
-  const wildlife = new Wildlife(world, forest);
+  const wildlife = new Wildlife(world, forest, (T as TextureSet).scenes);
   scene.add(wildlife.group);
 
   const wind = new Wind();

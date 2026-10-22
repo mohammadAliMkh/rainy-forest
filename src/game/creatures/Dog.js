@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createNoise2D, mulberry32, damp, clamp } from '../../utils/noise.js';
 import { createCampTextures } from '../people/clothTextures.js';
 import { taperTube, rgb } from '../people/Human.js';
+import { SkinBinding } from './skinBinding.ts';
 
 // Luna: a black long-haired German Shepherd. Shaggy coat (noise-displaced
 // shells), upright ears, bushy tail, khaki harness and jointed legs, so she
@@ -53,7 +54,8 @@ function ellipsoid(rx, ry, rz, seg = 20) {
 }
 
 export class Dog {
-  constructor() {
+  /** `model`: Luna built in Blender (pipeline/blender_animals.py), driven by this rig */
+  constructor(model = null) {
     const C = createCampTextures();
     const fur = new THREE.MeshStandardMaterial({ vertexColors: true, map: C.fleece.map, normalMap: C.fleece.normal, normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.8 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.3 });
@@ -228,6 +230,24 @@ export class Dog {
     this.goal = null;
     this.sniff = 0;
     this.rand = mulberry32(4242);
+    if (model) {
+      // put the rig in the standing pose the Blender model was built in
+      this.body.position.y = STAND_Y;
+      for (const L of this.legs) {
+        L.hip.rotation.set(L.stand[0], 0, 0);
+        L.knee.rotation.x = L.stand[1];
+        L.paw.rotation.x = -(L.stand[0] + L.stand[1]) * (L.front ? 1 : 0.6);
+      }
+      this.neck.rotation.set(0.35, 0, 0, 'YXZ');
+      this.head.rotation.set(-0.3, 0, 0, 'YXZ');
+      for (const e of this.ears) e.rotation.x = -0.15;
+      this.tail.rotation.set(0.35, 0, 0);
+      const joints = { body: this.body, neck: this.neck, head: this.head, jaw: this.jaw, tail: this.tail };
+      this.ears.forEach((e, i) => { joints[`ear_${i}`] = e; });
+      this.legs.forEach((L, i) => { joints[`hip_${i}`] = L.hip; joints[`knee_${i}`] = L.knee; joints[`paw_${i}`] = L.paw; });
+      this.binding = new SkinBinding(this.root, model, joints, (mesh) => { if (mesh.material.name === 'fur') mesh.material = fur; });
+      this.body.position.y = LYING_Y;
+    }
   }
 
   get isLying() { return this.state === 'lie' && this.stand < 0.05; }
@@ -417,5 +437,9 @@ export class Dog {
     let twitch = 0;
     if (this.earT < 0) { twitch = Math.sin(Math.min(1, -this.earT / 0.25) * Math.PI); if (this.earT < -0.25) this.earT = 1.5 + Math.random() * 4; }
     for (const [i, e] of this.ears.entries()) e.rotation.x = -0.15 - (i === 0 ? twitch * 0.35 : 0) - excite * 0.1;
+    if (this.binding) {
+      this.root.updateMatrixWorld(true);
+      this.binding.sync();
+    }
   }
 }

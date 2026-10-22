@@ -182,6 +182,34 @@
         "conifer_3_leaves_lo"
       ],
       "kb": 138
+    },
+    "deer_doe": {
+      "file": "assets/models/deer_doe.glb",
+      "source": "Blender skinned animal (pipeline/blender_animals.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 62
+    },
+    "deer_buck": {
+      "file": "assets/models/deer_buck.glb",
+      "source": "Blender skinned animal (pipeline/blender_animals.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 70
+    },
+    "rabbit": {
+      "file": "assets/models/rabbit.glb",
+      "source": "Blender skinned animal (pipeline/blender_animals.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 30
+    },
+    "luna": {
+      "file": "assets/models/luna.glb",
+      "source": "Blender skinned animal (pipeline/blender_animals.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 78
     }
   }
 }
