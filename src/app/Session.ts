@@ -84,6 +84,10 @@ export class Session {
       if (document.hidden) ctx.suspend?.();
       else if (this.entered) ctx.resume?.();
     });
+    // and for good when the page is closed, or frozen by the browser
+    document.addEventListener('freeze', () => { sound.engine.ctx?.suspend?.(); });
+    window.addEventListener('pagehide', () => { sound.engine.ctx?.suspend?.(); });
+    window.addEventListener('pageshow', (e) => { if (e.persisted && this.entered && !document.hidden) sound.engine.ctx?.resume?.(); });
     window.addEventListener('keydown', (e) => this._onKey(e));
     if (isTouchFirst()) touch.enable();
   }
