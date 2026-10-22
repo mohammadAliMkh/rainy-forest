@@ -158,7 +158,7 @@
       "source": "Blender build script",
       "scene": true,
       "parts": [],
-      "kb": 213
+      "kb": 395
     },
     "trees": {
       "file": "assets/models/trees.glb",
