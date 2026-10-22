@@ -53,10 +53,12 @@ export class UI {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(this.settings)); } catch { /* ignore */ }
   }
 
-  setLoading(p, text) {
+  // only the progress bar while loading (the build steps stay off screen)
+  setLoading(p) {
     $('loading-bar').style.width = `${Math.round(p * 100)}%`;
-    if (text) $('loading-step').textContent = text;
   }
+
+  showLoadingError(text) { $('loading-step').textContent = text; }
 
   hideLoading() { $('loading').classList.add('hidden'); }
   showStart() { $('start').classList.remove('hidden'); }

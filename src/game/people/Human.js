@@ -1065,6 +1065,24 @@ export class Human {
       }
       this._jaw = bone('jaw');
       this._jawRest = this._jaw ? this._jaw.quaternion.clone() : null;
+      // finger joints: each bends about the axis that turns it toward the palm
+      // (the palms face down in MakeHuman's rest pose)
+      const down = new THREE.Vector3(0, -1, 0);
+      this._fingers = SIDES.map(([, side]) => {
+        const list = [];
+        for (let k = 1; k <= 5; k++) {
+          for (let j = 1; j <= 3; j++) {
+            const b = bone(`finger${k}-${j}${side}`);
+            if (!b) continue;
+            const next = bone(`finger${k}-${j + 1}${side}`), prev = bone(`finger${k}-${j - 1}${side}`);
+            const dir = next ? P(next).sub(P(b)) : P(b).sub(prev ? P(prev) : P(b.parent));
+            const axis = dir.normalize().cross(down).normalize();
+            axis.applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion()).invert());
+            list.push({ b, axis, rest: b.quaternion.clone(), thumb: k === 1, j });
+          }
+        }
+        return list;
+      });
     };
     this.binding = new SkinBinding(root, src, MAP, (mesh) => {
       const m = mesh.material;
@@ -1082,6 +1100,17 @@ export class Human {
     for (const A of this.arms) for (const j of [A.shoulder, A.elbow, A.wrist]) j.rotation.set(0, 0, 0);
     for (const L of this.legs) for (const j of [L.hip, L.knee, L.ankle]) j.rotation.set(0, 0, 0);
     this.model = this.binding.model;
+    // a hand holding the tea glass grips it, a free hand rests half closed
+    this._holding = this.arms.map((A) => !!A.glass);
+    this.arms.forEach((A, i) => this._openHand(i, false));
+  }
+
+  _openHand(i, open) {
+    const grip = open ? 0.05 : this._holding?.[i] ? 0.85 : 0.4;
+    for (const f of this._fingers?.[i] ?? []) {
+      const a = grip * (f.thumb ? [0.35, 0.3, 0.25][f.j - 1] : [0.9, 1.0, 0.7][f.j - 1]);
+      f.b.quaternion.copy(f.rest).multiply(_fq.setFromAxisAngle(f.axis, a));
+    }
   }
 
   /** after the rig has been posed for this frame */
@@ -1201,6 +1230,7 @@ export class Human {
 
   setHandOpen(i, open) {
     const A = this.arms[i];
+    if (this.binding) { this._openHand(i, open); return; } // the model's own fingers
     if (!A.openHand) return;
     A.openHand.visible = open;
     A.hand.visible = !open;
@@ -1268,5 +1298,6 @@ export class Human {
 
 const _X = new THREE.Vector3(1, 0, 0);
 const _jawQ = new THREE.Quaternion();
+const _fq = new THREE.Quaternion();
 const JAW_OPEN = 0.22; // radians at a full laugh
 

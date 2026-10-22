@@ -74,7 +74,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   camera.layers.enable(DETAIL_LAYER);
   scene.add(camera);
 
-  const step = async (p: number, text: string) => { ui.setLoading(p, text); await nextFrame(); };
+  const step = async (p: number, _text: string) => { ui.setLoading(p); await nextFrame(); };
 
   // ---------- building the world ----------
   await step(0.05, 'نقاشی بافت‌ها: پوست درخت، خاک خیس، خزه و برگ‌ها…');
@@ -245,7 +245,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('quality', () => quality.update());
   game.start();
 
-  ui.setLoading(1, '');
+  ui.setLoading(1);
   setTimeout(() => { ui.hideLoading(); ui.showStart(); }, 250);
 
   if (debug) {

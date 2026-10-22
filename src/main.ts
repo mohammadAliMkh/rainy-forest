@@ -14,5 +14,6 @@ ui.bind();
 
 createGame({ ui, debug: new URLSearchParams(location.search).has('debug') }).catch((e) => {
   console.error(e);
-  ui.setLoading(1, 'خطا در ساخت صحنه: ' + e.message);
+  ui.setLoading(1);
+  ui.showLoadingError('خطا در ساخت صحنه: ' + e.message);
 });

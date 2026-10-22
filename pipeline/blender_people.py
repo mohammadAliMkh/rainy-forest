@@ -100,7 +100,7 @@ PEOPLE = {
         skin=0xdcae8f, eyes="brown", hair_color=0x5b3f2b,
         eyebrows="eyebrow001", hair="culturalibre_hair_05",
         beard=dict(color=0x4a3322, density=0.22, cheek=0.4, neck=0.45, stubble=0.55),
-        clothes=[("male_casualsuit02", dict(top=0x3e4229, bottom=0x24272d)), ("shoes02", 0x5a4632)],
+        clothes=[("male_casualsuit06", dict(top=0x3e4229, bottom=0x24272d)), ("shoes02", 0x5a4632)],
     ),
 }
 P = PEOPLE[KEY]
@@ -307,7 +307,7 @@ def tint(arr, target, keep=0.35, region=None):
     mean = rgb[mask].mean(axis=0) if mask.any() else rgb.reshape(-1, 3).mean(axis=0)
     lum = rgb @ np.array([0.2126, 0.7152, 0.0722])
     mlum = float(mean @ np.array([0.2126, 0.7152, 0.0722])) or 1e-3
-    detail = (lum / mlum)[..., None]
+    detail = np.clip(lum / mlum, 0, 2.2)[..., None]
     graded = target[None, None, :] * detail
     hue_kept = rgb * (target / np.maximum(mean, 1e-3))[None, None, :]
     arr[..., :3] = np.clip(graded * (1 - keep) + hue_kept * keep, 0, 1)
@@ -414,6 +414,63 @@ def raster(obj, vw, H, W):
     return mask
 
 
+def island_tops(obj, split_z):
+    """per polygon: 1 if its UV island (one piece of cloth) sits above split_z on average"""
+    me = obj.data
+    uv = me.uv_layers.active.data
+    parent = list(range(len(me.polygons)))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    seen = {}
+    for poly in me.polygons:
+        for li in poly.loop_indices:
+            key = (me.loops[li].vertex_index, round(uv[li].uv[0], 4), round(uv[li].uv[1], 4))
+            if key in seen:
+                parent[find(poly.index)] = find(seen[key])
+            else:
+                seen[key] = poly.index
+    zs = {}
+    for poly in me.polygons:
+        r = find(poly.index)
+        acc = zs.setdefault(r, [0.0, 0])
+        acc[0] += poly.center.z
+        acc[1] += 1
+    return {poly.index: 1.0 if zs[find(poly.index)][0] / zs[find(poly.index)][1] > split_z else 0.0 for poly in me.polygons}
+
+
+def raster_faces(obj, pv, H, W):
+    """paint one value per polygon into UV space"""
+    vw_dummy = None
+    mask = np.zeros((H, W), dtype=np.float32)
+    uv = obj.data.uv_layers.active.data
+    for poly in obj.data.polygons:
+        val = pv[poly.index]
+        if val <= 0:
+            continue
+        loops = list(poly.loop_indices)
+        for k in range(1, len(loops) - 1):
+            P2 = np.array([[uv[loops[t]].uv[0] * W, uv[loops[t]].uv[1] * H] for t in (0, k, k + 1)])
+            x0, y0 = np.floor(P2.min(axis=0)).astype(int)
+            x1, y1 = np.ceil(P2.max(axis=0)).astype(int)
+            x0, y0, x1, y1 = max(x0, 0), max(y0, 0), min(x1, W - 1), min(y1, H - 1)
+            if x1 < x0 or y1 < y0:
+                continue
+            xs, ys = np.meshgrid(np.arange(x0, x1 + 1) + 0.5, np.arange(y0, y1 + 1) + 0.5)
+            (ax, ay), (bx, by), (cx, cy) = P2
+            den = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+            if abs(den) < 1e-9:
+                continue
+            l1 = ((by - cy) * (xs - cx) + (cx - bx) * (ys - cy)) / den
+            l2 = ((cy - ay) * (xs - cx) + (ax - cx) * (ys - cy)) / den
+            inside = (l1 >= -0.02) & (l2 >= -0.02) & (1 - l1 - l2 >= -0.02)
+            mask[y0:y1 + 1, x0:x1 + 1][inside] = val
+    return mask
+
+
 def blur(mask, r):
     from numpy.lib.stride_tricks import sliding_window_view as swv
     pad = np.pad(mask, r, mode="edge")
@@ -448,7 +505,7 @@ body.data.materials.append(principled("skin", skin_tex, roughness=0.55, normal=n
 
 # ---- everything MPFB fitted to the body
 slot_color = dict(P["clothes"])
-WAIST_Z = rig.data.bones["upperleg01.L"].head_local.z + 0.1
+WAIST_Z = rig.data.bones["upperleg01.L"].head_local.z
 for obj in list(rig.children):
     if obj is body or obj.type != "MESH":
         continue
@@ -471,10 +528,14 @@ for obj in list(rig.children):
         img0, arr = load_pixels(tex, size)
         if isinstance(color, dict):
             H, W = arr.shape[:2]
-            top = blur(raster(obj, {v.index: 1.0 if v.co.z > WAIST_Z else 0.0 for v in obj.data.vertices}, H, W), 1)
+            # each half tinted against its own pixels only (not the empty background)
+            tops = island_tops(obj, WAIST_Z)
+            top = blur(raster_faces(obj, tops, H, W), 1)
+            bot = blur(raster_faces(obj, {k: 1.0 - v for k, v in tops.items()}, H, W), 1)
             a_top = tint(arr.copy(), enc(color["top"]), keep=0.15, region=top)
-            a_bot = tint(arr.copy(), enc(color["bottom"]), keep=0.15, region=1 - top)
-            arr[..., :3] = a_top[..., :3] * top[..., None] + a_bot[..., :3] * (1 - top[..., None])
+            a_bot = tint(arr.copy(), enc(color["bottom"]), keep=0.15, region=bot)
+            wt = np.where(top + bot > 1e-3, top / np.maximum(top + bot, 1e-3), 1.0)[..., None]
+            arr[..., :3] = a_top[..., :3] * wt + a_bot[..., :3] * (1 - wt)
             color = None
         elif color is not None:
             arr = tint(arr, enc(color), keep=0.0 if kind != "clothes" else 0.15)
