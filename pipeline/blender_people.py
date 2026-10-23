@@ -62,18 +62,27 @@ PEOPLE = {
         beard=dict(color=0x3d2614, density=1.0, strength=1.25, mustache=1.0, chin=1.0, cheeks=0.6, cheek_front=-0.014, cheek_ear=0.05, neck=0.35, stubble=0.05),
         clothes=[("male_casualsuit05", dict(top=0x17181b, bottom=0x434832)), ("shoes03", 0x1d1b19)],
     ),
-    # Amir Esmaeil: tall, long face, strong nose with a hump, heavy brows,
-    # dark hair pulled back, thick full beard; brown jacket, grey jeans
+    # Amir Esmaeil: tall, long face with a high forehead, strong straight nose,
+    # deep-set dark eyes under heavy brows; black hair thin on top and slicked
+    # back, wavy and falling to the shoulders behind the ears; a full black
+    # "professor" beard pointed at the chin, shorter on the sides, thick
+    # mustache; brown jacket, grey jeans
     "amir": dict(
-        phenotype=dict(gender=1.0, age=0.58, muscle=0.55, weight=0.55, proportions=0.65, height=0.6,
-                       race=dict(caucasian=0.74, asian=0.06, african=0.2)),
-        targets={"head-oval": 0.45, "head-scale-vert-incr": 0.2, "head-scale-horiz-decr": 0.08, "nose-hump-incr": 0.55,
-                 "nose-scale-vert-incr": 0.3, "nose-scale-depth-incr": 0.25, "nose-point-down": 0.2,
-                 "eyebrows-trans-down": 0.35, "eyebrows-trans-forward": 0.3, "l-eye-push1-in": 0.2, "r-eye-push1-in": 0.2,
-                 "chin-height-incr": 0.2, "l-cheek-bones-incr": 0.3, "r-cheek-bones-incr": 0.3},
-        skin=0xc6997c, eyes="brown", hair_color=0x15100d,
-        eyebrows="eyebrow009", hair="rehmanpolanski_hair_bun_brown",
-        beard=dict(color=0x15100d, density=1.0, cheek=0.62, neck=1.0, stubble=0.15, mesh="wdg_scruffy_beard"),
+        phenotype=dict(gender=1.0, age=0.58, muscle=0.55, weight=0.52, proportions=0.65, height=0.6,
+                       race=dict(caucasian=0.8, asian=0.04, african=0.16)),
+        targets={"head-oval": 0.3, "head-scale-vert-incr": 0.05, "forehead-scale-vert-incr": 0.2,
+                 "nose-scale-vert-incr": 0.3, "nose-scale-depth-incr": 0.2, "nose-hump-incr": 0.15, "nose-point-down": 0.1,
+                 "eyebrows-trans-down": 0.35, "eyebrows-trans-forward": 0.3, "l-eye-push1-in": 0.3, "r-eye-push1-in": 0.3,
+                 "l-eye-bag-incr": 0.4, "r-eye-bag-incr": 0.4, "l-eye-height2-decr": 0.15, "r-eye-height2-decr": 0.15,
+                 "chin-height-incr": 0.15, "l-cheek-bones-incr": 0.3, "r-cheek-bones-incr": 0.3},
+        skin=0xc89478, eyes="brown", hair_color=0x120d0a,
+        eyebrows="eyebrow009", hair="o4saken_long01",
+        # long hair slicked flat over the top (the thin scalp shows through), ends at the shoulders
+        hair_slick=dict(above=0.0, front_of=0.17, gap=0.004, bottom=-0.21, face_back=0.09, face_top=0.065,
+                        brow_back=0.05, brow_top=0.09),
+        scalp=dict(color=0x100b08, density=0.85, front=0.085, temples=0.095),
+        beard=dict(color=0x1a1310, density=1.0, strength=1.3, mustache=1.0, chin=1.0, cheeks=1.0, cheek=0.7, neck=0.8, stubble=0.15,
+                   mesh="grinsegold_beard_sigmund_wip"),
         clothes=[("male_casualsuit01", dict(top=0x6e4528, bottom=0x4d5054)), ("toigo_ankle_boots_male", 0xc08a48)],
     ),
     # Amin: big laugh, long face, prominent nose, defined cheekbones, full
@@ -240,6 +249,9 @@ for g in list(body.vertex_groups):
     if g.name.startswith(("helper-", "joint-")) or g.name in ("HelperGeometry", "JointCubes", "body", "Left", "Right", "Mid"):
         body.vertex_groups.remove(g)
 print("body verts", len(body.data.vertices))
+# the mesh changed: look the head vertices up again (group indices moved too)
+_hg = body.vertex_groups["head"].index
+head_verts = [v for v in body.data.vertices if weight(v, _hg) > 0.3]
 
 
 # ======================= textures and materials =============================
@@ -550,10 +562,59 @@ body.data.materials.append(principled("skin", skin_tex, roughness=0.55, normal=n
 # ---- everything MPFB fitted to the body
 slot_color = dict(P["clothes"])
 WAIST_Z = rig.data.bones["upperleg01.L"].head_local.z
+def trim_hair(obj, t):
+    """keep only hair behind the ears and below the crown, down to the shoulders"""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    dead = []
+    for v in bm.verts:
+        co = obj.matrix_world @ v.co
+        back = co.y - MOUTH.y
+        up = co.z - EYE_Z
+        keep = (back > t["back"] and up < t.get("top", 1.0)) or (back > t["side_back"] and up < t["side_top"])
+        if not keep or co.z - MOUTH.z < t["bottom"]:
+            dead.append(v)
+    bmesh.ops.delete(bm, geom=dead, context="VERTS")
+    bm.to_mesh(obj.data)
+    bm.free()
+
+
+def slick_hair(obj, t):
+    """press the hair over the top and front flat onto the scalp (slicked back),
+    and cut the ends at the shoulders"""
+    from mathutils.kdtree import KDTree
+    tree = KDTree(len(head_verts))
+    for k, v in enumerate(head_verts):
+        tree.insert(v.co, k)
+    tree.balance()
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    mw, inv = obj.matrix_world, obj.matrix_world.inverted()
+    dead = []
+    for v in bm.verts:
+        co = mw @ v.co
+        # nothing hangs over the face: strands in front of the ears below the hairline go
+        back, up = co.y - MOUTH.y, co.z - EYE_Z
+        if co.z - MOUTH.z < t["bottom"] or (back < t["face_back"] and up < t["face_top"])                 or (back < t.get("brow_back", -1) and up < t.get("brow_top", -1)):  # clean forehead hairline
+            dead.append(v)
+            continue
+        if co.z - EYE_Z > t["above"] and co.y - MOUTH.y < t["front_of"]:
+            near, _, dist = tree.find(co)
+            if dist > t["gap"]:
+                v.co = inv @ (near + (co - near).normalized() * t["gap"])
+    bmesh.ops.delete(bm, geom=dead, context="VERTS")
+    bm.to_mesh(obj.data)
+    bm.free()
+
+
 for obj in list(rig.children):
     if obj is body or obj.type != "MESH":
         continue
     kind = kind_of(obj)
+    if kind == "hair" and P.get("hair_trim"):
+        trim_hair(obj, P["hair_trim"])
+    if kind == "hair" and P.get("hair_slick"):
+        slick_hair(obj, P["hair_slick"])
     info_m = parse_mhmat(mhmat_for(obj))
     src = str(GeneralObjectProperties.get_value("asset_source", entity_reference=obj) or obj.name)
     base = os.path.splitext(os.path.basename(src))[0]

@@ -223,7 +223,7 @@
       "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
       "scene": true,
       "parts": [],
-      "kb": 1412
+      "kb": 1489
     },
     "person_amin": {
       "file": "assets/models/person_amin.glb",
