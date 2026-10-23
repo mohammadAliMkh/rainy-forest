@@ -42,8 +42,8 @@ export class Camp {
 
     // ---- seats + people ----
     const shared = {
-      glass: new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, roughness: 0.04, metalness: 0, clearcoat: 1, envMapIntensity: 1.4, depthWrite: false }),
-      tea: new THREE.MeshStandardMaterial({ color: 0x7a2006, roughness: 0.15, emissive: 0x1c0500 }),
+      glass: new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, roughness: 0.04, metalness: 0, clearcoat: 1, envMapIntensity: 1.0, depthWrite: false }),
+      tea: new THREE.MeshStandardMaterial({ color: 0x9a3510, roughness: 0.15, emissive: 0x2a0b02 }),
     };
     this.shared = shared;
     const seats = [];

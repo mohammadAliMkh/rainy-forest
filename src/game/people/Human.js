@@ -1023,6 +1023,35 @@ export class Human {
       j.quaternion.copy(pq.invert().multiply(wq));
       j.updateWorldMatrix(false, false);
     };
+    // the wrist joint's frame follows the rig's convention for hands: +X toward
+    // the thumb, -Y along the fingers, the palm on the -Z side of a right hand
+    // (+Z of a left one); the held glass sits in the middle of the palm.
+    const alignHand = (A, side, model) => {
+      const bone = (n) => model.getObjectByName(n);
+      const wr = P(bone('wrist' + side)), idx = P(bone('finger2-1' + side)), pky = P(bone('finger5-1' + side));
+      const fingers = P(bone('finger3-1' + side)).sub(wr).normalize();
+      const palm = fingers.clone().cross(pky.clone().sub(idx)).normalize();
+      if (palm.y > 0) palm.negate(); // MakeHuman's rest pose has the palms down
+      const Y = fingers.clone().negate();
+      const Z = palm.clone().multiplyScalar(A.side).addScaledVector(Y, -palm.dot(Y) * A.side).normalize();
+      const X = new THREE.Vector3().crossVectors(Y, Z);
+      const wq = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+      A.wrist.parent.updateWorldMatrix(true, false);
+      A.wrist.quaternion.copy(A.wrist.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(wq));
+      A.wrist.updateWorldMatrix(false, true);
+      if (A.glass) {
+        // across the palm (hand ~1.2 cm + glass radius out from the knuckle line),
+        // held by its lower part so the rim and the tea show above the index
+        // finger; the rim points along the thumb
+        const knuckles = ['finger2-1', 'finger3-1', 'finger4-1', 'finger5-1'].reduce((v, n) => v.add(P(bone(n + side))), new THREE.Vector3()).multiplyScalar(0.25);
+        const g = knuckles.addScaledVector(fingers, -0.032)
+          .addScaledVector(palm, 0.002 + 0.021 * root.scale.x)
+          .addScaledVector(X, 0.018 * root.scale.x);
+        A.glass.position.copy(A.wrist.worldToLocal(g));
+        A.glass.rotation.set(0, 0, -Math.PI / 2);
+        A.rimLocal = A.glass.position.clone().add(new THREE.Vector3(0.077, 0, 0));
+      }
+    };
     const prepare = (model) => {
       model.scale.setScalar(1 / root.scale.x); // the model keeps its real size
       root.updateMatrixWorld(true);
@@ -1046,6 +1075,7 @@ export class Human {
         aim(A.elbow, wr);
         A.foreLen = wr.distanceTo(el) / s;
         A.wrist.position.set(0, -A.foreLen, 0);
+        alignHand(A, side, model);
         const hp = W('upperleg01' + side), kn = W('lowerleg01' + side), an = W('foot' + side);
         L.hip.position.copy(local(this.pelvis, hp));
         aim(L.hip, kn);
@@ -1065,20 +1095,24 @@ export class Human {
       }
       this._jaw = bone('jaw');
       this._jawRest = this._jaw ? this._jaw.quaternion.clone() : null;
-      // finger joints: each bends about the axis that turns it toward the palm
-      // (the palms face down in MakeHuman's rest pose)
-      const down = new THREE.Vector3(0, -1, 0);
+      // finger joints bend about the knuckle line, closing toward the palm
       this._fingers = SIDES.map(([, side]) => {
+        const wr = W('wrist' + side), idx = W('finger2-1' + side), pky = W('finger5-1' + side);
+        const across = idx.clone().sub(pky).normalize();
+        const palm = W('finger3-1' + side).sub(wr).normalize().cross(pky.clone().sub(idx)).normalize();
+        if (palm.y > 0) palm.negate();
         const list = [];
         for (let k = 1; k <= 5; k++) {
           for (let j = 1; j <= 3; j++) {
             const b = bone(`finger${k}-${j}${side}`);
             if (!b) continue;
             const next = bone(`finger${k}-${j + 1}${side}`), prev = bone(`finger${k}-${j - 1}${side}`);
-            const dir = next ? P(next).sub(P(b)) : P(b).sub(prev ? P(prev) : P(b.parent));
-            const axis = dir.normalize().cross(down).normalize();
+            const dir = (next ? P(next).sub(P(b)) : P(b).sub(prev ? P(prev) : P(b.parent))).normalize();
+            // the thumb folds across the palm instead
+            const axis = k === 1 ? dir.clone().cross(palm).normalize() : across.clone();
+            if (axis.clone().cross(dir).dot(palm) < 0) axis.negate();
             axis.applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion()).invert());
-            list.push({ b, axis, rest: b.quaternion.clone(), thumb: k === 1, j });
+            list.push({ b, axis, rest: b.quaternion.clone(), k, j });
           }
         }
         return list;
@@ -1106,9 +1140,10 @@ export class Human {
   }
 
   _openHand(i, open) {
-    const grip = open ? 0.05 : this._holding?.[i] ? 0.85 : 0.4;
+    const hold = !open && this._holding?.[i];
+    const relax = open ? 0.05 : 0.35;
     for (const f of this._fingers?.[i] ?? []) {
-      const a = grip * (f.thumb ? [0.35, 0.3, 0.25][f.j - 1] : [0.9, 1.0, 0.7][f.j - 1]);
+      const a = hold ? GRIP[f.k][f.j - 1] : relax * (f.k === 1 ? 0.5 : [1, 1, 0.6][f.j - 1]);
       f.b.quaternion.copy(f.rest).multiply(_fq.setFromAxisAngle(f.axis, a));
     }
   }
@@ -1245,7 +1280,7 @@ export class Human {
     const hz = new THREE.Vector3().crossVectors(hx, hy);
     _m.makeBasis(hx, hy, hz);
     const hq = new THREE.Quaternion().setFromRotationMatrix(_m);
-    const local = new THREE.Vector3(0.047, -0.072, 0.03 * A.side).multiplyScalar(this.root.scale.x);
+    const local = (A.rimLocal ? A.rimLocal.clone() : new THREE.Vector3(0.047, -0.072, 0.03 * A.side)).multiplyScalar(this.root.scale.x);
     const wristT = rim.clone().sub(local.applyQuaternion(hq));
     this.reach(i, wristT, pole, thumbUp, fingers);
   }
@@ -1299,5 +1334,9 @@ export class Human {
 const _X = new THREE.Vector3(1, 0, 0);
 const _jawQ = new THREE.Quaternion();
 const _fq = new THREE.Quaternion();
+// finger joint angles (radians, knuckle -> tip) wrapping the tea glass, per
+// finger (1 thumb .. 5 little); fitted to the MakeHuman hand around the glass
+// (ring and little finger close under it)
+const GRIP = { 1: [0.2, 0, 0.1], 2: [1.4, 0.6, 0.15], 3: [1.4, 0.75, 0.15], 4: [1.5, 1.1, 0.5], 5: [1.4, 1.3, 0.6] };
 const JAW_OPEN = 0.22; // radians at a full laugh
 
