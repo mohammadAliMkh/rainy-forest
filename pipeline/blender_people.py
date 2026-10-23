@@ -42,22 +42,25 @@ from bl_ext.user_default.mpfb.entities.objectproperties import GeneralObjectProp
 # the people. targets: MakeHuman modifier targets (name -> weight 0..1)
 # colours are sRGB hex like the game's friendSpecs.js
 PEOPLE = {
-    # the owner: broad friendly face, short dark hair with volume on top,
-    # short full beard, thick straight brows, blue mirrored sunglasses
-    # pushed up on his head; black puffer jacket, olive trousers, boots
+    # the owner: oval face with a high forehead, short thin dark hair
+    # receding at the temples, thick straight dark brows, green-hazel eyes;
+    # a light (sandy) beard: fuller mustache and chin, thin on the cheeks;
+    # black puffer jacket, olive trousers, boots
     "owner": dict(
         phenotype=dict(gender=1.0, age=0.54, muscle=0.6, weight=0.58, proportions=0.6, height=0.55,
-                       race=dict(caucasian=0.82, asian=0.06, african=0.12)),
-        targets={"head-square": 0.3, "head-round": 0.25, "head-fat-incr": 0.45, "head-scale-horiz-incr": 0.18,
-                 "head-scale-vert-decr": 0.15, "chin-height-decr": 0.2, "chin-width-incr": 0.35, "neck-scale-horiz-incr": 0.2,
-                 "chin-prominent-incr": 0.2, "nose-scale-horiz-incr": 0.2, "nose-volume-incr": 0.25,
-                 "nose-point-width-incr": 0.3, "eyebrows-trans-down": 0.25, "mouth-scale-horiz-incr": 0.1,
-                 "l-cheek-volume-incr": 0.3, "r-cheek-volume-incr": 0.3, "l-eye-scale-decr": 0.1, "r-eye-scale-decr": 0.1},
-        skin=0xd3a487, eyes="brownlight", hair_color=0x231811,
-        eyebrows="eyebrow009", hair="culturalibre_hair_02",
-        beard=dict(color=0x26170e, density=0.95, cheek=0.5, neck=0.6, stubble=0.35),
+                       race=dict(caucasian=0.84, asian=0.04, african=0.12)),
+        targets={"head-round": 0.3, "head-fat-incr": 0.35, "head-scale-horiz-incr": 0.2, "forehead-scale-vert-incr": 0.1,
+                 "chin-width-incr": 0.35, "chin-height-decr": 0.1, "nose-scale-horiz-incr": 0.35, "nose-volume-incr": 0.2,
+                 "nose-point-width-incr": 0.4, "nose-flaring-incr": 0.4, "mouth-lowerlip-volume-incr": 0.15, "mouth-upperlip-volume-incr": 0.05,
+                 "eyebrows-trans-down": 0.35, "l-eye-eyefold-down": 0.5, "r-eye-eyefold-down": 0.5,
+                 "l-eye-scale-decr": 0.15, "r-eye-scale-decr": 0.15, "l-eye-height2-decr": 0.35, "r-eye-height2-decr": 0.35,
+                 "l-cheek-volume-incr": 0.3, "r-cheek-volume-incr": 0.3, "l-cheek-bones-incr": 0.2, "r-cheek-bones-incr": 0.2,
+                 "l-ear-scale-incr": 0.15, "r-ear-scale-incr": 0.15},
+        skin=0xd09a78, eyes=("green", "brownlight", 0.72), hair_color=0x2a1d14,
+        eyebrows="eyebrow009", hair=None,
+        scalp=dict(color=0x1b130d, density=1.0, front=0.056, temples=0.074),
+        beard=dict(color=0x3d2614, density=1.0, strength=1.25, mustache=1.0, chin=1.0, cheeks=0.6, cheek_front=-0.014, cheek_ear=0.05, neck=0.35, stubble=0.05),
         clothes=[("male_casualsuit05", dict(top=0x17181b, bottom=0x434832)), ("shoes03", 0x1d1b19)],
-        sunglasses=True,
     ),
     # Amir Esmaeil: tall, long face, strong nose with a hump, heavy brows,
     # dark hair pulled back, thick full beard; brown jacket, grey jeans
@@ -125,7 +128,7 @@ info["eyes"] = "low-poly.mhclo"
 info["eyebrows"] = P["eyebrows"] + ".mhclo"
 info["eyelashes"] = "eyelashes02.mhclo"
 info["teeth"] = "teeth_base.mhclo"
-info["hair"] = P["hair"] + ".mhclo"
+info["hair"] = P["hair"] + ".mhclo" if P.get("hair") else ""
 info["skin_mhmat"] = "middleage_caucasian_male.mhmat"
 info["skin_material_type"] = "MAKESKIN"
 info["eyes_material_type"] = "MAKESKIN"
@@ -366,8 +369,16 @@ def beard_weight(co):
     eye_h = EYE_Z - MOUTH.z
     # top edge: just under the nose at the front, rising along the cheek to the sideburn
     t = smooth(0.012, 0.085, back)
-    top = 0.021 + t * eye_h * (0.3 + 0.9 * b["cheek"]) + smooth(0.0, 0.03, lx) * 0.004
+    if "cheek_front" in b:
+        # beard along the jaw: below the mouth corners at the front, rising to the sideburns
+        t = smooth(0.02, 0.085, back)
+        top = b["cheek_front"] + (b["cheek_ear"] - b["cheek_front"]) * t
+    else:
+        top = 0.021 + t * eye_h * (0.3 + 0.9 * b["cheek"]) + smooth(0.0, 0.03, lx) * 0.004
     w = 1.0 - smooth(top - 0.005, top + 0.005, up)
+    # the mustache: from under the nose down past the mouth corners
+    must = smooth(0.002, 0.007, up + smooth(0.02, 0.034, lx) * 0.012) * (1.0 - smooth(0.019, 0.025, up))         * (1.0 - smooth(0.031, 0.04, lx)) * (1.0 - smooth(0.02, 0.04, back))
+    w = max(w, must)
     # stop at the front of the ear
     w *= 1.0 - smooth(0.085, 0.1, back)
     # under the chin down onto the neck
@@ -377,7 +388,12 @@ def beard_weight(co):
     lip = (co.x / 0.025) ** 2 + (up / 0.0092) ** 2
     if lip < 1.0 and back < 0.03:
         w *= smooth(0.55, 1.0, lip)
-    return max(0.0, min(1.0, w))
+    # how full each part is: mustache above the lip, chin below it, cheeks/jaw around
+    z_m = smooth(0.003, 0.01, up) * (1.0 - smooth(0.026, 0.04, lx)) * (1.0 - smooth(0.02, 0.04, back))
+    z_c = (1.0 - smooth(-0.006, 0.004, up)) * (1.0 - smooth(0.028, 0.05, lx)) * (1.0 - smooth(0.03, 0.06, back))
+    z_k = max(0.0, 1.0 - z_m - z_c)
+    full = b.get("mustache", 1.0) * z_m + b.get("chin", 1.0) * z_c + b.get("cheeks", 1.0) * z_k
+    return max(0.0, min(1.0, w)) * full
 
 
 def raster(obj, vw, H, W):
@@ -477,6 +493,36 @@ def blur(mask, r):
     return swv(pad, (2 * r + 1, 2 * r + 1)).mean(axis=(2, 3))
 
 
+def scalp_weight(co):
+    """short hair painted on the scalp: above the hairline (receding at the
+    temples), down the sides to above the ears and the back to the nape"""
+    c = P["scalp"]
+    lx = abs(co.x)
+    up = co.z - EYE_Z
+    back = co.y - MOUTH.y
+    front = c["front"] + (c["temples"] - c["front"]) * smooth(0.012, 0.042, lx)
+    t = smooth(0.05, 0.14, back)  # from the forehead round to the back of the head
+    line = front * (1.0 - t) + (-0.075) * t
+    w = smooth(line - 0.003, line + 0.008, up)
+    # bare around the ears
+    if lx > 0.055 and 0.06 < back < 0.13 and up < 0.035:
+        w *= smooth(0.02, 0.035, up)
+    # sideburns stop short of the beard line
+    if back < 0.1 and up < 0.02:
+        w *= smooth(-0.005, 0.02, up)
+    return max(0.0, min(1.0, w))
+
+
+rng = np.random.default_rng(7)
+H, W = skin.shape[:2]
+grain = rng.random((H, W)).astype(np.float32)
+if P.get("scalp"):
+    c = P["scalp"]
+    vw = {v.index: scalp_weight(v.co) for v in body.data.vertices if v.co.z > EYE_Z - 0.09}
+    mask = blur(raster(body, vw, H, W), 4)
+    dots = np.clip((blur(grain, 1) - 0.42) * 4.0, 0, 1)  # short hairs: fine dark dots with scalp between
+    cover = np.clip(mask * c["density"] * (0.8 + 0.2 * dots), 0, 0.96)[..., None]
+    skin[..., :3] = skin[..., :3] * (1 - cover) + enc(c["color"])[None, None, :] * cover
 b = P["beard"]
 if b["density"] > 0:
     H, W = skin.shape[:2]
@@ -485,11 +531,9 @@ if b["density"] > 0:
         if abs(v.co.z - MOUTH.z) < 0.16 and -(v.co.y - MOUTH.y) > -0.13:
             vw[v.index] = beard_weight(v.co)
     mask = blur(raster(body, vw, H, W), 3)
-    rng = np.random.default_rng(7)
-    grain = rng.random((H, W)).astype(np.float32)
     streak = sum(np.roll(grain, k, axis=1) for k in range(5)) / 5  # short hairs along the growth direction
     hairs = np.clip((streak - 0.3) * 2.0, 0, 1)
-    cover = mask * (b["density"] * (0.55 + 0.45 * hairs) + b["stubble"] * 0.25)
+    cover = mask * (b["density"] * (0.55 + 0.45 * hairs) + b["stubble"] * 0.25) * b.get("strength", 1.0)
     cover = np.clip(cover, 0, 0.96)[..., None]
     col = enc(b["color"])[None, None, :]
     skin[..., :3] = skin[..., :3] * (1 - cover) + col * cover
@@ -515,7 +559,15 @@ for obj in list(rig.children):
     base = os.path.splitext(os.path.basename(src))[0]
     tex = info_m.get("diffuseTexture")
     if kind == "eyes":
-        tex = os.path.join(LocationService.get_user_data(), "eyes", "materials", P["eyes"] + "_eye.png")
+        e = P["eyes"] if isinstance(P["eyes"], tuple) else (P["eyes"],)
+        tex = os.path.join(LocationService.get_user_data(), "eyes", "materials", e[0] + "_eye.png")
+        if len(e) > 1:  # mix two iris textures
+            img_a, a = load_pixels(tex, 512)
+            img_b, bb = load_pixels(os.path.join(LocationService.get_user_data(), "eyes", "materials", e[1] + "_eye.png"), 512)
+            a[..., :3] = a[..., :3] * (1 - e[2]) + bb[..., :3] * e[2]
+            bpy.data.images.remove(img_b)
+            tex = os.path.join(WORK, f"{KEY}_iris.png")
+            save_image(img_a, a, "iris")
     size = 1024 if kind in ("clothes", "hair") else 512
     alpha = kind in ("hair", "eyebrows", "eyelashes") or "beard" in base
     color = None  # hex, or dict(top=hex, bottom=hex)

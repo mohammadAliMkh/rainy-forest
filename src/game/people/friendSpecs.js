@@ -27,21 +27,20 @@ export const FRIENDS = {
       shoes: { style: 'chelsea', color: 0xc08a48, sole: 0x4a3420 },
     },
   },
-  // The owner: short dark hair (slightly receding), short reddish-brown
-  // beard, hazel eyes, blue mirrored sunglasses on his head, black watch,
-  // black puffer jacket, olive trousers. Luna lies beside him.
+  // The owner: short thin dark hair receding at the temples, sandy mustache
+  // and short beard, green-hazel eyes, a slight smile, black watch, black
+  // puffer jacket, olive trousers. Luna lies beside him.
   owner: {
     name: '',
     seed: 22,
     height: 1.0, build: 1.05, shoulders: 1.04,
     skin: 0xd3a487,
-    eyeColor: 0x5b4123,
+    eyeColor: 0x6b6a3a,
     hairColor: 0x2a1c14,
-    face: { width: 1.03, length: 1.0, jaw: 0.68, nose: 1.0, noseWidth: 1.06, brow: 1.0, cheek: 1.05, lips: 1.0, chin: 1.05 },
+    face: { width: 1.03, length: 1.0, jaw: 0.68, nose: 1.0, noseWidth: 1.06, brow: 1.0, cheek: 1.05, lips: 1.0, chin: 1.05, smile: 0.35 },
     hair: { front: 0.56, recede: 0.13, sidesLine: 0.08, nape: -0.5, thick: 0.009, sides: 0.5, rough: 0.3 },
     beard: { style: 'short', thick: 0.0055, cheekTop: -0.2, cheeks: 0.5, mustache: 1.0, color: 0x3b2618, highlight: 0x5e3c24, stubble: 0.4, density: 0.9 },
     brows: { thick: 0.0032, width: 0.052 },
-    sunglasses: true,
     watch: 'left',
     hold: 'right',
     outfit: {

@@ -763,7 +763,7 @@ export class Human {
     head.group.position.set(0, 0.1, 0.012);
     headPivot.add(head.group);
     this.head = head;
-    this.mouthOpenBase = spec.face?.smile ? 0.7 : 0;
+    this.mouthOpenBase = 0.7 * Math.min(1, spec.face?.smile ?? 0);
 
     // guitar resting on the right thigh against the belly, neck to the left
     if (spec.guitar) {

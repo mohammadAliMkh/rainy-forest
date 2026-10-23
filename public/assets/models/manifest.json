@@ -216,7 +216,7 @@
       "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
       "scene": true,
       "parts": [],
-      "kb": 1246
+      "kb": 942
     },
     "person_amir": {
       "file": "assets/models/person_amir.glb",
