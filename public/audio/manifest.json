@@ -1,5 +1,5 @@
 {
-  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/people/introScript.js).",
+  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/people/introScript.js). ghost_boo / ghost_giggle / scream_<owner|amir|alireza|amin> = scenario 1 (the sheet ghost), synthesized when empty.",
   "welcome": "welcome.mp3",
   "intro_owner": "",
   "intro_amir": "intro-amir.mp3",
@@ -10,5 +10,11 @@
   "roof_rain_loop": "",
   "wind_loop": "",
   "fire_loop": "",
+  "ghost_boo": "",
+  "ghost_giggle": "",
+  "scream_owner": "",
+  "scream_amir": "",
+  "scream_alireza": "",
+  "scream_amin": "",
   "birds": []
 }

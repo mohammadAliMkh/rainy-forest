@@ -5,6 +5,7 @@ import { EV } from '../../config/events.ts';
 import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
 import type { Dog } from '../creatures/Dog.js';
+import type { Flight } from './Flight.ts';
 
 // The friends sitting around the fire: who talks, who listens, sips of tea,
 // laughter, glances at the dog and a greeting when the player walks up.
@@ -51,6 +52,8 @@ class Seated {
   // the guitar (Amin)
   gtTimer?: number; gtPlaying = false; gtStep = 0; gtClock = 0;
   strumY = 0; strumHand = 0; fretX = 0;
+  /** running from something (a scenario sets it; the gathering then leaves them alone) */
+  flight: Flight | null = null;
 
   constructor(spec: Spec, seat: Seat, shared: Shared, rand: () => number) {
     this.h = new Human(spec, shared);
@@ -87,6 +90,10 @@ export class Gathering {
   /** key of the person (or 'luna') being introduced */
   focus: string | null = null;
   private _prevFocus: string | null = null;
+  /** what everyone stares at in fright (set by a scenario), or null */
+  scare: THREE.Vector3 | null = null;
+  /** ignore the camera (a scenario's film camera is not someone walking up) */
+  blind = false;
 
   constructor(seats: Seat[], shared: Shared, rand: () => number, events?: EventBus<GameEvents>) {
     this.events = events;
@@ -193,13 +200,13 @@ export class Gathering {
     {
       const c = this.people[0].seat.center;
       const d = Math.hypot(cam.x - c.x, cam.z - c.z);
-      playerNear = d < 6.5;
+      playerNear = d < 6.5 && !this.blind;
       if (playerNear && !this.greeted) {
         this.greeted = true;
         this.greetT = 3.2;
         for (const p of this.people) if (p.seat.waves) this._waveAt(p, 0.3);
       }
-      if (d > 14) this.greeted = false;
+      if (d > 14 && !this.blind) this.greeted = false;
     }
     this.greetT = Math.max(0, this.greetT - dt);
     // whoever starts being introduced waves once, after the cut has faded in
@@ -212,6 +219,14 @@ export class Gathering {
     for (let i = 0; i < this.people.length; i++) {
       const p = this.people[i];
       const h = p.h;
+      if (p.flight) {
+        p.flight.update(dt, this.scare ?? cam);
+        p.headPos.copy(h.headPivot.getWorldPosition(_v));
+        h.updateFace(dt);
+        h.syncModel();
+        if (p.flight.done) p.flight = null;
+        continue;
+      }
       const talking = i === this.speaker && !laughing;
       h.talk = damp(h.talk, talking ? 1 : 0, 6, dt);
       h.laugh = damp(h.laugh, laughing ? (p.seat.key === 'amin' ? 1 : 0.7) : 0, 5, dt);

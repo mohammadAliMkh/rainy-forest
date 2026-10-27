@@ -166,3 +166,49 @@ test('the shop: up the steps and in, the door opens with its bell, the shopkeepe
   expect(r.shelteredInside).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('scenario 1: the button near the camp, the ghost, everyone runs and comes back to their seats', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await enter(page);
+  await page.evaluate(() => { const f = (window as any).forest; f.camp.intro.done = true; f.player.teleport(1.5, -8, 0); });
+  // offered near the camp once the introductions are over
+  await page.waitForFunction(() => !document.getElementById('scenario-btn')!.classList.contains('hidden'), null, { timeout: 60_000 });
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, g = f.camp.gathering, s = f.camp.scenario;
+    // step the game without drawing (software rendering is slow)
+    for (const name of ['render', 'environment map']) { const sys = f.game.systems.find((x: { name: string }) => x.name === name); sys.update = () => {}; }
+    const cues: string[] = [];
+    f.events.on('scenario:cue', (c: { cue: string }) => cues.push(c.cue));
+    const seats = g.people.map((p: any) => [p.h.root.position.x, p.h.root.position.y, p.h.root.position.z]);
+    document.getElementById('scenario-btn')!.click();
+    let ranOff = 0, maxAway = 0, cinematic = false;
+    for (let k = 0; k < 1000 && (s.active || k < 5); k++) {
+      f.frame(0.05);
+      cinematic ||= f.camp.cinematic;
+      g.people.forEach((p: any, i: number) => {
+        const d = Math.hypot(p.h.root.position.x - seats[i][0], p.h.root.position.z - seats[i][2]);
+        maxAway = Math.max(maxAway, d);
+        if (p.flight?.hiding) ranOff |= 1 << i;
+      });
+    }
+    f.frame(0.05);
+    const back = g.people.every((p: any, i: number) => Math.hypot(p.h.root.position.x - seats[i][0], p.h.root.position.y - seats[i][1], p.h.root.position.z - seats[i][2]) < 0.01 && !p.flight);
+    return { cues, ranOff, maxAway, cinematic, back, active: s.active, ghost: s.ghost.group.visible, done: s.done, cinemaNow: f.camp.cinematic };
+  });
+  expect(r.cinematic).toBe(true);
+  for (const c of ['sneak', 'sneakStop', 'boo', 'giggle', 'eek', 'vanish']) expect(r.cues).toContain(c);
+  expect(r.cues.filter((c) => c === 'scream')).toHaveLength(4);
+  expect(r.ranOff).toBe(0b1111); // all four reached their hiding places
+  expect(r.maxAway).toBeGreaterThan(4);
+  expect(r.back).toBe(true); // and sat down exactly where they were
+  expect(r.active).toBe(false);
+  expect(r.ghost).toBe(false);
+  expect(r.cinemaNow).toBe(false);
+  // played: the button doesn't come back, until it is offered again from the menu
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => document.getElementById('scenario-btn')!.classList.contains('hidden'))).toBe(true);
+  await page.evaluate(() => document.getElementById('replay-scenario-btn')!.click());
+  await page.waitForFunction(() => !document.getElementById('scenario-btn')!.classList.contains('hidden'), null, { timeout: 60_000 });
+  expect(errors).toEqual([]);
+});

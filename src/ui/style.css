@@ -461,3 +461,35 @@ body.touch .fps { top: auto; left: 50%; bottom: calc(env(safe-area-inset-bottom,
 @media (max-height: 520px) {
   .minimap { width: 132px; height: 132px; }
 }
+
+/* ---------- scenario 1 button (offered once near the camp) ---------- */
+.scenario-btn {
+  position: fixed;
+  left: 50%;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff7ee;
+  background: linear-gradient(180deg, rgba(233, 162, 90, 0.95), rgba(196, 118, 52, 0.95));
+  border: 1px solid rgba(255, 230, 200, 0.55);
+  border-radius: 999px;
+  padding: 11px 24px 11px 20px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45), 0 0 0 0 rgba(244, 195, 138, 0.6);
+  cursor: pointer;
+  animation: scenario-pulse 2.2s ease-in-out infinite;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.scenario-btn:hover { filter: brightness(1.08); }
+.scenario-btn.hidden { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(14px); animation: none; }
+.scenario-icon { font-size: 1.3rem; line-height: 1; }
+@keyframes scenario-pulse {
+  0%, 100% { box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45), 0 0 0 0 rgba(244, 195, 138, 0.55); }
+  50% { box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45), 0 0 0 10px rgba(244, 195, 138, 0); }
+}
+body.touch .scenario-btn { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); font-size: 0.95rem; padding: 9px 18px 9px 16px; }
