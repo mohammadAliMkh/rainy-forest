@@ -114,21 +114,25 @@ export class Gathering {
 
   byName(key: string): Seated | undefined { return this.people.find((p) => p.seat.key === key); }
 
-  // Strumming pattern (eighth notes, "D-DU-UDU") over a slow I-vi-IV-V
-  // style progression; plays for a while, rests, plays again. Every stroke
-  // is announced as GUITAR_STRUM (the sound plays it).
+  // Strumming (eighth notes) over the Am-F-C-G progression: "D-DU-UDU", and
+  // every other time round "D-D-DUDU" so a long song doesn't drone. Plays for
+  // a minute or more, always stopping at the end of a full round, rests a
+  // little, plays again. Every stroke is announced as GUITAR_STRUM (the
+  // sound plays it).
   private _guitar(p: Seated, dt: number, quiet: boolean): void {
     const h = p.h, gt = h.guitar;
     if (!gt) return;
     if (p.gtTimer === undefined) { p.gtTimer = 6 + this.rand() * 10; p.gtPlaying = false; p.gtStep = 0; p.gtClock = 0; p.strumY = 0; }
     p.gtTimer! -= dt;
-    if (p.gtTimer! <= 0) {
+    // a song ends with its round of chords: it stops only where the progression starts over
+    if (p.gtTimer! <= 0 && (!p.gtPlaying || p.gtStep % 32 === 0)) {
       p.gtPlaying = !p.gtPlaying;
-      p.gtTimer = p.gtPlaying ? 22 + this.rand() * 25 : 14 + this.rand() * 20;
+      p.gtTimer = p.gtPlaying ? 60 + this.rand() * 40 : 10 + this.rand() * 14;
       p.gtStep = 0; p.gtClock = 0;
     }
     const playing = p.gtPlaying && !quiet;
-    const PATTERN = [1, 0, 1, -1, 0, -1, 1, -1]; // 1 down, -1 up, 0 rest
+    // 1 down, -1 up, 0 rest
+    const PATTERN = Math.floor(p.gtStep / 32) % 2 ? [1, 0, 1, 0, 1, -1, 1, -1] : [1, 0, 1, -1, 0, -1, 1, -1];
     if (playing) {
       p.gtClock += dt;
       const STEP = 0.34;

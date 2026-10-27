@@ -10,7 +10,7 @@ const STORE_KEY = 'rainy-forest-settings-v2';
 export class UI {
   constructor() {
     this.settings = {
-      volumes: { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.5 },
+      volumes: { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.7 },
       muted: false,
       daySpeed: 3600,
       sensitivity: 1,

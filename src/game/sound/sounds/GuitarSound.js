@@ -48,8 +48,9 @@ export class GuitarSound {
 
   strum(pos, chord, down, velocity = 1) {
     if (!this.buffers) return;
-    if (!this.panner) this.panner = this.e.panner(pos, 'music', { ref: 1.6, rolloff: 1.15, reverb: 0.25 });
+    // carries across the camp: louder, and fades more slowly with distance
+    if (!this.panner) this.panner = this.e.panner(pos, 'music', { ref: 2.6, rolloff: 1.0, reverb: 0.25 });
     const b = this.buffers[chord % this.buffers.length];
-    this.e.oneShot(down ? b.down : b.up, this.panner, { gain: velocity, rate: 1 + (Math.random() - 0.5) * 0.004 });
+    this.e.oneShot(down ? b.down : b.up, this.panner, { gain: velocity * 1.5, rate: 1 + (Math.random() - 0.5) * 0.004 });
   }
 }

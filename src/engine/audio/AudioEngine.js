@@ -12,7 +12,7 @@ export class AudioEngine {
     this.ready = false;
     /** recordings have finished loading (or failed): nothing waits any longer */
     this.filesLoaded = false;
-    this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.5 };
+    this.volumes = { master: 0.85, rain: 0.8, wind: 0.75, fire: 0.9, wildlife: 0.85, steps: 0.7, voices: 1, music: 0.7 };
     this.muted = false;
     /** @type {Record<string, AudioBuffer | AudioBuffer[]>} */
     this.files = {};
