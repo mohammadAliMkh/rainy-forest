@@ -65,14 +65,24 @@ export class GhostScenario {
     this.ghost = new Ghost(terrain);
   }
 
+  /** the film camera has the view (in the errand it hands back once everyone has run off) */
+  filming = false;
+  private handBack = false;
+
   get active(): boolean { return this.t >= 0; }
 
   /** where the ghost's head is (for eyes that follow it), or null when it isn't out */
   ghostHead(): THREE.Vector3 | null { return this.active && this.ghost.group.visible ? this.head : null; }
 
-  start(): void {
+  /**
+   * `handBack`: the camera goes back to the player once everyone has run into
+   * the trees; the ghost and the friends carry on around them
+   */
+  start({ handBack = false }: { handBack?: boolean } = {}): void {
     if (this.active) return;
     this.done = true;
+    this.filming = true;
+    this.handBack = handBack;
     this.t = 0; this.shot = -1; this.ending = 0; this.returned = false;
     this.cue.clear();
     this.ghost.show(true);
@@ -85,7 +95,14 @@ export class GhostScenario {
   }
 
   /** jump to the end: everyone back on their seats, the ghost gone */
-  skip(): void { if (this.active && !this.ending) this.ending = 1e-6; }
+  skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }
+
+  // the film camera lets go: back to the player, the scene goes on around them
+  private _cutBack(): void {
+    this.filming = false;
+    this.events.emit(EV.INTRO_CAPTION, null);
+    this.events.emit(EV.INTRO_CINEMATIC, false);
+  }
 
   private _end(): void {
     for (const p of this.gathering.people) { p.flight?.finish(); p.flight = null; }
@@ -93,8 +110,7 @@ export class GhostScenario {
     this.gathering.scare = null;
     this.ghost.show(false);
     this.t = -1;
-    this.events.emit(EV.INTRO_CAPTION, null);
-    this.events.emit(EV.INTRO_CINEMATIC, false);
+    if (this.filming) this._cutBack();
     this.events.emit(EV.SCENARIO_CUE, { cue: 'sneakStop', position: this.head });
   }
 
@@ -105,6 +121,7 @@ export class GhostScenario {
     this.t += dt;
     const t = this.t;
     // fades: in at the start, out at the end (or on skip), then hand the view back
+    if (this.ending && !this.filming) { this._end(); return; }
     if (this.ending) {
       this.ending += dt;
       this.fade = Math.min(1, this.ending / 0.4);
@@ -132,6 +149,8 @@ export class GhostScenario {
         });
       }
     });
+    // in the errand: once they have all run into the trees, the player is back in control
+    if (this.handBack && this.filming && t > T.boo + 1.5 && (t > T.boo + 4.5 || this.gathering.people.every((p) => !p.flight || p.flight.hiding))) this._cutBack();
     // the coast is clear: back to the fire
     if (t >= T.comeBack && !this.returned) {
       this.returned = true;
@@ -210,7 +229,7 @@ export class GhostScenario {
 
   // ---- the film camera ----
   applyCamera(camera: THREE.PerspectiveCamera, dt: number): void {
-    if (!this.active) return;
+    if (!this.filming) return;
     let i = 0;
     while (i + 1 < SHOTS.length && this.t >= SHOTS[i + 1].from) i++;
     if (i !== this.shot) { this.shot = i; this.snap = true; }

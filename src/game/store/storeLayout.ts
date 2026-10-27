@@ -44,3 +44,22 @@ export const DRINK_CRATES = { x0: 0.0, x1: 0.34, z0: IZ0 + 0.05, z1: IZ0 + 0.75 
 export const LAMP_MAIN = { x: 1.25, y: H - 0.55, z: 0.15 };
 export const LAMP_2 = { x: -1.15, y: H - 0.5, z: -0.2 };
 export const TIE_BEAMS = [-1.7, 0.15, 1.75];
+
+// the errand (game/quest): the four things to buy wait in gaps left on the
+// shelves - chips and puffs on the top shelf of the middle unit (facing the
+// door), yogurt and a drink in the fridges - each { x, y above the floor, z, yaw }
+export const ERRAND = {
+  /** the gap on the middle unit's top shelf, door side (z range) */
+  gondolaGap: [-0.62, -0.2] as [number, number],
+  /** the gap in the middle of each fridge's third shelf (x range per fridge) */
+  fridgeGap: [[0.67, 0.86], [1.47, 1.66]] as [number, number][],
+  fridgeLevel: 2,
+  chips: { x: GONDOLA.x1 - 0.06, y: 1.15, z: -0.505, yaw: Math.PI / 2 },
+  puffs: { x: GONDOLA.x1 - 0.06, y: 1.15, z: -0.31, yaw: Math.PI / 2 },
+  yogurt: { x: 0.765, y: 0.82, z: FRIDGES[0].z1 - 0.12, yaw: 0 },
+  drink: { x: 1.565, y: 0.82, z: FRIDGES[1].z1 - 0.12, yaw: 0 },
+  /** the pickle jar on the porch, right of the door */
+  jar: { x: DOOR.x1 + 0.45, z: Z1 + 0.34 },
+  /** where the money is laid on the counter (customer side) */
+  cash: { x: COUNTER.x0 + 0.22, z: 0.25 },
+};

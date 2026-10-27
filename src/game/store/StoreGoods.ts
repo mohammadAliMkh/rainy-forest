@@ -4,7 +4,7 @@ import { CELL, type StoreTextures } from './storeTextures.ts';
 import { box, merge, place, boxItem, bag, can, jar, bottle, pack, lighter, planarUV, flat, type Geo } from './storeGeometry.ts';
 import {
   F, IX0, IX1, IZ0, COUNTER, COUNTER_END, FRIDGES, LIQUOR, SHELF_LEFT, SHELF_BACK, GONDOLA, CIG_RACK, CRATES, DRINK_CRATES,
-  LAMP_MAIN, LAMP_2, H,
+  LAMP_MAIN, LAMP_2, H, ERRAND,
 } from './storeLayout.ts';
 
 // Inside the shop: wooden shelves along the walls and a metal one in the
@@ -22,6 +22,8 @@ export interface GoodsParts {
   /** fridge light panels / their glow (dimmed far away) */
   fridgeLight: THREE.MeshStandardMaterial;
   lampGlow: THREE.MeshStandardMaterial;
+  /** the errand's four things to buy (geometry, standing on y = 0) and the materials of shop / fridge goods */
+  errand: { chips: Geo; puffs: Geo; yogurt: Geo; drink: Geo; goodsMat: THREE.MeshStandardMaterial; fridgeGoodsMat: THREE.MeshStandardMaterial };
 }
 
 type Item = { geo: Geo; w: number; d: number };
@@ -177,7 +179,15 @@ export function buildGoods(S: StoreTextures): GoodsParts {
       const sets = side > 0
         ? [[...P.chocolate, P.wafer], [...P.biscuits, P.cake], [...P.smallBags, P.wafer], [...P.chips, ...P.puffs]]
         : [[...P.cans, P.tuna], [P.tea, P.pasta, P.sugar], [...P.jars], [...P.chips]];
-      lv.forEach((y, k) => fill(a0(y), dir, len, yaw, sets[k], { maxH: k < lv.length - 1 ? lv[k + 1] - y - 0.03 : 0.3 }));
+      lv.forEach((y, k) => {
+        const opts = { maxH: k < lv.length - 1 ? lv[k + 1] - y - 0.03 : 0.3 };
+        // the top shelf on the door side keeps a gap for the errand's chips and puffs
+        if (side > 0 && k === lv.length - 1) {
+          const [g0, g1] = ERRAND.gondolaGap, start = a0(y).z;
+          fill(a0(y), dir, g0 - start, yaw, sets[k], opts);
+          fill(a0(y).setZ(g1), dir, g.z1 - 0.03 - g1, yaw, sets[k], opts);
+        } else fill(a0(y), dir, len, yaw, sets[k], opts);
+      });
     }
   }
   // the liquor shelf behind the counter
@@ -209,8 +219,16 @@ export function buildGoods(S: StoreTextures): GoodsParts {
     const sets = i === 0
       ? [[P.water], [P.cola, P.orange], [P.lemon, P.doogh], [...P.drinkCans], [...P.juice]]
       : [[P.beer, P.beerGreen], [P.beer], [...P.drinkCans], [P.beerGreen, P.water], [...P.juice]];
-    lv.forEach((y, k) => fill(new THREE.Vector3(f.x0 + 0.06, Y(y), f.z1 - 0.12), new THREE.Vector3(1, 0, 0), w - 0.12, 0, sets[k],
-      { rows: 3, out: fridgeGoods, block: [2, 5], maxH: k < lv.length - 1 ? lv[k + 1] - y - 0.02 : 0.3 }));
+    lv.forEach((y, k) => {
+      const opts = { rows: 3, out: fridgeGoods, block: [2, 5] as [number, number], maxH: k < lv.length - 1 ? lv[k + 1] - y - 0.02 : 0.3 };
+      const a = new THREE.Vector3(f.x0 + 0.06, Y(y), f.z1 - 0.12), dir = new THREE.Vector3(1, 0, 0);
+      // a gap in the middle of the errand's shelf (the yogurt / the drink go there)
+      if (k === ERRAND.fridgeLevel) {
+        const [g0, g1] = ERRAND.fridgeGap[i];
+        fill(a, dir, g0 - a.x, 0, sets[k], opts);
+        fill(a.clone().setX(g1), dir, f.x1 - 0.06 - g1, 0, sets[k], opts);
+      } else fill(a, dir, w - 0.12, 0, sets[k], opts);
+    });
     // glass door with a frame and a long handle
     const door = new THREE.PlaneGeometry(w - 0.08, f.h - 0.32);
     door.translate((f.x0 + f.x1) / 2, Y(0.1 + (f.h - 0.32) / 2), f.z1 - 0.012);
@@ -406,5 +424,10 @@ export function buildGoods(S: StoreTextures): GoodsParts {
   group.add(gm);
   group.add(new THREE.Mesh(merge(fridgeGoods), fridgeGoodsMat));
   void planarUV; void flat; void IX0;
-  return { group, clock, fridgeLight, lampGlow };
+  const errand = {
+    chips: P.chips[2].geo, puffs: P.puffs[0].geo, drink: P.cola.geo,
+    yogurt: can(0.052, 0.085, CELL.milk), // a tub with a foil lid
+    goodsMat, fridgeGoodsMat,
+  };
+  return { group, clock, fridgeLight, lampGlow, errand };
 }

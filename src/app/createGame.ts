@@ -19,6 +19,8 @@ import { Cabin } from '../game/world/Cabin.js';
 import { Puddles, PUDDLE_LAYER } from '../game/world/Puddles.js';
 import { Culling } from '../game/world/Culling.ts';
 import { Store } from '../game/store/Store.ts';
+import { Picker } from '../game/player/Picker.ts';
+import { PartyErrand } from '../game/quest/PartyErrand.ts';
 import { Campfire } from '../game/camp/Fire.js';
 import { Camp } from '../game/camp/Camp.js';
 import { Rain } from '../game/weather/Rain.js';
@@ -173,6 +175,11 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
 
   // ---------- settings, screens and the flow of a visit ----------
   connectSettings({ ui, sound, day, player, quality, lighting, weather });
+  // clicking / tapping things in the world (the errand's goods, the shopkeeper, the jar)
+  const picker = new Picker(camera, renderer.domElement, { active: () => player.active && !ui.isMenuOpen() && !camp.cinematic });
+  picker.onTooFar = () => ui.toast('نزدیک‌تر برو', 1500);
+  // the errand (made below, once the session exists): the map blinks where it leads
+  let errand: PartyErrand | null = null;
   // small map in the corner (hidden during the introductions)
   const minimap = new Minimap({
     container: document.body, trees: forest.trees, pathLine: terrain.pathLine,
@@ -181,10 +188,18 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
       people: () => camp.gathering.people.map((p) => p.seat),
       dog: () => camp.dog?.root.position ?? null,
       deer: () => deer.agents,
+      target: () => errand?.mapTarget() ?? null,
     },
     store: { ...store.mapShape(), path: terrain.storePath },
   });
-  const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement });
+  const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement, errandDone: () => errand?.finished ?? true });
+  const questWorld = new THREE.Group(); // the jar's ghost flies in world coordinates
+  scene.add(questWorld);
+  errand = new PartyErrand({
+    camp, store, player, picker, events, terrain, world: questWorld,
+    voices: () => camp.voices, touch: () => session.touch.enabled,
+  });
+  const theErrand = errand;
   const hud = new Hud({ ui, day });
 
   window.addEventListener('resize', () => renderer.resize());
@@ -230,6 +245,8 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('cabin', (f) => cabin.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('store', (f) => store.update(f.dt, f.camera, f.env));
+  sys('errand', (f) => { if (session.entered) theErrand.update(f.dt); });
+  sys('picker', () => picker.update());
   sys('rain', (f) => rain.update(f.dt, f.time, f.camera, f.env));
   sys('mist', (f) => { mist.setIndoor(store.playerInside); mist.update(f.dt, f.time, f.camera, f.env); });
   sys('puddles', (f) => puddles.update(f.time, f.camera, f.env, weather.intensity));
@@ -252,7 +269,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     // for tests and the browser console (?debug)
     window.forest = {
       game, events, frame: (dt?: number) => game.frame(dt), THREE, frustum: culling.frustum, scene, camera, renderer, gpu, gov: quality.gov, quality,
-      player, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, store, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
+      player, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, store, errand: theErrand, picker, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
       applyQuality: (name: Parameters<QualityManager['apply']>[0]) => quality.apply(name), FIRE,
     };
   }

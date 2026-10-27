@@ -21,6 +21,10 @@ export const EV = {
   STORE_DOOR: 'store:door',
   SCENARIO_CUE: 'scenario:cue',
 
+  // the errand (src/game/quest): what to do now, and people talking to the player
+  QUEST: 'quest:update',
+  DIALOG: 'quest:dialog',
+
   // the weather (src/game/weather/Weather.ts)
   LIGHTNING: 'weather:lightning',
 
@@ -50,8 +54,12 @@ export interface GameEvents {
   [EV.STORE_DOOR]: { position: Vector3; open: boolean };
   /** a moment in a scenario that makes a sound (the ghost's tiptoe tune, its BOO, a scream...) */
   [EV.SCENARIO_CUE]:
-    | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish'; position: Vector3 }
+    | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish' | 'pickup' | 'pay' | 'lid'; position: Vector3 }
     | { cue: 'scream'; position: Vector3; who: string };
+  /** the errand's current goal and the basket (null: no errand on screen) */
+  [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null; complete?: boolean } | null;
+  /** someone says a line to the player (shown as a caption box), or null to clear it */
+  [EV.DIALOG]: { speaker: string; text: string; seconds: number } | null;
   /** a soft, distant flash; the rumble arrives `delay` seconds later */
   [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };

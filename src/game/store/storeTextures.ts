@@ -235,8 +235,13 @@ function carvedSign(text: string, w: number, h: number, arrow: '' | 'left' | 'ri
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `800 ${h * 0.5}px ${FONT}`;
-  const tx = arrow === 'left' ? w * 0.56 : arrow === 'right' ? w * 0.44 : w * 0.5;
+  // as big as fits beside the arrow
+  const room = (arrow ? 0.7 : 0.86) * w;
+  let size = h * 0.5;
+  ctx.font = `800 ${size}px ${FONT}`;
+  const tw = ctx.measureText(text).width;
+  if (tw > room) { size *= room / tw; ctx.font = `800 ${size}px ${FONT}`; }
+  const tx = arrow === 'left' ? w * 0.6 : arrow === 'right' ? w * 0.4 : w * 0.5;
   // carved: dark groove, light lower edge
   ctx.fillStyle = 'rgba(255, 228, 170, 0.35)';
   ctx.fillText(text, tx + 1.5, h * 0.53 + 2);
@@ -388,9 +393,9 @@ export async function createStoreTextures(): Promise<StoreTextures> {
     boards: boards.map, boardsNormal: boards.normal,
     floor: floor.map, floorNormal: floor.normal,
     roof: roof.map, roofNormal: roof.normal,
-    sign: toTexture(carvedSign('سوپرمارکت', 512, 128), { wrap: false }),
-    signpostL: toTexture(carvedSign('سوپرمارکت', 512, 128, 'left'), { wrap: false }),
-    signpostR: toTexture(carvedSign('سوپرمارکت', 512, 128, 'right'), { wrap: false }),
+    sign: toTexture(carvedSign('سوپرمارکت فرج‌پور', 768, 160), { wrap: false }),
+    signpostL: toTexture(carvedSign('سوپرمارکت فرج‌پور', 768, 160, 'left'), { wrap: false }),
+    signpostR: toTexture(carvedSign('سوپرمارکت فرج‌پور', 768, 160, 'right'), { wrap: false }),
     openSign: toTexture(openCard(), { wrap: false }),
     labels,
     calendar: toTexture(calendar(), { wrap: false }),

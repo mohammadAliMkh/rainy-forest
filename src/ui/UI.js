@@ -76,7 +76,42 @@ export class UI {
 
   setCinema(on) {
     $('cinema').classList.toggle('hidden', !on);
+    document.body.classList.toggle('in-cinema', on);
     if (!on) { this.setCaption(null); this.setSubtitle(null); }
+  }
+
+  /** the errand's goal line and basket (null hides it) */
+  setQuest(q) {
+    const el = $('quest');
+    el.classList.toggle('hidden', !q);
+    if (!q) return;
+    el.classList.toggle('complete', !!q.complete);
+    $('quest-title').textContent = q.title;
+    const goal = $('quest-goal');
+    if (goal.textContent !== q.objective) {
+      goal.textContent = q.objective;
+      // a little flash when the goal changes
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    }
+    $('quest-hint').textContent = q.hint || '';
+    const b = $('quest-basket');
+    b.replaceChildren(...(q.basket || []).map((it) => {
+      const s = document.createElement('span');
+      s.className = 'quest-item' + (it.got ? ' got' : '');
+      s.textContent = (it.got ? '✓ ' : '') + it.label;
+      return s;
+    }));
+  }
+
+  /** someone talking to the player: their name and the line, for `seconds` (null clears it) */
+  showDialog(d) {
+    const el = $('dialog');
+    clearTimeout(this._dialogT);
+    if (!d) { el.classList.remove('show'); return; }
+    $('dialog-name').textContent = d.speaker;
+    $('dialog-text').textContent = d.text;
+    el.classList.add('show');
+    this._dialogT = setTimeout(() => el.classList.remove('show'), d.seconds * 1000);
   }
 
   /** the button that starts scenario 1 */

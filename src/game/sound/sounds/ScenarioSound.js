@@ -1,7 +1,7 @@
 import { makeBuffer, loopBuffer, biquad, normalize } from '../../../engine/audio/dsp.js';
 import { PannerPool, rnd } from './shared.js';
 
-// The sounds of scenario 1 (the sheet ghost): a sneaky plucked tiptoe tune
+// The sounds of scenario 1 (the sheet ghost) and the errand: a sneaky plucked tiptoe tune
 // while it creeps up, its hollow "BOOOO!", the friends' cartoon screams,
 // a giggle, the squeak when it scares itself, and a whoosh as it fades
 // away. All synthesized (a plucked string, and voice-like sounds from a
@@ -96,6 +96,33 @@ export class ScenarioSound {
     }
     // the whoosh as it vanishes: noise for a filter sweep (shaped when played)
     this.noise = makeBuffer(ctx, 1.6, 1, (d) => { for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.sin((i / d.length) * Math.PI) ** 2; });
+    // the errand: picking something off the shelf, paying (a till's bell and drawer), the jar's lid popping
+    this.pickup = makeBuffer(ctx, 0.25, 1, (d, sr) => {
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        d[i] = Math.sin(2 * Math.PI * (620 + 900 * Math.min(1, t / 0.08)) * t) * Math.exp(-t / 0.06) * 0.8 + (Math.random() * 2 - 1) * Math.exp(-t / 0.01) * 0.3;
+      }
+      biquad(d, sr, 'highpass', 300, 0.7);
+      normalize(d, 0.6);
+    });
+    this.till = makeBuffer(ctx, 1.4, 1, (d, sr) => {
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        // the drawer sliding out, then the bell
+        let v = (Math.random() * 2 - 1) * (t < 0.18 ? 0.25 * Math.sin((t / 0.18) * Math.PI) : 0);
+        const b = t - 0.15;
+        if (b > 0) for (const [f, a, dec] of [[2093, 1, 0.5], [2093 * 2.76, 0.35, 0.18], [2637, 0.6, 0.4]]) v += Math.sin(2 * Math.PI * f * b) * a * Math.exp(-b / dec) * 0.4;
+        d[i] = v;
+      }
+      normalize(d, 0.65);
+    });
+    this.lidPop = makeBuffer(ctx, 0.3, 1, (d, sr) => {
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        d[i] = Math.sin(2 * Math.PI * (180 - 120 * t) * t) * Math.exp(-t / 0.05) + (Math.random() * 2 - 1) * Math.exp(-t / 0.006) * 0.6;
+      }
+      normalize(d, 0.7);
+    });
     this.pool = new PannerPool(e, 'voices', 6, { ref: 2.5, rolloff: 0.9, max: 80, reverb: 0.25 });
     this.started = true;
   }
@@ -123,6 +150,15 @@ export class ScenarioSound {
         break;
       case 'giggle':
         this.pool.play(file('ghost_giggle') ?? this.giggle, cue.position, { gain: 0.8 });
+        break;
+      case 'pickup':
+        this.pool.play(this.pickup, cue.position, { gain: 0.6, rate: rnd(0.95, 1.08) });
+        break;
+      case 'pay':
+        this.pool.play(this.till, cue.position, { gain: 0.7 });
+        break;
+      case 'lid':
+        this.pool.play(this.lidPop, cue.position, { gain: 0.8 });
         break;
       case 'eek':
         this.pool.play(this.eek, cue.position, { gain: 0.7 });

@@ -42,11 +42,12 @@ utils/    ابزارهای کوچک ریاضی و نویز (به هیچ‌چیز
 | `src/game/store/` | سوپرمارکت جنگل: ساختمان، جنس‌ها، فروشنده‌ی پیر، تابلوی مسیر |
 | `src/game/camp/` | دور آتش: آتش، نشیمن‌ها، سایه‌بان، پارکینگ |
 | `src/game/intro/` | معرفی سینمایی و متن آن |
+| `src/game/quest/` | مأموریت ۱ (`PartyErrand.ts`: مراحل، هدف روی نقشه، دبه و روحش) و متن آن (`errandScript.ts`) |
 | `src/game/scenario/` | سناریوها: روح پارچه‌ای (`Ghost.ts`)، کارگردان صحنه (`GhostScenario.ts`) و متن صحنه (`ghostScript.ts`) |
 | `src/game/people/` | آدم‌ها، رفتارشان، گیتار، مشخصات دوستان |
 | `src/game/creatures/` | لونا، آهوها، پرنده‌ها و خرگوش‌ها |
 | `src/game/vehicles/` | پاترول و هورنت |
-| `src/game/player/` | حرکت اول‌شخص و برخورد |
+| `src/game/player/` | حرکت اول‌شخص و برخورد، کلیک روی چیزها (`Picker.ts`) |
 | `src/game/sound/` | صداهای این جنگل (باران، آتش، قدم‌ها، گیتار، صدای ضبط‌شده) |
 | `src/ui/` | منو، نقشه‌ی کوچک، کنترل لمسی، استایل |
 | `src/config/config.js` | جای همه‌چیز در نقشه و سطح‌های کیفیت |
@@ -65,7 +66,7 @@ utils/    ابزارهای کوچک ریاضی و نویز (به هیچ‌چیز
 ```
 ۱. زمان و بازیکن:   day → weather → wind → player
 ۲. دوربین:           film camera → culling → lighting
-۳. حرکت دنیا:        session → sky → fire → cabin → camp → store → rain → mist → puddles → deer → wildlife
+۳. حرکت دنیا:        session → sky → fire → cabin → camp → store → errand → picker → rain → mist → puddles → deer → wildlife
 ۴. خروجی:           sound → minimap → environment map → render
 ۵. بعد از فریم:      hud → quality
 ```

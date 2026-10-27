@@ -270,10 +270,10 @@ export function buildBuilding(S: StoreTextures, T0: Tex, model?: THREE.Group): B
   {
     // on the porch gable, where it is seen from the path
     const zs = PZ1 - 0.07;
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.5), new THREE.MeshStandardMaterial({ map: S.sign, roughness: 0.8 }));
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.5), new THREE.MeshStandardMaterial({ map: S.sign, roughness: 0.8 }));
     sign.position.set(0, F + H + 0.43, zs + 0.035);
     group.add(sign);
-    add('darkWood', box(-1.06, F + H + 0.15, zs, 1.06, F + H + 0.71, zs + 0.03, 1));
+    add('darkWood', box(-1.26, F + H + 0.15, zs, 1.26, F + H + 0.71, zs + 0.03, 1));
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 0.08, 12), lanternGlow);
     lamp.position.set(0, F + H + 0.1, zs + 0.12);
     group.add(lamp);
@@ -427,12 +427,12 @@ export function buildSignpost(S: StoreTextures, T0: Tex, x: number, y: number, z
   post.castShadow = true;
   g.add(post);
   for (const [side, tex] of [[1, S.signpostL], [-1, S.signpostR]] as const) {
-    const b = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }));
-    b.position.set(-0.32, 1.45, side * 0.03);
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.25), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }));
+    b.position.set(-0.42, 1.45, side * 0.03);
     if (side < 0) b.rotation.y = Math.PI;
     g.add(b);
   }
-  const back = new THREE.Mesh(box(-0.83, 1.32, -0.025, 0.19, 1.58, 0.025, 1), wood);
+  const back = new THREE.Mesh(box(-1.03, 1.32, -0.025, 0.19, 1.58, 0.025, 1), wood);
   g.add(back);
   return g;
 }
