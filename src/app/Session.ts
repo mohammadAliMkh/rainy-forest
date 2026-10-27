@@ -27,7 +27,7 @@ type LockableOrientation = ScreenOrientation & { lock?: (o: 'landscape') => Prom
 
 // The flow of a visit, between the screens and the game: entering the
 // forest, the settings menu (Esc / the gear button), the introductions
-// taking over the view, keys that act on the whole game, pausing the sound
+// and scenario 1 (its button near the camp) taking over the view, keys that act on the whole game, pausing the sound
 // in a hidden tab, and which on-screen parts (touch controls, map) show.
 
 export class Session {
@@ -50,7 +50,7 @@ export class Session {
 
     // phones / tablets: joystick + drag-to-look + buttons instead of keys & mouse
     const touch = new TouchControls(player, canvas, { onMenu: () => this.openMenu() });
-    touch.onEnable = () => { if (this.entered && !this.menuOpen() && !camp.intro.active) touch.show(true); };
+    touch.onEnable = () => { if (this.entered && !this.menuOpen() && !camp.cinematic) touch.show(true); };
     this.touch = touch;
 
     // the introductions take over the camera like a film scene
@@ -64,7 +64,17 @@ export class Session {
     events.on(EV.INTRO_CAPTION, (name) => ui.setCaption(name));
     events.on(EV.INTRO_SUBTITLE, (text) => ui.setSubtitle(text));
     events.on(EV.INTRO_FADE, (a) => ui.setFade(a));
-    ui.on('skip', () => camp.intro.skip());
+    ui.on('skip', () => { camp.intro.skip(); camp.scenario.skip(); });
+    // scenario 1: its button, and offering it again from the menu
+    ui.on('scenario', () => {
+      if (!this._scenarioReady()) return;
+      ui.showScenarioButton(false);
+      camp.scenario.start();
+    });
+    ui.on('replayScenario', () => {
+      camp.scenario.done = false; // the button comes back (now if near the fire, else on the way there)
+      this.closeMenu();
+    });
 
     // automatic quality: adapt only while playing; the menu shows the level it picked
     quality.active = () => this.entered && !this.menuOpen() && !document.hidden;
@@ -104,12 +114,12 @@ export class Session {
 
   closeMenu(): void {
     this.ui.hidePause();
-    this.player.freeMode = !this.camp.intro.active;
-    this.touch.show(!this.camp.intro.active);
+    this.player.freeMode = !this.camp.cinematic;
+    this.touch.show(!this.camp.cinematic);
   }
 
   showMap(): void {
-    this.minimap.setVisible(this.entered && this.ui.settings.minimap && !this.camp.intro.active);
+    this.minimap.setVisible(this.entered && this.ui.settings.minimap && !this.camp.cinematic);
   }
 
   enter(): void {
@@ -138,11 +148,12 @@ export class Session {
 
   private _onKey(e: KeyboardEvent): void {
     if (!this.entered) return;
-    const intro = this.camp.intro;
-    // during the introductions Esc / Space / Enter skip them
-    if (intro.active && !this.menuOpen() && ['Escape', 'Space', 'Enter'].includes(e.code)) {
+    const { intro, scenario } = this.camp;
+    // during the introductions or a scenario Esc / Space / Enter skip it
+    if (this.camp.cinematic && !this.menuOpen() && ['Escape', 'Space', 'Enter'].includes(e.code)) {
       e.preventDefault();
       intro.skip();
+      scenario.skip();
       return;
     }
     // Esc opens / closes the settings menu
@@ -151,8 +162,16 @@ export class Session {
     else this.closeMenu();
   }
 
-  /** system: a hint while the recordings are still loading at the fire */
+  // scenario 1 can be offered: after the introductions, near the camp, not played yet
+  private _scenarioReady(): boolean {
+    const { camp, player } = this;
+    return this.entered && camp.intro.done && !camp.cinematic && !camp.scenario.done && !this.menuOpen()
+      && Math.hypot(player.x - FIRE.x, player.z - FIRE.z) < 13;
+  }
+
+  /** system: the scenario button; a hint while the recordings are still loading at the fire */
   update(frame: FrameBase & { camera: { position: { x: number; z: number } } }): void {
+    this.ui.showScenarioButton(this._scenarioReady());
     if (!this.entered || this.camp.intro.done || this.sound.engine.filesLoaded || frame.time <= this._waitHintAt) return;
     const cam = frame.camera.position;
     if (Math.hypot(cam.x - FIRE.x, cam.z - FIRE.z) < 5.2) {

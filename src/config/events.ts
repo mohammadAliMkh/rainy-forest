@@ -19,6 +19,7 @@ export const EV = {
   PLAYER_STEP: 'player:step',
   CREATURE_SOUND: 'creature:sound',
   STORE_DOOR: 'store:door',
+  SCENARIO_CUE: 'scenario:cue',
 
   // the weather (src/game/weather/Weather.ts)
   LIGHTNING: 'weather:lightning',
@@ -47,6 +48,10 @@ export interface GameEvents {
     | { type: 'deerStep' | 'deerSnort'; source: { x: number; z: number } };
   /** the shop's door swings open (its bell rings) */
   [EV.STORE_DOOR]: { position: Vector3; open: boolean };
+  /** a moment in a scenario that makes a sound (the ghost's tiptoe tune, its BOO, a scream...) */
+  [EV.SCENARIO_CUE]:
+    | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish'; position: Vector3 }
+    | { cue: 'scream'; position: Vector3; who: string };
   /** a soft, distant flash; the rumble arrives `delay` seconds later */
   [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };

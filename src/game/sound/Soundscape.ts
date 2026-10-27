@@ -8,6 +8,7 @@ import { Footsteps } from './sounds/Footsteps.js';
 import { GuitarSound } from './sounds/GuitarSound.js';
 import { ThunderSound } from './sounds/ThunderSound.js';
 import { StoreSound } from './sounds/StoreSound.js';
+import { ScenarioSound } from './sounds/ScenarioSound.js';
 import { EV } from '../../config/events.ts';
 import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
@@ -38,6 +39,7 @@ export class Soundscape {
   readonly guitar: GuitarSound;
   readonly thunder: ThunderSound;
   readonly store: StoreSound;
+  readonly scenario: ScenarioSound;
   private readonly world: { store?: { playerInside: boolean } };
   started = false;
 
@@ -52,8 +54,10 @@ export class Soundscape {
     this.guitar = new GuitarSound(this.engine);
     this.thunder = new ThunderSound(this.engine);
     this.store = new StoreSound(this.engine, world);
+    this.scenario = new ScenarioSound(this.engine);
     if (events) {
       events.on(EV.STORE_DOOR, () => { if (this.started) this.store.door(); });
+      events.on(EV.SCENARIO_CUE, (cue) => { if (this.started) this.scenario.play(cue); });
       events.on(EV.LIGHTNING, ({ strength, delay }) => { if (this.started) this.thunder.rumble(strength, delay); });
       events.on(EV.PLAYER_STEP, (info) => this.footstep(info));
       events.on(EV.GUITAR_STRUM, ({ position, chord, down, velocity }) => this.strum(position, chord, down, velocity));
@@ -73,6 +77,7 @@ export class Soundscape {
     this.guitar.start();
     this.thunder.start();
     this.store.start();
+    this.scenario.start();
     this.started = true;
   }
 

@@ -144,7 +144,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   weather.setMode(ui.settings.weather as WeatherMode);
   events.on(EV.LIGHTNING, ({ direction, strength }) => lighting.flash(direction, strength));
   const day = new DayCycle({ scene, sky, sun: lighting.sun, hemi: lighting.hemi, ambient: lighting.ambient, renderer: renderer.renderer });
-  lighting.connect({ day, player, cinematic: () => camp.intro.active });
+  lighting.connect({ day, player, cinematic: () => camp.cinematic });
   const sound = new Soundscape(world, events);
   // the camp's introductions keep the ambience lowered across all of their lines
   camp.voices = {
@@ -220,7 +220,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('player', (f) => player.update(f.dt));
   // 2. the camera is final for this frame: the introductions may take it over,
   //    then everything that depends on where it looks
-  sys('film camera', (f) => camp.intro.applyCamera(f.camera, f.dt));
+  sys('film camera', (f) => camp.applyCamera(f.camera, f.dt));
   sys('culling', () => culling.update());
   sys('lighting', (f) => lighting.update(f));
   // 3. the world moves
