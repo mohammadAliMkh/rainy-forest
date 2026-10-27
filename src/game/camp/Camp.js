@@ -275,24 +275,12 @@ export class Camp {
   // what the introductions announce is listed in config/events.ts (INTRO_*)
 
   update(dt, time, camera, env, windStrength) {
-    // the game opens with the welcome (a flight in to the fire) and the owner
-    // introducing everyone: as soon as the recordings are there (once per visit)
-    {
-      if (!this.intro.done && (this.voices?.ready() ?? true)) {
-        this._introWait = (this._introWait ?? 0) + dt;
-        if (this._introWait > 0.8) this.intro.start();
-      } else this._introWait = 0;
-      this.intro.update(dt);
-    }
+    // the welcome and the introductions (started by app/Session.ts on entering)
+    this.intro.update(dt);
     this.scenario.update(dt);
     this.gathering.update(dt, camera);
-    // lip sync from the recording's loudness while it plays
-    {
-      const h = this.gathering.byName('owner').h;
-      const v = this.intro.seq?.voice;
-      if (v) h.voiceLevel = damp(h.voiceLevel ?? 0, Math.min(1, v.level() * 1.4), 18, dt);
-      else h.voiceLevel = null;
-    }
+    // the introductions are a voice-over: the owner's lips stay still meanwhile
+    this.gathering.byName('owner').h.voiceLevel = this.intro.active ? 0 : null;
     // Luna: watches the player when close, otherwise whoever is talking
     const cam = camera.position;
     const d = Math.hypot(cam.x - this.dog.root.position.x, cam.z - this.dog.root.position.z);

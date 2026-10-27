@@ -4,14 +4,16 @@ import { EV } from '../../config/events.ts';
 import type { Camp } from '../camp/Camp.js';
 import type { VoiceHandle } from '../sound/Soundscape.ts';
 
-// The owner's welcome and introductions, played like a film scene: the
-// player's camera hands over to a film camera. During the welcome (the
-// narrator introducing the game) it flies in from high over the forest,
-// circling down over the area to the four friends at the fire, arriving as
-// the welcome ends; then it cuts (a quick dip to black) from face to face -
-// a portrait of whoever is being introduced, slowly pushing in - while the
-// recordings play, and hands control back. Plays once per visit, as soon as
-// the player has entered.
+// The owner's welcome and introductions, played like a film scene. The
+// moment the player enters, the view is already high in the sky (circling
+// there until the recordings have loaded); during the welcome (the narrator
+// introducing the game) the camera flies like a drone, circling and coming
+// down over the area, lower and closer as the welcome ends, and lands on the
+// owner's face just as his own introduction starts. Then it cuts (a quick
+// dip to black) from face to face - a portrait of whoever is being
+// introduced, slowly pushing in - while the recordings play, and hands
+// control back. The voices are a voice-over: nobody's lips move. Once per
+// visit.
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -40,6 +42,8 @@ interface Sequence {
   played: number;
   step: Step | null;
   skipping?: boolean;
+  /** up in the sky, waiting for the recordings to load */
+  waiting?: boolean;
 }
 
 export class IntroDirector {
@@ -66,6 +70,8 @@ export class IntroDirector {
   /** the shot follows its path exactly (the flight) instead of lagging behind */
   private exact = false;
   private _from = new THREE.Vector3();
+  /** seconds spent circling in the sky while the recordings load */
+  private hoverT = 0;
   /** the trees the flight keeps above */
   obstacles: FlightObstacles | null = null;
 
@@ -78,10 +84,15 @@ export class IntroDirector {
   start(): void {
     if (this.done) return;
     this.done = true;
-    this.seq = { i: -1, t: 0, gap: 0, voice: null, played: 0, step: null };
+    this.seq = { i: -1, t: 0, gap: 0, voice: null, played: 0, step: null, waiting: true };
     this.camp.events.emit(EV.INTRO_DUCK, true);
     this.camp.events.emit(EV.INTRO_CINEMATIC, true);
-    this._cut(() => { this.w = 1; this._next(); });
+    // straight into the sky: the first frame after entering is already up there
+    this.w = 1;
+    this.snap = true;
+    this.hoverT = 0;
+    this.fade = 1;
+    this.cutPhase = 'in';
   }
 
   skip(): void {
@@ -106,7 +117,6 @@ export class IntroDirector {
       Object.assign(s, { voice: v, t: 0, gap: 0, step });
       this.fly = null;
       s.played++;
-      g.say('owner', v.duration + 0.2);
       g.focus = step.focus;
       this.camp.events.emit(EV.INTRO_CAPTION, this._name(step.focus));
       this.camp.events.emit(EV.INTRO_SUBTITLE, step.text || null);
@@ -146,6 +156,11 @@ export class IntroDirector {
     }
     if (this.fade !== this._sentFade) { this._sentFade = this.fade; this.camp.events.emit(EV.INTRO_FADE, this.fade); } // only on change
     const s = this.seq;
+    if (s?.waiting) {
+      this.hoverT += dt;
+      if (this.camp.voices?.ready() ?? true) { s.waiting = false; this._next(); }
+      return;
+    }
     if (!s || !s.voice || this.cutPhase === 'out') return;
     s.t += dt;
     // next line a moment after the audio really finished (frame-rate independent);
@@ -155,17 +170,22 @@ export class IntroDirector {
     if (s.gap > (flying ? 0.1 : 0.6)) { s.voice = null; if (flying) this._next(); else this._cut(() => this._next()); }
   }
 
-  // the welcome's flight: from high above where the player stands it sweeps
-  // round over the camp and the cabin above the treetops, comes down over
-  // the open side of the clearing (the trail the player came by) and glides
-  // in at head height under the canopy's edge to the owner; it never passes
-  // through a tree, a roof or the tarp
-  private _plan(end: THREE.Vector3, head: THREE.Vector3, dur: number) {
+  /** the ground at the fire, and which way the player stood from it */
+  private _ground(head: THREE.Vector3): { ground: THREE.Vector3; a0: number } {
     const ground = new THREE.Vector3(this.camp.fire.x, head.y - 1.15, this.camp.fire.z);
-    const a0 = Math.atan2(this._from.x - ground.x, this._from.z - ground.z);
+    return { ground, a0: Math.atan2(this._from.x - ground.x, this._from.z - ground.z) };
+  }
+
+  // the welcome's flight, like a drone: from where it circles in the sky it
+  // sweeps round over the camp and the cabin above the treetops, comes down
+  // over the open side of the clearing (the trail the player came by) and
+  // glides in under the canopy's edge right up to the owner's face; it never
+  // passes through a tree, a roof or the tarp
+  private _plan(end: THREE.Vector3, head: THREE.Vector3, dur: number) {
+    const { ground, a0 } = this._ground(head);
     const at = (a: number, r: number, h: number) => ground.clone().add(new THREE.Vector3(Math.sin(a) * r, h, Math.cos(a) * r));
     const curve = new THREE.CatmullRomCurve3([
-      at(a0, 62, 44),
+      this.pos.clone(), // where it was circling
       at(a0 + 1.4, 40, 34),
       at(a0 + 2.7, 24, 26),
       at(a0 + 0.35, 10, 14),
@@ -222,10 +242,20 @@ export class IntroDirector {
     }
     const p = g.byName(focus || 'owner')!; // everyone introduced is at the fire
     const head = p.headPos;
+    if (s.waiting || !s.step) {
+      // high in the sky, slowly circling over the area until the recordings are there
+      const { ground, a0 } = this._ground(head);
+      const a = a0 + this.hoverT * 0.03;
+      this._tPos.copy(ground).add(new THREE.Vector3(Math.sin(a) * 62, 44, Math.cos(a) * 62));
+      this._tLook.copy(ground).addScaledVector(UP, 0.5);
+      this.exact = true;
+      return 58;
+    }
     if (!focus) {
-      // the welcome ends on a medium shot of the owner beside Luna
-      const look = head.clone().addScaledVector(UP, -0.22);
-      const end = head.clone().addScaledVector(p.fwd, 1.75).addScaledVector(p.right, -0.55).addScaledVector(UP, 0.1);
+      // the welcome lands on the owner's face: the very shot his introduction starts with
+      const pdir = p.fwd.clone().multiplyScalar(0.8).addScaledVector(p.right, 0.5).normalize();
+      const look = head.clone().addScaledVector(UP, 0.07);
+      const end = head.clone().addScaledVector(pdir, 1.0).addScaledVector(UP, 0.06);
       if (s.step?.key === 'welcome') {
         this.fly ??= this._plan(end, head, s.voice?.duration ?? 12);
         const f = this.fly;
@@ -237,11 +267,11 @@ export class IntroDirector {
         const k = THREE.MathUtils.smoothstep(e, 0.45, 0.97);
         this._tLook.copy(f.ground).addScaledVector(UP, 0.5).lerp(look, k);
         this.exact = true;
-        return 58 + (42 - 58) * k;
+        return 58 + (30 - 58) * k;
       }
       this._tLook.copy(look);
-      this._tPos.copy(end).addScaledVector(p.fwd, -push * 0.35);
-      return 42;
+      this._tPos.copy(end);
+      return 30;
     }
     if (p.h.guitar) {
       // Amin: a wider three-quarter shot so his guitar is in the frame

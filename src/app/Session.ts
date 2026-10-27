@@ -93,6 +93,7 @@ export class Session {
     ui.on('replayIntro', () => {
       camp.intro.done = false; // plays again right away
       this.closeMenu();
+      camp.intro.start();
     });
     // pause the sound while the tab is hidden
     document.addEventListener('visibilitychange', () => {
@@ -140,6 +141,8 @@ export class Session {
     });
     this.entered = true;
     ui.hideStart();
+    // the game opens in the sky: the welcome's flight (it waits up there for the recordings)
+    this.camp.intro.start();
     this.showMap();
     this.player.freeMode = true;
     if (touch.enabled) {
