@@ -1148,6 +1148,22 @@ export class Human {
     }
   }
 
+  /** a warm glow over the whole person (0..1), eg. blinking "come here" for an errand */
+  setGlow(k) {
+    if (k === this._glowK) return;
+    this._glowK = k;
+    (this.model ?? this.root).traverse((o) => {
+      const m = o.material;
+      if (!o.isMesh || !o.visible || !m || !m.emissive) return;
+      m.userData.glowBase ??= { color: m.emissive.clone(), intensity: m.emissiveIntensity };
+      const b = m.userData.glowBase;
+      // the glTF materials have emissiveIntensity 1: the colour mix alone sets the
+      // brightness (bright, but he stays recognisable; bloom adds the halo)
+      m.emissive.copy(b.color).lerp(GLOW, k * 0.22);
+      m.emissiveIntensity = Math.max(b.intensity, 1);
+    });
+  }
+
   /** after the rig has been posed for this frame */
   syncModel() {
     if (!this.binding) return;
@@ -1334,6 +1350,7 @@ export class Human {
 const _X = new THREE.Vector3(1, 0, 0);
 const _jawQ = new THREE.Quaternion();
 const _fq = new THREE.Quaternion();
+const GLOW = new THREE.Color(0xffc34d); // the errand's blink colour (store/ErrandProps.ts)
 // finger joint angles (radians, knuckle -> tip) wrapping the tea glass, per
 // finger (1 thumb .. 5 little); fitted to the MakeHuman hand around the glass
 // (ring and little finger close under it)

@@ -40,6 +40,7 @@ export class PartyErrand {
   readonly jarGhost: Ghost;
   private readonly got = new Set<string>();
   private t = 0; // seconds in this step
+  private blinkT = 0;
   private fly = new THREE.Vector3();
   private readonly from = new THREE.Vector3();
   private doneT = 0;
@@ -223,9 +224,15 @@ export class PartyErrand {
   /** system "errand": follows the player through the steps */
   update(dt: number): void {
     this.t += dt;
+    this.blinkT += dt;
     const camp = this.camp, store = this.store;
     const amir = camp.gathering.byName('amir');
     const toAmir = amir ? Math.hypot(this.player.x - amir.seat.x, this.player.z - amir.seat.z) : Infinity;
+    // Amir blinks like the goods on the shelves while you are meant to go to him
+    if (amir) {
+      const waiting = (this.step === 'toAmir' || this.step === 'deliver') && !camp.cinematic;
+      amir.h.setGlow(waiting ? 0.5 + 0.5 * Math.sin(this.blinkT * Math.PI * 2 * 1.1) : 0);
+    }
     switch (this.step) {
       case 'wait':
         // after the introductions (played or skipped)
