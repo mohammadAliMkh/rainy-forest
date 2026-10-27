@@ -230,7 +230,7 @@
       "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
       "scene": true,
       "parts": [],
-      "kb": 1501
+      "kb": 1279
     },
     "person_alireza": {
       "file": "assets/models/person_alireza.glb",

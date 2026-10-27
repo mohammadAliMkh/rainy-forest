@@ -69,9 +69,10 @@ export const FRIENDS = {
       shoes: { style: 'sneaker', color: 0x5a4632 },
     },
   },
-  // Amin: big laugh, full black beard and mustache, leather outback hat,
-  // small silver earrings; charcoal coat over a cream knit turtleneck.
-  // He has his acoustic guitar on his lap and plays now and then.
+  // Amin: big laugh, head shaved short under his leather outback hat, thick
+  // bushy black beard, heavy brows, two small hoops in one ear, a silver chain
+  // and tattoos on his neck, arms and hands; black t-shirt. He has his
+  // acoustic guitar on his lap and plays now and then.
   amin: {
     name: 'امین',
     seed: 44,

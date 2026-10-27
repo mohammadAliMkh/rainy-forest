@@ -85,21 +85,27 @@ PEOPLE = {
                    mesh="grinsegold_beard_sigmund_wip"),
         clothes=[("male_casualsuit01", dict(top=0x6e4528, bottom=0x4d5054)), ("toigo_ankle_boots_male", 0xc08a48)],
     ),
-    # Amin: big laugh, long face, prominent nose, defined cheekbones, full
-    # trimmed black beard with a thick mustache, leather outback hat, small
-    # silver hoops; charcoal coat over a grey knit
+    # Amin: head shaved short and receding (under his leather outback hat),
+    # a thick bushy curly black beard that reaches high on the cheeks and well
+    # below the chin, thick dark brows, big brown eyes, ears that stand out a
+    # little, two small hoops in his left ear, a heavy silver chain, tattoos on
+    # his neck, arms and the backs of his hands; black t-shirt
     "amin": dict(
-        phenotype=dict(gender=1.0, age=0.56, muscle=0.55, weight=0.48, proportions=0.6, height=0.56,
-                       race=dict(caucasian=0.78, asian=0.04, african=0.18)),
-        targets={"head-oval": 0.3, "head-scale-vert-incr": 0.15, "nose-scale-vert-incr": 0.25, "nose-hump-incr": 0.3,
-                 "nose-scale-depth-incr": 0.2, "nose-point-width-incr": 0.2, "l-cheek-bones-incr": 0.5,
-                 "r-cheek-bones-incr": 0.5, "l-cheek-volume-decr": 0.25, "r-cheek-volume-decr": 0.25,
-                 "eyebrows-trans-down": 0.2, "chin-prominent-incr": 0.2, "mouth-scale-horiz-incr": 0.15},
-        skin=0xcc9b7e, eyes="brown", hair_color=0x110b09,
-        eyebrows="eyebrow012", hair="short01",
-        beard=dict(color=0x110b09, density=1.0, cheek=0.55, neck=0.85, stubble=0.1),
-        clothes=[("toigo_fisherman_sweater", 0x3a3b40), ("toigo_wool_pants", 0x2b2723), ("shoes03", 0x3b2819)],
-        hat=0x5b3b22, earrings=True, smile=1.0,
+        phenotype=dict(gender=1.0, age=0.55, muscle=0.6, weight=0.5, proportions=0.6, height=0.56,
+                       race=dict(caucasian=0.8, asian=0.04, african=0.16)),
+        targets={"head-oval": 0.3, "forehead-scale-vert-incr": 0.2, "nose-scale-vert-incr": 0.2, "nose-point-width-incr": 0.15,
+                 "nose-hump-incr": 0.1, "l-eye-scale-incr": 0.15, "r-eye-scale-incr": 0.15, "eyebrows-trans-down": 0.1,
+                 "l-cheek-bones-incr": 0.25, "r-cheek-bones-incr": 0.25, "l-ear-scale-incr": 0.2, "r-ear-scale-incr": 0.2,
+                 "l-ear-flap-incr": 0.25, "r-ear-flap-incr": 0.25},
+        skin=0xd6a487, eyes="brown", hair_color=0x110b09,
+        eyebrows="eyebrow009", hair=None,
+        scalp=dict(color=0x1a1410, density=0.5, front=0.075, temples=0.095),
+        beard=dict(color=0x0d0a08, density=1.0, strength=1.3, mustache=1.0, chin=1.0, cheeks=1.0, cheek=0.75, neck=0.9, stubble=0.1,
+                   mesh="wdg_scruffy_beard", widen=1.22),
+        clothes=[("toigo_basic_tucked_t-shirt", 0x141416), ("toigo_wool_pants", 0x2b2723), ("shoes03", 0x3b2819)],
+        hat=0x5b3b22, earrings=dict(side=1, count=2), chain=0xc8ccd0,
+        tattoos=[("forearm", "R", "knot_a"), ("forearm", "L", "knot_b"), ("upperarm", "R", "eagle"), ("upperarm", "L", "knot_a"),
+                 ("hand", "R", "skull"), ("hand", "L", "spider"), ("neck", "R", "knot_b")],
     ),
     # Alireza (Ali): tall, young, rounder face with full cheeks, brown hair
     # swept up, light stubble beard and mustache; olive hooded parka, dark jeans
@@ -549,6 +555,108 @@ if b["density"] > 0:
     cover = np.clip(cover, 0, 0.96)[..., None]
     col = enc(b["color"])[None, None, :]
     skin[..., :3] = skin[..., :3] * (1 - cover) + col * cover
+# ---- tattoos: black-and-grey ink lifted from MakeHuman's CC0 tattooed skins,
+# stamped on the skin at places found from the bones (rest pose: palms down)
+SKINS = os.path.join(LocationService.get_user_data(), "skins")
+INK = {  # source texture, box in the image (fractions, top-down)
+    "knot_a": ("rehmanpolanski_skin_viking_tattoos/viking_male_diffuse.png", (0.214, 0.029, 0.343, 0.179)),
+    "knot_b": ("rehmanpolanski_skin_viking_tattoos/viking_male_diffuse.png", (0.429, 0.029, 0.55, 0.179)),
+    "eagle": ("ken1138_caucasian_male_tattooed_skin/Caucasion_TatooedMale_Skin_Difuse.png", (0.271, 0.15, 0.486, 0.279)),
+    "skull": ("ken1138_caucasian_male_tattooed_skin/Caucasion_TatooedMale_Skin_Difuse.png", (0.571, 0.714, 0.636, 0.796)),
+    "spider": ("ken1138_caucasian_male_tattooed_skin/Caucasion_TatooedMale_Skin_Difuse.png", (0.114, 0.131, 0.169, 0.174)),
+}
+SITE_SIZE = {"forearm": 0.13, "upperarm": 0.1, "hand": 0.05, "neck": 0.06}
+
+
+def ink_of(name):
+    path, (x0, y0, x1, y1) = INK[name]
+    img, arr = load_pixels(os.path.join(SKINS, path), 2048)
+    H_, W_ = arr.shape[:2]
+    crop = arr[int((1 - y1) * H_):int((1 - y0) * H_), int(x0 * W_):int(x1 * W_), :3]
+    bpy.data.images.remove(img)
+    lum = crop @ np.array([0.2126, 0.7152, 0.0722])
+    return np.clip((blur(lum, 10) - lum) * 9.0 - 0.05, 0, 1)  # darker than the skin around it = ink
+
+
+def tattoo_site(site, side):
+    """(anchor vertex, a second point along the limb) on the body"""
+    verts = body.data.vertices
+    if site == "neck":
+        n = bone_head("neck01")
+        sx = 1 if side == "L" else -1
+        cand = [v for v in verts if abs(v.co.z - (n.z - 0.01)) < 0.02 and abs(v.co.y - n.y) < 0.04 and v.co.x * sx > 0]
+        if not cand:
+            return None
+        a = max(cand, key=lambda v: v.co.x * sx)
+        return a, a.co + Vector((0, 0, 0.04))
+    if site == "forearm":
+        p0, p1 = bone_head("lowerarm01." + side), bone_head("wrist." + side)
+        mid = p0.lerp(p1, 0.5)
+    elif site == "upperarm":
+        p0, p1 = bone_head("upperarm01." + side), bone_head("lowerarm01." + side)
+        mid = p0.lerp(p1, 0.78)  # below the sleeve
+    else:
+        p0, p1 = bone_head("wrist." + side), bone_head("finger3-1." + side)
+        mid = p0.lerp(p1, 0.5)
+    cand = [v for v in verts if (v.co - mid).length < 0.06]
+    if not cand:
+        return None
+    a = max(cand, key=lambda v: v.co.z - (v.co - mid).length * 0.5)  # the top (outer) side
+    return a, a.co + (p1 - p0).normalized() * 0.04
+
+
+def stamp(arr, ink, uv0, uv1, d3, size_m, color, strength=0.85):
+    """ink's long side runs from uv0 toward uv1 (d3 metres apart on the body)"""
+    H_, W_ = arr.shape[:2]
+    p0 = np.array([uv0[0] * W_, uv0[1] * H_])
+    p1 = np.array([uv1[0] * W_, uv1[1] * H_])
+    px_per_m = np.linalg.norm(p1 - p0) / d3
+    ang = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
+    ih, iw = ink.shape
+    long_ = max(ih, iw)
+    sc = size_m * px_per_m / long_
+    if iw < ih:  # long side of the art along the limb
+        ink = ink.T[::-1]
+        ih, iw = ink.shape
+    half = int(long_ * sc * 0.75) + 2
+    cx, cy = p0
+    ys, xs = np.mgrid[int(cy) - half:int(cy) + half, int(cx) - half:int(cx) + half]
+    ok = (ys >= 0) & (ys < H_) & (xs >= 0) & (xs < W_)
+    ys, xs = ys[ok], xs[ok]
+    dx, dy = xs - cx, ys - cy
+    u = (dx * math.cos(ang) + dy * math.sin(ang)) / sc + iw / 2
+    v = (-dx * math.sin(ang) + dy * math.cos(ang)) / sc + ih / 2
+    inside = (u >= 0) & (u < iw - 1) & (v >= 0) & (v < ih - 1)
+    ys, xs, u, v = ys[inside], xs[inside], u[inside], v[inside]
+    a = ink[v.astype(int), u.astype(int)][:, None] * strength
+    arr[ys, xs, :3] = arr[ys, xs, :3] * (1 - a) + color[None, :] * a
+
+
+if P.get("tattoos"):
+    me = body.data
+    uvl = me.uv_layers.active.data
+    vuv = {}
+    for lp in me.loops:
+        vuv.setdefault(lp.vertex_index, tuple(uvl[lp.index].uv))
+    from mathutils.kdtree import KDTree
+    tree = KDTree(len(me.vertices))
+    for v in me.vertices:
+        tree.insert(v.co, v.index)
+    tree.balance()
+    inks = {}
+    for site, side, art in P["tattoos"]:
+        at = tattoo_site(site, side)
+        if not at:
+            print("no skin for tattoo", site, side)
+            continue
+        a, toward = at
+        j = next((i for _, i, _ in tree.find_n(toward, 4) if i != a.index), None)
+        if j is None:
+            continue
+        if art not in inks:
+            inks[art] = blur(ink_of(art), 1)
+        stamp(skin, inks[art], vuv[a.index], vuv[j], (me.vertices[j].co - a.co).length, SITE_SIZE[site], enc(0x14181e), 0.92)
+        print("tattoo", art, "on", site, side)
 skin_tex = save_image(skin_img, skin, "skin")
 nrm = None
 _nrm = os.path.join(LocationService.get_user_data(), "skins", "mindfront_aksel_skin", "Aksel_Skin_NRM.png")
@@ -611,6 +719,12 @@ for obj in list(rig.children):
     if obj is body or obj.type != "MESH":
         continue
     kind = kind_of(obj)
+    if "beard" in obj.name.lower() and P["beard"].get("widen"):
+        k_ = P["beard"]["widen"]
+        for v in obj.data.vertices:  # wider at the jaw and below, the mouth stays put
+            co = obj.matrix_world @ v.co
+            f = 1 + (k_ - 1) * smooth(0.01, -0.03, co.z - MOUTH.z)
+            v.co.x = (obj.matrix_world.inverted() @ Vector((co.x * f, co.y, co.z))).x
     if kind == "hair" and P.get("hair_trim"):
         trim_hair(obj, P["hair_trim"])
     if kind == "hair" and P.get("hair_slick"):
@@ -754,8 +868,16 @@ if P.get("hat"):
     for k in range(seg):
         bm.faces.new((rr[0][k], rr[0][(k + 1) % seg], rr[1][(k + 1) % seg], rr[1][k]))
     bandob = mesh_obj("hat_band", bm, band)
+    # sink the hat until the head (with ~1 cm of hair) fills the crown
+    hat_z = HEAD_TOP - 0.062
+    for z in [HEAD_TOP - 0.01 * k for k in range(1, 12)]:
+        ring = [abs(v.co.x) for v in head_verts if abs(v.co.z - z) < 0.004]
+        if ring and max(ring) + 0.01 >= crown_r:
+            hat_z = z
+            break
+    print("hat base", round(HEAD_TOP - hat_z, 3), "below the top")
     for ob in (hat, bandob):
-        ob.matrix_world = Matrix.Translation((head_ctr.x, head_ctr.y + 0.005, HEAD_TOP - 0.062)) @ Matrix.Rotation(-0.12, 4, "X")
+        ob.matrix_world = Matrix.Translation((head_ctr.x, head_ctr.y + 0.005, hat_z)) @ Matrix.Rotation(-0.12, 4, "X")
         bpy.context.view_layer.objects.active = ob
         ob.select_set(True)
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
@@ -813,18 +935,65 @@ if P.get("sunglasses"):
 
 if P.get("earrings"):
     metal = principled("earring", color=(0.8, 0.8, 0.82), roughness=0.25, metallic=1.0)
-    for s in (-1, 1):
-        ear = [v.co for v in head_verts if v.co.x * s > 0.062 and -0.13 < -(v.co.y - MOUTH.y) < -0.055 and MOUTH.z - 0.01 < v.co.z < EYE_Z]
+    ear_cfg = P["earrings"] if isinstance(P["earrings"], dict) else dict(side=0, count=1)
+    for s in ((-1, 1) if not ear_cfg["side"] else (ear_cfg["side"],)):
+        ear = [v.co for v in head_verts if v.co.x * s > 0.055 and 0.07 < v.co.y - MOUTH.y < 0.12
+               and abs(v.co.z - (MOUTH.z + 0.018)) < 0.008]
         if not ear:
             continue
-        lobe = min(ear, key=lambda c: c.z)
-        bpy.ops.mesh.primitive_torus_add(major_radius=0.0075, minor_radius=0.0013, major_segments=16, minor_segments=6,
-                                         location=(lobe.x + s * 0.002, lobe.y, lobe.z - 0.007), rotation=(0, math.pi / 2, 0))
-        ring = bpy.context.active_object
-        ring.name = "earring"
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        ring.data.materials.append(metal)
-        rigid_on(ring)
+        lobe = max(ear, key=lambda c: abs(c.x))
+        for k in range(ear_cfg["count"]):  # side by side along the lobe
+            bpy.ops.mesh.primitive_torus_add(major_radius=0.0065, minor_radius=0.0013, major_segments=16, minor_segments=6,
+                                             location=(lobe.x + s * 0.002, lobe.y + k * 0.006, lobe.z - 0.006 + k * 0.004),
+                                             rotation=(0, math.pi / 2, 0))
+            ring = bpy.context.active_object
+            ring.name = "earring"
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            ring.data.materials.append(metal)
+            rigid_on(ring)
+
+if P.get("chain"):
+    # a heavy curb chain: links round the neck, dropping in a V onto the chest,
+    # laid just outside the shirt / skin
+    metal = principled("chain", color=lin(P["chain"]), roughness=0.22, metallic=1.0)
+    surf = [o.matrix_world @ v.co for o in rig.children if o.type == "MESH" and (o is body or o.name.startswith("clothes_"))
+            and "beard" not in o.name for v in o.data.vertices]
+    n0 = bone_head("neck01")
+    ctr = Vector((n0.x, n0.y + 0.005, 0))
+    base_z = n0.z - 0.035
+    bm = bmesh.new()
+    links = 96
+    pts = []
+    for k in range(links + 1):
+        a = 2 * math.pi * k / links
+        z = base_z - 0.1 * ((1 + math.cos(a)) / 2) ** 2.5  # the front hangs lowest
+        dirh = Vector((math.sin(a), -math.cos(a), 0))
+        # the neck, or the chest where the front hangs - never out on the shoulders
+        lim = 0.1 + 0.04 * ((1 + math.cos(a)) / 2)
+        near = [(q - ctr).to_2d().length for q in surf
+                if abs(q.z - z) < 0.01 and (q - ctr).to_2d().length < lim
+                and (q - ctr).to_2d().normalized().dot(dirh.to_2d()) > 0.985]
+        r = (max(near) if near else 0.065) + 0.005
+        pts.append(ctr + dirh * r + Vector((0, 0, z)))
+    for k in range(links):
+        c = (pts[k] + pts[k + 1]) / 2
+        t = (pts[k + 1] - pts[k]).normalized()
+        nrm = (c - Vector((ctr.x, ctr.y, c.z))).normalized()
+        if k % 2:
+            nrm = t.cross(nrm).normalized()
+        b2 = t.cross(nrm).normalized()
+        ring = []
+        for i in range(8):
+            ph = 2 * math.pi * i / 8
+            ce = c + (t * math.cos(ph) * 0.0062 + nrm * math.sin(ph) * 0.0042)
+            rad = (t * math.cos(ph) + nrm * math.sin(ph)).normalized()
+            ring.append([bm.verts.new(ce + (rad * math.cos(q) + b2 * math.sin(q)) * 0.0016)
+                         for q in [2 * math.pi * j / 4 for j in range(4)]])
+        for i in range(8):
+            for j in range(4):
+                bm.faces.new((ring[i][j], ring[(i + 1) % 8][j], ring[(i + 1) % 8][(j + 1) % 4], ring[i][(j + 1) % 4]))
+    chain = mesh_obj("chain", bm, metal)
+    rigid_on(chain, "spine01")
 
 # ======================= export =============================================
 lips_gltf = [LIPS.x, LIPS.z, -LIPS.y]
