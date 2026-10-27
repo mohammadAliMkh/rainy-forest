@@ -176,55 +176,70 @@ export class IntroDirector {
     return { ground, a0: Math.atan2(this._from.x - ground.x, this._from.z - ground.z) };
   }
 
-  // the welcome's flight, like a drone: from where it circles in the sky it
-  // sweeps round over the camp and the cabin above the treetops, comes down
-  // over the open side of the clearing (the trail the player came by) and
-  // glides in under the canopy's edge right up to the owner's face; it never
-  // passes through a tree, a roof or the tarp
-  private _plan(end: THREE.Vector3, head: THREE.Vector3, dur: number) {
+  // the welcome's flight, like a drone, always coming down: from where it
+  // circles high in the sky it loops round the cabin and the camp above the
+  // treetops, drops into the clearing through its open side (the side the
+  // owner is seen from) and settles on the owner's face; it never passes
+  // through a tree, a roof or the tarp
+  private _plan(end: THREE.Vector3, head: THREE.Vector3, toward: THREE.Vector3, dur: number) {
     const { ground, a0 } = this._ground(head);
     const at = (a: number, r: number, h: number) => ground.clone().add(new THREE.Vector3(Math.sin(a) * r, h, Math.cos(a) * r));
+    const aA = Math.atan2(toward.x, toward.z); // the way into the clearing: where the owner is seen from
+    let loop = aA - a0;
+    while (loop > 0) loop -= Math.PI * 2; // the long way round, over the cabin
+    while (loop < -Math.PI * 2) loop += Math.PI * 2;
     const curve = new THREE.CatmullRomCurve3([
       this.pos.clone(), // where it was circling
-      at(a0 + 1.4, 40, 34),
-      at(a0 + 2.7, 24, 26),
-      at(a0 + 0.35, 10, 14),
-      at(a0, 6.8, 1.8),
+      at(a0 + loop * 0.4, 42, 50),
+      at(a0 + loop * 0.75, 24, 42),
+      at(aA, 7, 20),
+      at(aA, 6, 1.9),
       end.clone(),
     ], false, 'centripetal');
     this._clearTrees(curve);
     return { curve, dur: Math.max(4, dur), ground };
   }
 
-  // lift the high part of the path wherever it would dip into a crown
+  // keep the high part of the path above the treetops: each control point
+  // is lifted by the most any spot near it dips into a crown (counted from
+  // where the crown starts - flying under one near the ground is fine), and
+  // the path never climbs: no point is higher than the one before it
   private _clearTrees(curve: THREE.CatmullRomCurve3): void {
     const ob = this.obstacles;
-    if (!ob) return;
     const pts = curve.points;
-    const liftable = pts.length - 2; // the glide in under the canopy stays as planned
-    const crowns = ob.trees.map((t) => ({ x: t.x, z: t.z, top: ob.heightAt(t.x, t.z) + t.height + 2.5, r: t.height * (t.kind === 'broadleaf' ? 0.32 : 0.2) + 2.5 }));
-    const p = new THREE.Vector3();
-    for (let pass = 0; pass < 6; pass++) {
-      curve.updateArcLengths();
-      let moved = false;
-      const N = 200;
-      for (let i = 0; i <= N; i++) {
-        const u = i / N;
-        curve.getPoint(u, p);
-        let need = -Infinity;
-        for (const c of crowns) {
-          const dx = p.x - c.x, dz = p.z - c.z;
-          if (dx * dx + dz * dz < c.r * c.r && c.top > need) need = c.top;
+    const n = pts.length;
+    const liftable = n - 2; // the glide in under the canopy stays as planned
+    if (ob) {
+      const crowns = ob.trees.map((t) => {
+        const g = ob.heightAt(t.x, t.z);
+        const broad = t.kind === 'broadleaf';
+        return { x: t.x, z: t.z, top: g + t.height + 2.5, base: g + t.height * (broad ? 0.35 : 0.15) - 1, r: t.height * (broad ? 0.32 : 0.2) + 2.5 };
+      });
+      const p = new THREE.Vector3();
+      const N = 160;
+      const uMax = (liftable - 1) / (n - 1); // only the part between the liftable points
+      for (let pass = 0; pass < 4; pass++) {
+        const deficit = new Array<number>(n).fill(0);
+        for (let i = 0; i <= N; i++) {
+          const u = (i / N) * uMax;
+          curve.getPoint(u, p);
+          let need = -Infinity;
+          for (const c of crowns) {
+            const dx = p.x - c.x, dz = p.z - c.z;
+            if (p.y > c.base && dx * dx + dz * dz < c.r * c.r && c.top > need) need = c.top;
+          }
+          if (p.y >= need) continue;
+          const j = Math.round(u * (n - 1));
+          deficit[j] = Math.max(deficit[j], need - p.y);
         }
-        if (p.y >= need) continue;
-        // the two control points around this spot carry the lift
-        const k = u * (pts.length - 1);
-        for (const j of [Math.floor(k), Math.ceil(k)]) {
-          if (j < liftable) { pts[j].y = Math.max(pts[j].y, pts[j].y + (need - p.y) * 0.6 + 0.5); moved = true; }
-        }
+        let moved = false;
+        for (let j = 1; j < liftable; j++) if (deficit[j] > 0) { pts[j].y += deficit[j] + 0.5; moved = true; }
+        if (!moved) break;
       }
-      if (!moved) break;
     }
+    // only ever coming down
+    for (let j = 1; j < n; j++) pts[j].y = Math.min(pts[j].y, pts[j - 1].y);
+    curve.updateArcLengths();
   }
 
   // where the film camera wants to be for the current line; returns its field of view
@@ -246,7 +261,7 @@ export class IntroDirector {
       // high in the sky, slowly circling over the area until the recordings are there
       const { ground, a0 } = this._ground(head);
       const a = a0 + this.hoverT * 0.03;
-      this._tPos.copy(ground).add(new THREE.Vector3(Math.sin(a) * 62, 44, Math.cos(a) * 62));
+      this._tPos.copy(ground).add(new THREE.Vector3(Math.sin(a) * 70, 60, Math.cos(a) * 70));
       this._tLook.copy(ground).addScaledVector(UP, 0.5);
       this.exact = true;
       return 58;
@@ -257,11 +272,11 @@ export class IntroDirector {
       const look = head.clone().addScaledVector(UP, 0.07);
       const end = head.clone().addScaledVector(pdir, 1.0).addScaledVector(UP, 0.06);
       if (s.step?.key === 'welcome') {
-        this.fly ??= this._plan(end, head, s.voice?.duration ?? 12);
+        this.fly ??= this._plan(end, head, pdir, s.voice?.duration ?? 12);
         const f = this.fly;
         f.curve.points[f.curve.points.length - 1].copy(end);
         const u = Math.min(1, s.t / f.dur);
-        const e = u * u * (3 - 2 * u); // eases out of the sky and settles at the end
+        const e = 1 - Math.pow(1 - u, 1.7); // moving off at once, settling gently on his face
         f.curve.getPointAt(e, this._tPos);
         // first the whole area below, then the friends at the fire
         const k = THREE.MathUtils.smoothstep(e, 0.45, 0.97);
