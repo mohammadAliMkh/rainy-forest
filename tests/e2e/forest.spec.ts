@@ -37,7 +37,7 @@ test('entering: the start screen closes at once, the scene is complete, the map 
   expect(errors).toEqual([]);
 });
 
-test('introductions: start at the fire, Esc skips them, then Esc opens and Continue closes the menu', async ({ page }) => {
+test('introductions: start on entering, Esc skips them, then Esc opens and Continue closes the menu', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);

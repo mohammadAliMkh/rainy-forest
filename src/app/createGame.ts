@@ -103,6 +103,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   await step(0.42, 'سوپرمارکت کوچک جنگل و صاحب پیرش…');
   const store = await Store.create(T, terrain, collision, { events, shared: camp.shared }); // before the forest too
   const forest = new Forest(T, terrain, collision);
+  camp.intro.obstacles = { trees: forest.trees, heightAt: (x, z) => terrain.heightAt(x, z) }; // the welcome's flight keeps above them
   scene.add(forest.group);
 
   await step(0.5, 'سرخس‌ها، بوته‌های شبنم‌زده، سنگ‌ها و قارچ‌ها…');
@@ -235,7 +236,15 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('player', (f) => player.update(f.dt));
   // 2. the camera is final for this frame: the introductions may take it over,
   //    then everything that depends on where it looks
-  sys('film camera', (f) => camp.applyCamera(f.camera, f.dt));
+  sys('film camera', (f) => {
+    camp.applyCamera(f.camera, f.dt);
+    // a film camera high over the forest (the welcome's flight) sees through thinner mist
+    if (camp.cinematic) {
+      const c = f.camera.position;
+      const up = THREE.MathUtils.clamp((c.y - terrain.heightAt(c.x, c.z) - 8) / 30, 0, 1);
+      (scene.fog as THREE.FogExp2).density *= 1 - 0.6 * up;
+    }
+  });
   sys('culling', () => culling.update());
   sys('lighting', (f) => lighting.update(f));
   // 3. the world moves

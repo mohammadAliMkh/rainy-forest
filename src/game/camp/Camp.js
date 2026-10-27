@@ -275,10 +275,13 @@ export class Camp {
   // what the introductions announce is listed in config/events.ts (INTRO_*)
 
   update(dt, time, camera, env, windStrength) {
-    // the owner welcomes the player and introduces everyone (once per visit)
+    // the game opens with the welcome (a flight in to the fire) and the owner
+    // introducing everyone: as soon as the recordings are there (once per visit)
     {
-      const cam = camera.position;
-      if (!this.intro.done && (this.voices?.ready() ?? true) && Math.hypot(cam.x - this.fire.x, cam.z - this.fire.z) < 5.2) this.intro.start();
+      if (!this.intro.done && (this.voices?.ready() ?? true)) {
+        this._introWait = (this._introWait ?? 0) + dt;
+        if (this._introWait > 0.8) this.intro.start();
+      } else this._introWait = 0;
       this.intro.update(dt);
     }
     this.scenario.update(dt);

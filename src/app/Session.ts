@@ -91,7 +91,7 @@ export class Session {
     ui.on('enter', () => this.enter());
     ui.on('resume', () => this.closeMenu());
     ui.on('replayIntro', () => {
-      camp.intro.done = false; // plays again (now if near the fire, else on the way there)
+      camp.intro.done = false; // plays again right away
       this.closeMenu();
     });
     // pause the sound while the tab is hidden

@@ -13,7 +13,7 @@ export const INTRO = [
   },
   { key: 'intro_owner', focus: 'owner', text: '' },
   { key: 'intro_amir', focus: 'amir', text: '' },
-  { key: 'intro_alireza', focus: 'alireza', text: '' },
   { key: 'intro_amin', focus: 'amin', text: '' },
+  { key: 'intro_alireza', focus: 'alireza', text: '' },
   { key: 'intro_luna', focus: 'luna', text: '' },
 ];
