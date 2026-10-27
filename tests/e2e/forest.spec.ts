@@ -171,8 +171,8 @@ test('scenario 1: the button near the camp, the ghost, everyone runs and comes b
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
-  await page.evaluate(() => { const f = (window as any).forest; f.camp.intro.done = true; f.player.teleport(1.5, -8, 0); });
-  // offered near the camp once the introductions are over
+  await page.evaluate(() => { const f = (window as any).forest; f.camp.intro.done = true; f.errand.step = 'done'; f.player.teleport(1.5, -8, 0); });
+  // offered near the camp once the introductions (and the errand) are over
   await page.waitForFunction(() => !document.getElementById('scenario-btn')!.classList.contains('hidden'), null, { timeout: 60_000 });
   const r = await page.evaluate(() => {
     const f = (window as any).forest, g = f.camp.gathering, s = f.camp.scenario;
@@ -210,5 +210,75 @@ test('scenario 1: the button near the camp, the ghost, everyone runs and comes b
   expect(await page.evaluate(() => document.getElementById('scenario-btn')!.classList.contains('hidden'))).toBe(true);
   await page.evaluate(() => document.getElementById('replay-scenario-btn')!.click());
   await page.waitForFunction(() => !document.getElementById('scenario-btn')!.classList.contains('hidden'), null, { timeout: 60_000 });
+  expect(errors).toEqual([]);
+});
+
+test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, deliver', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await enter(page);
+  // step the game without drawing; helpers to look at things and to click the middle of the view
+  await page.evaluate(() => {
+    const f = (window as any).forest;
+    for (const name of ['render', 'environment map']) { const sys = f.game.systems.find((x: { name: string }) => x.name === name); sys.update = () => {}; }
+    (window as any).step = (sec: number) => { for (let i = 0; i < Math.round(sec * 20); i++) f.frame(0.05); };
+    (window as any).lookAt = (o: any) => {
+      const c = new f.THREE.Vector3(); new f.THREE.Box3().setFromObject(o).getCenter(c);
+      const p = f.player; p.vx = p.vz = 0;
+      p.yaw = Math.atan2(-(c.x - p.x), -(c.z - p.z)); p.pitch = Math.atan2(c.y - p.y, Math.hypot(c.x - p.x, c.z - p.z));
+      f.frame(0.05);
+    };
+    (window as any).goTo = (lx: number, lz: number) => { const e = f.store.group.localToWorld(new f.THREE.Vector3(lx, 0, lz)); f.player.teleport(e.x, e.z, 0); (window as any).step(0.3); };
+    f.camp.intro.done = true;
+    (window as any).step(2);
+  });
+  const state = () => page.evaluate(() => (window as any).forest.errand.step);
+  const click = async () => { const v = page.viewportSize()!; await page.mouse.click(v.width / 2, v.height / 2); };
+  expect(await state()).toBe('toAmir');
+  expect(await page.evaluate(() => (window as any).forest.errand.mapTarget())).not.toBeNull(); // Amir blinks on the map
+  // Amir asks for the shopping
+  await page.evaluate(() => { const f = (window as any).forest, a = f.camp.gathering.byName('amir'); f.player.teleport(a.seat.x + 1.2, a.seat.z + 1.4, 0); (window as any).step(0.5); });
+  expect(await state()).toBe('amirTalks');
+  expect(await page.textContent('#dialog-text')).toContain('فرج‌پور');
+  await page.evaluate(() => (window as any).step(14));
+  expect(await state()).toBe('toStore');
+  // in the shop: click the four things
+  await page.evaluate(() => (window as any).goTo(0.4, 0.9));
+  expect(await state()).toBe('shop');
+  for (const [key, lx, lz] of [['chips', 0.4, 0.9], ['puffs', 0.4, 0.9], ['yogurt', 0.77, -1.2], ['drink', 1.1, -1.25]] as const) {
+    await page.evaluate(([key, lx, lz]) => { const f = (window as any).forest; (window as any).goTo(lx, lz); (window as any).lookAt(f.store.errand.items[key]); }, [key, lx, lz] as const);
+    await click();
+    expect(await page.evaluate((key) => !(window as any).forest.store.errand.items[key].visible, key)).toBe(true);
+  }
+  expect(await state()).toBe('pay');
+  // pay Farajpour
+  await page.evaluate(() => { const f = (window as any).forest; (window as any).goTo(0.9, 0.1); (window as any).lookAt(f.store.errand.keeperProxy); });
+  await click();
+  expect(await state()).toBe('leave');
+  expect(await page.evaluate(() => (window as any).forest.store.errand.cash.visible)).toBe(true);
+  // outside he calls after you about the pickles; the ghost bursts out of the jar
+  await page.evaluate(() => { const f = (window as any).forest; (window as any).goTo(1.0, 3.7); (window as any).step(1); (window as any).lookAt(f.store.errand.lid); });
+  expect(await state()).toBe('pickles');
+  expect(await page.textContent('#dialog-text')).toContain('خیارشور');
+  await click();
+  expect(await state()).toBe('ghost');
+  expect(await page.evaluate(() => { (window as any).step(1); return (window as any).forest.errand.jarGhost.group.visible; })).toBe(true);
+  await page.evaluate(() => (window as any).step(5));
+  expect(await state()).toBe('deliver');
+  // back to Amir: scenario 1 plays; once they have all fled the player has control while they come back
+  const end = await page.evaluate(() => {
+    const f = (window as any).forest, a = f.camp.gathering.byName('amir');
+    f.player.teleport(a.seat.x + 2.0, a.seat.z + 2.6, 0);
+    (window as any).step(0.3);
+    const started = f.errand.step === 'scene' && f.camp.cinematic;
+    let handedBack = false;
+    for (let k = 0; k < 900 && f.camp.scenario.active; k++) {
+      f.frame(0.05);
+      if (!handedBack && f.camp.scenario.active && !f.camp.cinematic) handedBack = f.player.active && f.camp.gathering.people.some((p: any) => p.flight);
+    }
+    (window as any).step(0.5);
+    return { started, handedBack, step: f.errand.step, seated: f.camp.gathering.people.every((p: any) => !p.flight) };
+  });
+  expect(end).toEqual({ started: true, handedBack: true, step: 'done', seated: true });
   expect(errors).toEqual([]);
 });

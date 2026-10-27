@@ -20,6 +20,8 @@ interface SessionParts {
   quality: QualityManager;
   minimap: Minimap;
   canvas: HTMLCanvasElement;
+  /** the errand is over (scenario 1 is offered on its own only after it) */
+  errandDone: () => boolean;
 }
 
 // screen.orientation.lock() exists on Android browsers but not in the DOM types
@@ -40,8 +42,10 @@ export class Session {
   private sound: Soundscape;
   private minimap: Minimap;
   private _waitHintAt = 0;
+  private errandDone: () => boolean;
 
-  constructor({ ui, events, player, camp, sound, quality, minimap, canvas }: SessionParts) {
+  constructor({ ui, events, player, camp, sound, quality, minimap, canvas, errandDone }: SessionParts) {
+    this.errandDone = errandDone;
     this.ui = ui;
     this.player = player;
     this.camp = camp;
@@ -64,6 +68,9 @@ export class Session {
     events.on(EV.INTRO_CAPTION, (name) => ui.setCaption(name));
     events.on(EV.INTRO_SUBTITLE, (text) => ui.setSubtitle(text));
     events.on(EV.INTRO_FADE, (a) => ui.setFade(a));
+    // the errand: the goal line, the basket, and lines people say
+    events.on(EV.QUEST, (q) => ui.setQuest(q));
+    events.on(EV.DIALOG, (d) => ui.showDialog(d));
     ui.on('skip', () => { camp.intro.skip(); camp.scenario.skip(); });
     // scenario 1: its button, and offering it again from the menu
     ui.on('scenario', () => {
@@ -165,7 +172,7 @@ export class Session {
   // scenario 1 can be offered: after the introductions, near the camp, not played yet
   private _scenarioReady(): boolean {
     const { camp, player } = this;
-    return this.entered && camp.intro.done && !camp.cinematic && !camp.scenario.done && !this.menuOpen()
+    return this.entered && camp.intro.done && this.errandDone() && !camp.cinematic && !camp.scenario.done && !this.menuOpen()
       && Math.hypot(player.x - FIRE.x, player.z - FIRE.z) < 13;
   }
 

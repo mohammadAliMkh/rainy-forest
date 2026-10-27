@@ -15,7 +15,8 @@ const ZOOMS = [28, 75]; // map radius in metres (close / wide)
 /**
  * What moves on the map, handed in by app/ (the map doesn't know the game).
  * @typedef {{ x: number, z: number }} MapPoint
- * @typedef {{ people: () => MapPoint[], dog: () => MapPoint | null, deer: () => MapPoint[] }} MapSource
+ * @typedef {{ people: () => MapPoint[], dog: () => MapPoint | null, deer: () => MapPoint[], target?: () => MapPoint | null }} MapSource
+ *   target: where to go next (the errand) - it blinks like an alarm
  * @typedef {{ x: number, z: number, w: number, d: number, yaw: number, path: number[][] }} MapStore the shop (with its porch) and its footpath
  */
 
@@ -231,7 +232,7 @@ export class Minimap {
     const labels = [
       ['آتش', FIRE.x, FIRE.z],
       ['کلبه', CABIN.x, CABIN.z],
-      ['سوپرمارکت', this.store?.x, this.store?.z],
+      ['سوپرمارکت فرج‌پور', this.store?.x, this.store?.z],
       ...(small ? [] : [['ماشین', CAMP.car.x, CAMP.car.z], ['موتور', CAMP.bike.x, CAMP.bike.z], ['لونا', d?.x, d?.z]]),
     ];
     const northA = Math.atan2(-cos, sin); // direction of world -Z on screen
@@ -261,7 +262,44 @@ export class Minimap {
         }
       }
     }
+    // where to go next: a blinking alarm ring (or, off the map, a blinking arrow on the rim)
+    const goal = this.source.target?.();
+    const blink = Math.sin(this.time * Math.PI * 2 * 1.4) > -0.2;
+    let goalOff = false;
+    if (goal) {
+      const [tx, ty] = toScreen(goal.x, goal.z);
+      goalOff = Math.hypot(tx - R, ty - R) > R - 10 * dpr;
+      if (!goalOff) {
+        const pulse = (this.time * 1.4) % 1;
+        g.beginPath();
+        g.arc(tx, ty, (5 + pulse * 9) * dpr, 0, Math.PI * 2);
+        g.lineWidth = 2 * dpr;
+        g.strokeStyle = `rgba(255, 70, 50, ${0.9 * (1 - pulse)})`;
+        g.stroke();
+        if (blink) dot(goal.x, goal.z, 4.2, '#ff4632', '#fff3e0');
+      }
+    }
     g.restore();
+
+    if (goal && goalOff && blink) {
+      const [tx, ty] = toScreen(goal.x, goal.z);
+      const a = Math.atan2(ty - R, tx - R);
+      const rr = R - 11 * dpr;
+      g.save();
+      g.translate(R + Math.cos(a) * rr, R + Math.sin(a) * rr);
+      g.rotate(a);
+      g.beginPath();
+      g.moveTo(8 * dpr, 0);
+      g.lineTo(-5 * dpr, -6.5 * dpr);
+      g.lineTo(-5 * dpr, 6.5 * dpr);
+      g.closePath();
+      g.fillStyle = '#ff4632';
+      g.fill();
+      g.lineWidth = 1.2 * dpr;
+      g.strokeStyle = '#fff3e0';
+      g.stroke();
+      g.restore();
+    }
 
     // the camp off the map: a marker on the rim pointing the way back
     {

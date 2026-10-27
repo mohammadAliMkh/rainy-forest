@@ -12,7 +12,7 @@ import { COUNTER, F, SHOPKEEPER } from './storeLayout.ts';
 type Shared = ConstructorParameters<typeof Human>[1];
 
 export const SHOPKEEPER_SPEC = {
-  name: 'میزبان مغازه',
+  name: 'فرج‌پور',
   seed: 77,
   height: 0.97, build: 1.05, shoulders: 0.92, belly: 0.03,
   skin: 0xc4977a,
@@ -45,6 +45,7 @@ export class Shopkeeper {
   private glance = 0; // 0..1 looking down at the notebook
   private nodT = -1;
   private greeted = false;
+  private sayT = 0; // seconds left of something he is saying
   // where the hands rest (shop frame) and the elbow / hand directions (shop frame)
   private readonly handsLocal: THREE.Vector3[];
 
@@ -64,6 +65,12 @@ export class Shopkeeper {
     const x = COUNTER.x1 - 0.07;
     this.handsLocal = [new THREE.Vector3(x, top, SHOPKEEPER.z - 0.16), new THREE.Vector3(x, top, SHOPKEEPER.z + 0.17)]; // right, left
   }
+
+  /** he says something (his lips move, he looks at the customer) */
+  speak(seconds: number): void { this.sayT = seconds; }
+
+  /** a nod of thanks */
+  nod(): void { this.nodT = 0.5; }
 
   /**
    * `viewer`: the player's eye in the shop frame, `inside`: whether they are
@@ -87,7 +94,7 @@ export class Shopkeeper {
     this.glanceT -= dt;
     if (this.glanceT < 0) this.glanceT = near ? 7 + Math.random() * 9 : 4 + Math.random() * 6;
     const lookingDown = this.glanceT < (near ? 1.6 : 3.2);
-    this.glance = damp(this.glance, lookingDown || !near ? 1 : 0, 3, dt);
+    this.glance = damp(this.glance, (lookingDown || !near) && this.sayT <= 0 ? 1 : 0, 3, dt);
     tyaw = clamp(tyaw, -1.15, 1.15) * (1 - this.glance) + 0.12 * this.glance;
     tpitch = clamp(tpitch, -0.5, 0.45) * (1 - this.glance) - 0.55 * this.glance;
     this.yaw = damp(this.yaw, tyaw, 4, dt);
@@ -102,6 +109,7 @@ export class Shopkeeper {
       h.talk = k > 0.1 && k < 0.8 ? 0.6 : 0;
       if (this.nodT > 2.2) { this.nodT = -1; h.talk = 0; }
     }
+    if (this.sayT > 0) { this.sayT -= dt; h.talk = this.sayT > 0 ? 1 : 0; }
 
     // breathing and a little sway; leaning on his hands
     const breath = Math.sin(t * 1.5) * 0.012;

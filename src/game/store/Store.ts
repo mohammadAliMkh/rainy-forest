@@ -10,9 +10,10 @@ import type { BuildingParts } from './StoreBuilding.ts';
 import { buildGoods } from './StoreGoods.ts';
 import type { GoodsParts } from './StoreGoods.ts';
 import { Shopkeeper } from './Shopkeeper.ts';
+import { ErrandProps } from './ErrandProps.ts';
 import {
   F, H, RIDGE, W, X0, X1, Z0, Z1, T as WALL, IX0, IX1, IZ0, IZ1, PZ1, STEP_N, STEP_D, ROOF_OVER, ROOF_FRONT,
-  DOOR, STEPS, COUNTER, COUNTER_END, FRIDGES, LIQUOR, SHELF_LEFT, SHELF_BACK, GONDOLA, CRATES, DRINK_CRATES, LAMP_MAIN,
+  DOOR, STEPS, COUNTER, COUNTER_END, ERRAND, FRIDGES, LIQUOR, SHELF_LEFT, SHELF_BACK, GONDOLA, CRATES, DRINK_CRATES, LAMP_MAIN,
 } from './storeLayout.ts';
 
 // The little supermarket in the forest, put together: the building, the
@@ -50,6 +51,8 @@ export class Store {
   readonly building: BuildingParts;
   readonly goods: GoodsParts;
   readonly shopkeeper: Shopkeeper;
+  /** the errand's goods, the pickle jar, the money (game/quest) */
+  readonly errand: ErrandProps;
   readonly signpost: THREE.Group;
   readonly light: THREE.PointLight;
   readonly shelter: StoreShelter;
@@ -89,6 +92,8 @@ export class Store {
     g.add(this.shopkeeper.root);
     // everything inside is under the roof's shadow already: no shadow casting
     for (const o of [this.goods.group, this.shopkeeper.root]) o.traverse((m) => { m.castShadow = false; });
+    this.errand = new ErrandProps(this.goods);
+    g.add(this.errand.group);
     g.updateMatrixWorld(true);
 
     // one warm light under the main lamp; always there (switching lights
@@ -135,6 +140,7 @@ export class Store {
     block(X0 - 0.64, X0, -2.25, 2.0);
     block(X1, X1 + 0.82, 0.6, 1.85);
     block(STEPS.x1 + 0.49, STEPS.x1 + 1.01, PZ1 + 0.18, PZ1 + 0.72);
+    round(ERRAND.jar.x, ERRAND.jar.z, 0.2); // the pickle jar
     // inside: the counter and the space behind it (the shopkeeper's), fridges, shelves, crates
     block(COUNTER.x0, IX1, LIQUOR.z1, COUNTER_END.z1);
     block(FRIDGES[0].x0, FRIDGES[1].x1, IZ0, FRIDGES[0].z1);
@@ -176,6 +182,7 @@ export class Store {
     this.playerInside = inside;
     this.playerDistance = Math.hypot(local.x, local.z);
     const near = this.playerDistance < 40;
+    this.errand.update(dt);
     this.goods.group.visible = near;
     this.shopkeeper.root.visible = near;
     if (!near) return;

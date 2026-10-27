@@ -261,7 +261,7 @@ export class Camp {
   addTo(scene) { scene.add(this.group); }
 
   /** a film camera has the view (the introductions or a scenario) */
-  get cinematic() { return this.intro.active || this.scenario.active; }
+  get cinematic() { return this.intro.active || this.scenario.filming; }
 
   /** system "film camera": right after the player has placed the camera */
   applyCamera(camera, dt) {
