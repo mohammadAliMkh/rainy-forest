@@ -49,8 +49,8 @@ export const FRIENDS = {
       shoes: { style: 'boot', color: 0x1d1b19 },
     },
   },
-  // Alireza: brown hair swept up at the front, light stubble beard and
-  // mustache, rounder face; olive hooded parka and dark jeans.
+  // Alireza: fair skin, near-black eyes, thick dark brown hair swept up and
+  // back, a light sandy beard and mustache; olive t-shirt, dark jeans.
   alireza: {
     name: 'علیرضا',
     seed: 33,

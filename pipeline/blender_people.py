@@ -107,17 +107,23 @@ PEOPLE = {
         tattoos=[("forearm", "R", "knot_a"), ("forearm", "L", "knot_b"), ("upperarm", "R", "eagle"), ("upperarm", "L", "knot_a"),
                  ("hand", "R", "skull"), ("hand", "L", "spider"), ("neck", "R", "knot_b")],
     ),
-    # Alireza (Ali): tall, young, rounder face with full cheeks, brown hair
-    # swept up, light stubble beard and mustache; olive hooded parka, dark jeans
+    # Alireza: fair skin, near-black eyes, oval face with a straight nose,
+    # thick dark brown hair full on top and short at the sides, a light sandy
+    # beard and mustache (fuller on the lip and chin, light on the cheeks);
+    # olive t-shirt, dark jeans
     "alireza": dict(
-        phenotype=dict(gender=1.0, age=0.5, muscle=0.5, weight=0.62, proportions=0.6, height=0.56,
-                       race=dict(caucasian=0.88, asian=0.04, african=0.08)),
-        targets={"head-round": 0.5, "head-fat-incr": 0.35, "head-scale-vert-decr": 0.15, "chin-height-decr": 0.15, "l-cheek-volume-incr": 0.5, "r-cheek-volume-incr": 0.5,
-                 "nose-scale-horiz-incr": 0.15, "nose-volume-incr": 0.2, "chin-width-incr": 0.2,
-                 "l-eye-height2-decr": 0.15, "r-eye-height2-decr": 0.15, "eyebrows-trans-up": 0.1},
-        skin=0xdcae8f, eyes="brown", hair_color=0x5b3f2b,
-        eyebrows="eyebrow001", hair="culturalibre_hair_05",
-        beard=dict(color=0x4a3322, density=0.22, cheek=0.4, neck=0.45, stubble=0.55),
+        phenotype=dict(gender=1.0, age=0.5, muscle=0.5, weight=0.55, proportions=0.6, height=0.56,
+                       race=dict(caucasian=0.92, asian=0.03, african=0.05)),
+        targets={"head-oval": 0.2, "head-fat-incr": 0.15, "head-scale-horiz-incr": 0.12, "l-cheek-volume-incr": 0.2, "r-cheek-volume-incr": 0.2,
+                 "nose-scale-vert-incr": 0.15, "nose-point-width-incr": 0.1, "nose-scale-depth-incr": 0.1,
+                 "l-eye-height2-decr": 0.25, "r-eye-height2-decr": 0.25, "l-eye-eyefold-down": 0.25, "r-eye-eyefold-down": 0.25,
+                 "eyebrows-trans-down": 0.15, "mouth-lowerlip-volume-incr": 0.1, "chin-width-incr": 0.25},
+        skin=0xe6c0a6, eyes="brown", iris_dark=0.35, hair_color=0x4a3324,
+        eyebrows="eyebrow009", hair="culturalibre_hair_05",
+        # swept up and back: nothing over the forehead, short sides, more lift on top
+        hair_style=dict(fringe_back=0.06, fringe_top=0.072, side_back=0.1, side_top=0.02, lift=1.12),
+        scalp=dict(color=0x3a281a, density=0.92, front=0.066, temples=0.072),
+        beard=dict(color=0x76522f, density=1.0, strength=1.15, mustache=1.0, chin=0.85, cheeks=0.45, cheek=0.35, neck=0.6, stubble=0.15),
         clothes=[("male_casualsuit06", dict(top=0x3e4229, bottom=0x24272d)), ("shoes02", 0x5a4632)],
     ),
 }
@@ -729,6 +735,22 @@ for obj in list(rig.children):
         trim_hair(obj, P["hair_trim"])
     if kind == "hair" and P.get("hair_slick"):
         slick_hair(obj, P["hair_slick"])
+    if kind == "hair" and P.get("hair_style"):
+        t_ = P["hair_style"]
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        mw, inv = obj.matrix_world, obj.matrix_world.inverted()
+        dead = []
+        for v in bm.verts:
+            co = mw @ v.co
+            back, up = co.y - MOUTH.y, co.z - EYE_Z
+            if (back < t_["fringe_back"] and up < t_["fringe_top"]) or (back < t_["side_back"] and up < t_["side_top"]):
+                dead.append(v)
+            elif up > 0.07:  # volume on top
+                v.co = inv @ Vector((co.x, co.y, EYE_Z + 0.07 + (up - 0.07) * t_["lift"]))
+        bmesh.ops.delete(bm, geom=dead, context="VERTS")
+        bm.to_mesh(obj.data)
+        bm.free()
     info_m = parse_mhmat(mhmat_for(obj))
     src = str(GeneralObjectProperties.get_value("asset_source", entity_reference=obj) or obj.name)
     base = os.path.splitext(os.path.basename(src))[0]
@@ -741,6 +763,13 @@ for obj in list(rig.children):
             img_b, bb = load_pixels(os.path.join(LocationService.get_user_data(), "eyes", "materials", e[1] + "_eye.png"), 512)
             a[..., :3] = a[..., :3] * (1 - e[2]) + bb[..., :3] * e[2]
             bpy.data.images.remove(img_b)
+            tex = os.path.join(WORK, f"{KEY}_iris.png")
+            save_image(img_a, a, "iris")
+        if P.get("iris_dark"):  # darker irises (the white of the eye stays)
+            img_a, a = load_pixels(tex, 512)
+            lum = a[..., :3] @ np.array([0.2126, 0.7152, 0.0722])
+            iris = (1.0 - np.clip((lum - 0.35) / 0.25, 0, 1))[..., None]
+            a[..., :3] = a[..., :3] * (1 - iris * (1 - P["iris_dark"]))
             tex = os.path.join(WORK, f"{KEY}_iris.png")
             save_image(img_a, a, "iris")
     size = 1024 if kind in ("clothes", "hair") else 512
