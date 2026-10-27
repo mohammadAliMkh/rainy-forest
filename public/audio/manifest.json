@@ -1,7 +1,7 @@
 {
   "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/people/introScript.js). ghost_boo / ghost_giggle / scream_<owner|amir|alireza|amin> = scenario 1 (the sheet ghost), synthesized when empty. amir_party / farajpour_thanks / farajpour_pickles = lines of errand 1 (shown as captions when empty).",
   "welcome": "welcome.mp3",
-  "intro_owner": "",
+  "intro_owner": "intro-owner.mp3",
   "intro_amir": "intro-amir.mp3",
   "intro_alireza": "intro-alireza.mp3",
   "intro_amin": "intro-amin.mp3",
