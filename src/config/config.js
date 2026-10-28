@@ -30,8 +30,8 @@ export const CAMP = {
   seats: [
     { key: 'owner', dx: -1.6, dz: -1.0, seat: 'stump', lean: 0.16 },
     { key: 'amin', dx: 0.3, dz: -1.9, seat: 'stump', lean: 0.1 },
-    { key: 'amir', dx: 1.9, dz: -0.5, seat: 'log', lean: 0.2, kneeSpread: 0.16, waves: true },
-    { key: 'alireza', dx: 1.45, dz: 1.3, seat: 'log', lean: 0.08 },
+    { key: 'amir', dx: 1.9, dz: -0.5, seat: 'stump', lean: 0.2, kneeSpread: 0.16, waves: true },
+    { key: 'alireza', dx: 1.45, dz: 1.3, seat: 'stump', lean: 0.08 },
   ],
   kettleAngle: -2.2,          // around the fire ring (radians, x = cos, z = sin)
   crate: { dx: 1.55, dz: -1.65, rot: 0.6 },
