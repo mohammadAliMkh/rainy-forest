@@ -16,6 +16,20 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // visit.
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+// how the people at the fire are framed when introduced (metres from the
+// head, out along the three-quarter view; vertical field of view in degrees):
+// the whole seated person, head to feet, not just the face
+const PORTRAIT = { d: 2.1, up: -0.08, lookDown: 0.35, fov: 40 };
+const GUITAR = { d: 2.4, up: -0.08, lookDown: 0.35, fov: 42 };
+
+/** a shot's vertical field of view, widened on a tall (portrait) screen so the
+ * sides of the frame - the person's body - are the same as on a square one */
+export function fitFov(fov: number, aspect: number): number {
+  if (!(aspect < 1)) return fov;
+  const t = Math.tan(THREE.MathUtils.degToRad(fov) / 2) / aspect;
+  return Math.min(80, THREE.MathUtils.radToDeg(2 * Math.atan(t)));
+}
 const _m = new THREE.Matrix4();
 
 /** what the introductions need to play the recordings (set on the camp by app/createGame.ts) */
@@ -270,39 +284,34 @@ export class IntroDirector {
       return 58;
     }
     if (!focus) {
-      // the welcome lands on the owner's face: the very shot his introduction starts with
+      // the welcome lands on the owner: the very shot his introduction starts with
       const pdir = p.fwd.clone().multiplyScalar(0.8).addScaledVector(p.right, 0.5).normalize();
-      const look = head.clone().addScaledVector(UP, 0.07);
-      const end = head.clone().addScaledVector(pdir, 1.0).addScaledVector(UP, 0.06);
+      const look = head.clone().addScaledVector(UP, -PORTRAIT.lookDown);
+      const end = head.clone().addScaledVector(pdir, PORTRAIT.d).addScaledVector(UP, PORTRAIT.up);
       if (s.step?.key === 'welcome') {
         this.fly ??= this._plan(end, head, pdir, s.voice?.duration ?? 12);
         const f = this.fly;
         f.curve.points[f.curve.points.length - 1].copy(end);
         const u = Math.min(1, s.t / f.dur);
-        const e = 1 - Math.pow(1 - u, 1.7); // moving off at once, settling gently on his face
+        const e = 1 - Math.pow(1 - u, 1.7); // moving off at once, settling gently in front of him
         f.curve.getPointAt(e, this._tPos);
         // first the whole area below, then the friends at the fire
         const k = THREE.MathUtils.smoothstep(e, 0.45, 0.97);
         this._tLook.copy(f.ground).addScaledVector(UP, 0.5).lerp(look, k);
         this.exact = true;
-        return 58 + (30 - 58) * k;
+        return 58 + (PORTRAIT.fov - 58) * k;
       }
       this._tLook.copy(look);
       this._tPos.copy(end);
-      return 30;
+      return PORTRAIT.fov;
     }
-    if (p.h.guitar) {
-      // Amin: a wider three-quarter shot so his guitar is in the frame
-      this._tLook.copy(head).addScaledVector(UP, -0.2);
-      const dir = p.fwd.clone().multiplyScalar(0.8).addScaledVector(p.right, 0.5).normalize();
-      this._tPos.copy(head).addScaledVector(dir, 1.9 - push * 0.25).addScaledVector(UP, 0.0);
-      return 42;
-    }
-    // portrait: three-quarter view, eye level, slowly closing in
-    this._tLook.copy(head).addScaledVector(UP, 0.07);
+    // portrait: three-quarter view of the whole person on their seat, a little
+    // below eye level, slowly closing in; Amin a bit wider for the guitar
+    const f = p.h.guitar ? GUITAR : PORTRAIT;
     const dir = p.fwd.clone().multiplyScalar(0.8).addScaledVector(p.right, 0.5).normalize();
-    this._tPos.copy(head).addScaledVector(dir, 1.0 - push * 0.18).addScaledVector(UP, 0.06);
-    return 30;
+    this._tLook.copy(head).addScaledVector(UP, -f.lookDown);
+    this._tPos.copy(head).addScaledVector(dir, f.d - push * 0.25).addScaledVector(UP, f.up);
+    return f.fov;
   }
 
   // called right after the player has placed the camera for this frame
@@ -312,7 +321,7 @@ export class IntroDirector {
       if (camera.fov !== 70) { camera.fov = 70; camera.updateProjectionMatrix(); }
       return;
     }
-    const fov = this._shot(this.seq);
+    const fov = fitFov(this._shot(this.seq), camera.aspect);
     _m.lookAt(this._tPos, this._tLook, UP);
     const tq = new THREE.Quaternion().setFromRotationMatrix(_m);
     if (this.snap) { this.pos.copy(this._tPos); this.quat.copy(tq); this.fov = fov; this.snap = false; }
