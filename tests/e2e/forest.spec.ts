@@ -93,14 +93,25 @@ test('life at the camp: Amin strums, Luna moves to someone else, footsteps are h
   expect(errors).toEqual([]);
 });
 
-test('phone: touch controls show, the gear opens the menu', async ({ browser }) => {
+test('phone: only skip and sound during the opening film, then the touch controls; the gear opens the menu', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
-  await page.waitForTimeout(800);
-  expect(await page.evaluate(() => !document.getElementById('touch-ui')!.classList.contains('hidden'))).toBe(true);
+  await page.waitForTimeout(1500);
+  const shown = (sel: string) => page.evaluate((sel) => getComputedStyle(document.querySelector(sel)!).visibility === 'visible' && !document.querySelector(sel)!.classList.contains('hidden'), sel);
+  // the opening film: no joystick / buttons / map / hints, just skip and the sound button
+  expect(await shown('#touch-ui')).toBe(false);
+  expect(await shown('.minimap')).toBe(false);
+  expect(await page.evaluate(() => document.getElementById('toast')!.classList.contains('show'))).toBe(false);
+  expect(await shown('#skip-btn')).toBe(true);
+  expect(await shown('#mute-btn')).toBe(true);
+  await page.evaluate(() => document.getElementById('skip-btn')!.click());
+  await page.waitForFunction(() => !(window as any).forest.camp.cinematic, null, { timeout: 60_000 });
+  await expect.poll(() => shown('#touch-ui')).toBe(true);
+  // how to move and look, once the film is over
+  await expect.poll(() => page.evaluate(() => document.getElementById('toast')!.classList.contains('show'))).toBe(true);
   await page.evaluate(() => document.getElementById('menu-btn')!.click());
   await expect.poll(() => page.evaluate(() => !document.getElementById('pause')!.classList.contains('hidden'))).toBe(true);
   expect(errors).toEqual([]);
