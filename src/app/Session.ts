@@ -42,6 +42,8 @@ export class Session {
   private sound: Soundscape;
   private minimap: Minimap;
   private _waitHintAt = 0;
+  /** how to move and look: shown once the opening film has finished */
+  private _controlsHint: string | null = null;
   private errandDone: () => boolean;
 
   constructor({ ui, events, player, camp, sound, quality, minimap, canvas, errandDone }: SessionParts) {
@@ -64,6 +66,7 @@ export class Session {
       if (!this.menuOpen()) touch.show(!on);
       ui.setCinema(on);
       this.showMap();
+      if (!on) this._showControlsHint();
     });
     events.on(EV.INTRO_CAPTION, (name) => ui.setCaption(name));
     events.on(EV.INTRO_SUBTITLE, (text) => ui.setSubtitle(text));
@@ -146,15 +149,25 @@ export class Session {
     this.camp.intro.start();
     this.showMap();
     this.player.freeMode = true;
+    // while the opening film plays only "skip" and the sound button are on screen:
+    // the controls (and how to use them) come once it is over
     if (touch.enabled) {
       // full screen + landscape where the browser allows it (not on iPhone)
-      touch.show(true);
+      touch.show(!this.camp.cinematic);
       const fs = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
       Promise.resolve(fs).then(() => (screen.orientation as LockableOrientation | undefined)?.lock?.('landscape')).catch(() => { /* not allowed / supported */ });
-      setTimeout(() => ui.toast('حرکت: دایره پایین سمت چپ · نگاه: انگشت را روی صفحه بکشید', 6000), 900);
+      this._controlsHint = 'حرکت: دایره پایین سمت چپ · نگاه: انگشت را روی صفحه بکشید';
     } else {
-      setTimeout(() => ui.toast('نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc', 6000), 900);
+      this._controlsHint = 'نگاه: بردن موس به لبه تصویر، یا نگه‌داشتن کلیک راست و کشیدن · تنظیمات: Esc';
     }
+    if (!this.camp.cinematic) this._showControlsHint();
+  }
+
+  private _showControlsHint(): void {
+    const text = this._controlsHint;
+    if (!text) return;
+    this._controlsHint = null;
+    setTimeout(() => this.ui.toast(text, 6000), 900);
   }
 
   private _onKey(e: KeyboardEvent): void {
