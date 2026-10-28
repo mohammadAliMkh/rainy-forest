@@ -51,6 +51,12 @@ export class Weather {
     if (mode === 'auto') this.timer = Math.min(this.timer, this._duration(this.kind));
   }
 
+  /** switch to `kind` now (it builds up smoothly), for `seconds` (default: its usual length) */
+  setKind(kind: WeatherKind, seconds?: number): void {
+    this._enter(kind);
+    if (seconds !== undefined) this.timer = seconds;
+  }
+
   /** the target level of the current kind */
   get target(): number { return KINDS[this.kind].level; }
 

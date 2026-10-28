@@ -229,6 +229,9 @@ export class Dog {
     this.path = [];
     this.goal = null;
     this.sniff = 0;
+    /** something out in the dark (world point): she gets up and stands facing it, stiff; null = carry on */
+    this.alertAt = null;
+    this._wasAlert = false;
     this.rand = mulberry32(4242);
     if (model) {
       // put the rig in the standing pose the Blender model was built in
@@ -312,7 +315,24 @@ export class Dog {
     return pts;
   }
 
+  // on her feet, facing whatever is out there, not moving
+  _alert(dt) {
+    const p = this.root.position, a = this.alertAt;
+    this.stand = Math.min(1, this.stand + dt / 0.8);
+    this.speed = damp(this.speed, 0, 6, dt);
+    let dh = Math.atan2(a.x - p.x, a.z - p.z) - this.heading;
+    while (dh > Math.PI) dh -= Math.PI * 2;
+    while (dh < -Math.PI) dh += Math.PI * 2;
+    this.heading += clamp(dh, -2.2 * dt, 2.2 * dt);
+  }
+
   _think(dt, hold) {
+    if (this.alertAt) { this._alert(dt); this._wasAlert = true; return; }
+    if (this._wasAlert) {
+      // it's gone: lie down again where she stands (or carry on where she was going)
+      this._wasAlert = false;
+      if (this.state === 'lie' || this.state === 'up') this.state = 'down';
+    }
     switch (this.state) {
       case 'lie':
         this.timer -= dt;

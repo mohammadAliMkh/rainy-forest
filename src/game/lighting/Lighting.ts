@@ -35,6 +35,10 @@ export class Lighting {
   private sky: Sky;
   /** current lightning flashes: start time and strength */
   private flashes: { t: number; strength: number }[] = [];
+  /** how bright the lightning is this frame (0 = none, ~1 = a strong flash) */
+  flashLevel = 0;
+  /** the lantern's strength after dark (dimmer on the haunted walk back) */
+  lanternMax = 5.5;
   private clock = 0;
   private _rot = new THREE.Matrix4();
   private _rotInv = new THREE.Matrix4();
@@ -118,14 +122,14 @@ export class Lighting {
   update(frame: LightingFrame): void {
     const camera = frame.camera;
     this.clock += frame.dt;
-    const flash = this._flashLevel();
+    const flash = this.flashLevel = this._flashLevel();
     this.sky.uniforms.uFlash.value = flash * 0.32;
     this.hemi.intensity += flash * 0.85;
     this._followShadow(camera);
     const dark = THREE.MathUtils.clamp((0.48 - frame.env.ambientLevel) / 0.12, 0, 1);
     const on = this.cinematic() ? 0 : dark;
     const lantern = this.lantern;
-    lantern.intensity += (on * 5.5 - lantern.intensity) * Math.min(1, frame.dt * 2);
+    lantern.intensity += (on * this.lanternMax - lantern.intensity) * Math.min(1, frame.dt * 2);
     if (!lantern.visible) this.hemi.intensity += dark * 0.3;
     lantern.position.set(0.28, -0.42, -0.3).applyQuaternion(camera.quaternion).add(camera.position);
   }

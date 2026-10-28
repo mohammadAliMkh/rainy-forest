@@ -1,5 +1,5 @@
 {
-  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/people/introScript.js). ghost_boo / ghost_giggle / scream_<owner|amir|alireza|amin> = scenario 1 (the sheet ghost), synthesized when empty. amir_party / farajpour_thanks / farajpour_pickles = lines of errand 1 (shown as captions when empty).",
+  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here. Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/people/introScript.js). ghost_boo / ghost_giggle / scream_<owner|amir|alireza|amin> = scenario 1 (the sheet ghost), synthesized when empty. amir_party / farajpour_thanks / farajpour_pickles = lines of errand 1 (shown as captions when empty). ghost_laugh_scary / ghost_whisper / luna_bark = the haunted walk back (the scary ghost's deep laugh, its whisper, Luna barking at the dark), synthesized when empty.",
   "welcome": "welcome.mp3",
   "intro_owner": "intro-owner.mp3",
   "intro_amir": "intro-amir.mp3",
@@ -12,6 +12,9 @@
   "fire_loop": "",
   "ghost_boo": "",
   "ghost_giggle": "",
+  "ghost_laugh_scary": "",
+  "ghost_whisper": "",
+  "luna_bark": "",
   "scream_owner": "",
   "scream_amir": "",
   "scream_alireza": "",

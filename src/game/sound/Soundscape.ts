@@ -59,7 +59,11 @@ export class Soundscape {
     this.scenario = new ScenarioSound(this.engine);
     if (events) {
       events.on(EV.STORE_DOOR, () => { if (this.started) this.store.door(); });
-      events.on(EV.SCENARIO_CUE, (cue) => { if (this.started) this.scenario.play(cue); });
+      events.on(EV.SCENARIO_CUE, (cue) => {
+        if (!this.started) return;
+        if (cue.cue === 'echoStep') this.steps.stepAt(cue.surface, cue.position, cue.running);
+        else this.scenario.play(cue);
+      });
       events.on(EV.LIGHTNING, ({ strength, delay }) => { if (this.started) this.thunder.rumble(strength, delay); });
       events.on(EV.PLAYER_STEP, (info) => this.footstep(info));
       events.on(EV.GUITAR_STRUM, ({ position, chord, down, velocity }) => this.strum(position, chord, down, velocity));

@@ -298,6 +298,7 @@ export class Camp {
     // the ghost: she stays put and doesn't take her eyes off it
     const ghost = this.scenario.ghostHead();
     if (ghost) this.dog.update(dt, ghost, 1, true);
+    else if (this.dog.alertAt) this.dog.update(dt, this.dog.alertAt, 0, true);
     else this.dog.update(dt, lunaFocus ? cam : look, lunaFocus ? 1 : this._dogExcite, this.intro.active || this.scenario.active);
     this.steam.material.uniforms.uLight.value = env ? env.ambientLevel * 0.9 + 0.1 : 1;
     this.steam.update(dt, time, windStrength);

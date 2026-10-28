@@ -6,8 +6,14 @@ import * as THREE from 'three';
 // laughs). Lifting its arms pulls the sheet up into two draped wings.
 // The sheet is a parametric surface rebuilt every frame (a few thousand
 // vertices) so the cloth can ripple, puff up and lift.
+// A second look, 'scary' (the haunted walk back at night): a grey, dim,
+// ragged sheet with long torn strips, a slow heavy flutter, hollow eyes with
+// glowing red cores and a torn mouth (moods stare / scream / grin). In the
+// dark it can be just two red eyes between the trees (`setEyesOnly`), and
+// it can flicker out and in somewhere else (`blink`).
 
-export type GhostFace = 'sly' | 'boo' | 'happy';
+export type GhostFace = 'sly' | 'boo' | 'happy' | 'stare' | 'scream' | 'grin';
+export type GhostStyle = 'funny' | 'scary';
 
 /** where the ghost is and how it holds itself (set by the scenario every frame) */
 export interface GhostPose {
@@ -27,6 +33,7 @@ export interface GhostPose {
 }
 
 const H = 1.62; // top of the head above the hem
+const _flashLit = new THREE.Color(0x6d7378); // the scary sheet in a lightning flash
 const RH = 0.29; // head radius
 const R_HEM = 0.6; // hem radius
 const V_HEAD = 0.26; // share of the surface that is the head dome
@@ -35,8 +42,8 @@ const FACE_U = 0.16, FACE_V0 = 0.07, FACE_V1 = 0.46; // face patch: half width a
 
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-/** a point of the sheet: angle around (u 0..1, 0 = front), down from the top (v 0..1) */
-function sheet(u: number, v: number, t: number, arms: number, puff: number, out: THREE.Vector3, outward = 0): THREE.Vector3 {
+/** a point of the sheet: angle around (u 0..1, 0 = front), down from the top (v 0..1); `rag` 0..1 = torn and heavy */
+function sheet(u: number, v: number, t: number, arms: number, puff: number, out: THREE.Vector3, outward = 0, rag = 0): THREE.Vector3 {
   const th = u * Math.PI * 2;
   let r: number, y: number;
   if (v <= V_HEAD) {
@@ -49,9 +56,18 @@ function sheet(u: number, v: number, t: number, arms: number, puff: number, out:
     y = (H - RH) * (1 - k);
   }
   const lower = sstep(V_HEAD, 1, v); // 0 on the head, 1 at the hem
-  // vertical folds, a scalloped hem and a slow flutter
-  r *= 1 + (0.07 * Math.sin(7 * th + 0.6 * Math.sin(3 * th)) + 0.04 * Math.sin(5 * th - t * 2.3)) * lower * lower;
-  y += (0.09 * (0.5 + 0.5 * Math.sin(7 * th + 1.1)) + 0.035 * Math.sin(4 * th + t * 3.1)) * Math.pow(lower, 3);
+  // vertical folds, a scalloped hem and a slow flutter (slower and heavier when ragged)
+  const ft = t * (1 - 0.45 * rag);
+  r *= 1 + (0.07 * Math.sin(7 * th + 0.6 * Math.sin(3 * th)) + (0.04 + 0.02 * rag) * Math.sin(5 * th - ft * 2.3)) * lower * lower;
+  y += (0.09 * (0.5 + 0.5 * Math.sin(7 * th + 1.1)) + 0.035 * Math.sin(4 * th + ft * 3.1)) * Math.pow(lower, 3);
+  if (rag > 0) {
+    // bigger, uneven scallops and a few long torn strips hanging down
+    const l4 = lower * lower * lower * lower;
+    const uneven = 0.5 + 0.5 * Math.sin(11 * th + 2.3 * Math.sin(3 * th + 0.7));
+    const strips = Math.pow(Math.max(0, Math.sin(9 * th + 1.7 * Math.sin(4 * th))), 14);
+    y -= rag * (0.1 * uneven + 0.32 * strips * (0.85 + 0.15 * Math.sin(ft * 1.7 + th * 3))) * l4;
+    r *= 1 - rag * 0.12 * strips * l4; // the strips hang in, limp
+  }
   // arms raised under the sheet: the sides lift into two draped peaks
   if (arms > 0) {
     const side = Math.pow(Math.abs(Math.sin(th)), 5);
@@ -127,11 +143,72 @@ function paintFace(face: GhostFace): THREE.CanvasTexture {
     g.fillStyle = '#c4555a';
     g.beginPath(); g.ellipse(256, 395, 52, 26, 0, 0, Math.PI * 2); g.fill();
   }
+  return faceTexture(c);
+}
+
+function faceTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   return tex;
 }
+
+/** the scary faces: hollow eyes tilted inward with glowing red cores, a torn black mouth */
+function paintScary(face: 'stare' | 'scream' | 'grin'): THREE.CanvasTexture {
+  const S = 512, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d')!;
+  const big = face === 'scream' ? 1.15 : 1;
+  const eye = (cx: number) => {
+    x.save(); x.translate(cx, 170); x.rotate(cx < 256 ? 0.25 : -0.25);
+    x.fillStyle = '#050304'; x.beginPath(); x.ellipse(0, 0, 58 * big, (face === 'grin' ? 60 : 74) * big, 0, 0, Math.PI * 2); x.fill();
+    const r = face === 'scream' ? 40 : 34;
+    const gr = x.createRadialGradient(0, 8, 0, 0, 8, r);
+    gr.addColorStop(0, '#fff2e0'); gr.addColorStop(0.18, '#ff3a1a'); gr.addColorStop(0.6, 'rgba(160,0,0,0.6)'); gr.addColorStop(1, 'rgba(60,0,0,0)');
+    x.fillStyle = gr; x.beginPath(); x.ellipse(0, 8, r, r, 0, 0, Math.PI * 2); x.fill();
+    x.restore();
+  };
+  eye(156); eye(356);
+  x.fillStyle = '#050304';
+  x.beginPath();
+  if (face === 'stare') {
+    // a long torn slit
+    x.moveTo(190, 330);
+    for (let i = 0; i <= 10; i++) x.lineTo(190 + i * 13.2, 330 + (i % 2 ? 26 : 8) + Math.sin(i) * 6);
+    x.lineTo(322, 470); x.quadraticCurveTo(256, 520, 190, 470);
+  } else if (face === 'scream') {
+    // gaping, stretched down, ragged at the edges
+    x.moveTo(170, 300);
+    for (let i = 0; i <= 12; i++) x.lineTo(170 + i * 14.3, 300 + (i % 2 ? 22 : 4) + Math.sin(i * 1.7) * 7);
+    x.lineTo(348, 420); x.quadraticCurveTo(300, 508, 256, 510); x.quadraticCurveTo(206, 508, 166, 420);
+  } else {
+    // a wide jagged grin curling up at the corners
+    x.moveTo(130, 290);
+    for (let i = 0; i <= 14; i++) { const k = i / 14; x.lineTo(130 + k * 252, 330 + Math.sin(k * Math.PI) * 30 + (i % 2 ? 16 : 0)); }
+    x.lineTo(382, 290); x.quadraticCurveTo(330, 430, 256, 436); x.quadraticCurveTo(182, 430, 130, 290);
+  }
+  x.closePath();
+  x.fill();
+  return faceTexture(c);
+}
+
+/** a soft red glow, for the eyes alone in the dark */
+function glowTexture(): THREE.CanvasTexture {
+  const S = 64, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d')!;
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,240,220,1)'); gr.addColorStop(0.22, 'rgba(255,60,26,1)'); gr.addColorStop(0.5, 'rgba(170,0,0,0.5)'); gr.addColorStop(1, 'rgba(60,0,0,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// the two eyes on the painted face (fractions across, down)
+const EYES: [number, number][] = [[156 / 512, 178 / 512], [356 / 512, 178 / 512]];
+const FUNNY = { color: 0xf3f2ee, emissive: 0x8fa6c4, glow: 0.12 };
+const SCARY = { color: 0x9a9a98, emissive: 0x10161c, glow: 1 };
 
 export class Ghost {
   readonly group = new THREE.Group();
@@ -143,6 +220,19 @@ export class Ghost {
   private readonly faces: Record<GhostFace, THREE.CanvasTexture>;
   private readonly terrain: { heightAt(x: number, z: number): number };
   private time = 0;
+  style: GhostStyle = 'funny';
+  private rag = 0;
+  private eyesOnly = 0;
+  private flash = 0;
+  /** the red eyes that glow in the dark (scary look only) */
+  private readonly eyes: THREE.Sprite[] = [];
+  private readonly eyeMat: THREE.SpriteMaterial;
+  // a blink: flickering out, the jump to (bx, bz), flickering back in
+  private blinkT = -1;
+  private bx = 0;
+  private bz = 0;
+  private readonly lit = new THREE.Color();
+  private readonly _p = new THREE.Vector3();
 
   constructor(terrain: { heightAt(x: number, z: number): number }) {
     this.terrain = terrain;
@@ -177,7 +267,10 @@ export class Ghost {
     }
     fgeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     fgeo.setIndex(fidx);
-    this.faces = { sly: paintFace('sly'), boo: paintFace('boo'), happy: paintFace('happy') };
+    this.faces = {
+      sly: paintFace('sly'), boo: paintFace('boo'), happy: paintFace('happy'),
+      stare: paintScary('stare'), scream: paintScary('scream'), grin: paintScary('grin'),
+    };
     this.faceMat = new THREE.MeshBasicMaterial({ map: this.faces.sly, transparent: true, depthWrite: false, side: THREE.DoubleSide });
     this.faceMesh = new THREE.Mesh(fgeo, this.faceMat);
     this.faceMesh.frustumCulled = false;
@@ -185,9 +278,41 @@ export class Ghost {
     this.group.add(this.faceMesh);
     (this.faceMesh.userData as { fu: number; fv: number }).fu = FU;
     (this.faceMesh.userData as { fu: number; fv: number }).fv = FV;
+    // the eyes' glow: additive, never fogged out, drawn over the face
+    this.eyeMat = new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true });
+    for (let i = 0; i < 2; i++) {
+      const e = new THREE.Sprite(this.eyeMat);
+      e.renderOrder = 2;
+      e.visible = false;
+      this.eyes.push(e);
+      this.group.add(e);
+    }
     this.group.visible = false;
     this._rebuild();
   }
+
+  /** the friendly white sheet, or the grey, torn one with red eyes */
+  setStyle(style: GhostStyle): void {
+    this.style = style;
+    const L = style === 'scary' ? SCARY : FUNNY;
+    this.clothMat.color.setHex(L.color);
+    this.clothMat.emissive.setHex(L.emissive);
+    this.clothMat.emissiveIntensity = L.glow;
+    this.rag = style === 'scary' ? 1 : 0;
+    this.flash = 0;
+    this.eyesOnly = 0;
+  }
+
+  /** 0..1: the sheet fades away until only the two red eyes are left (scary look) */
+  setEyesOnly(k: number): void { this.eyesOnly = Math.min(1, Math.max(0, k)); }
+
+  /** 0..1: lit up by a lightning flash (scary look) */
+  setFlash(k: number): void { this.flash = k; }
+
+  /** flicker out, jump to (x, z), flicker back in */
+  blink(x: number, z: number): void { this.blinkT = 0; this.bx = x; this.bz = z; }
+
+  get blinking(): boolean { return this.blinkT >= 0; }
 
   /** the top of its head (world) */
   headWorld(target = new THREE.Vector3()): THREE.Vector3 {
@@ -198,11 +323,11 @@ export class Ghost {
     const { arms, puff } = this.pose;
     const t = this.time;
     const pos = this.cloth.geometry.attributes.position as THREE.BufferAttribute;
-    const p = new THREE.Vector3();
+    const p = this._p;
     for (let j = 0; j <= NV; j++) {
       const v = j / NV;
       for (let i = 0; i <= NU; i++) {
-        sheet((i % NU) / NU, v, t, arms, puff, p);
+        sheet((i % NU) / NU, v, t, arms, puff, p, 0, this.rag);
         pos.setXYZ(j * (NU + 1) + i, p.x, p.y, p.z);
       }
     }
@@ -214,11 +339,18 @@ export class Ghost {
       const v = FACE_V0 + (FACE_V1 - FACE_V0) * (j / fv);
       for (let i = 0; i <= fu; i++) {
         const u = (-FACE_U + 2 * FACE_U * (i / fu) + 1) % 1;
-        sheet(u, v, t, arms, puff, p, 0.006);
+        sheet(u, v, t, arms, puff, p, 0.006, this.rag);
         fp.setXYZ(j * (fu + 1) + i, p.x, p.y, p.z);
       }
     }
     fp.needsUpdate = true;
+    if (this.style === 'scary') {
+      for (let e = 0; e < 2; e++) {
+        const [a, b] = EYES[e];
+        sheet((-FACE_U + 2 * FACE_U * a + 1) % 1, FACE_V0 + (FACE_V1 - FACE_V0) * b, t, arms, puff, p, 0.03, this.rag);
+        this.eyes[e].position.copy(p);
+      }
+    }
   }
 
   show(on: boolean): void { this.group.visible = on; }
@@ -228,13 +360,31 @@ export class Ghost {
     this.time += dt;
     const P = this.pose;
     const g = this.group;
+    // a blink: out for a few flickering frames, the jump, back in flickering
+    let on = true;
+    if (this.blinkT >= 0) {
+      const b = this.blinkT, b1 = b + dt;
+      if (b < 0.09 && b1 >= 0.09) { P.x = this.bx; P.z = this.bz; }
+      on = b1 < 0.08 ? Math.floor(b1 * 50) % 2 === 1 : b1 < 0.1 ? false : b1 < 0.18 ? Math.floor(b1 * 50) % 2 === 0 : true;
+      this.blinkT = b1 >= 0.18 ? -1 : b1;
+    }
     g.position.set(P.x, this.terrain.heightAt(P.x, P.z) + P.lift, P.z);
     g.rotation.set(P.lean, P.heading, P.tilt, 'YXZ');
-    const fading = P.opacity < 0.999;
+    const sheetOp = P.opacity * (1 - this.eyesOnly);
+    const fading = sheetOp < 0.999;
     if (this.clothMat.transparent !== fading) { this.clothMat.transparent = fading; this.clothMat.depthWrite = !fading; this.clothMat.needsUpdate = true; }
-    this.clothMat.opacity = P.opacity;
-    this.faceMat.opacity = P.opacity;
-    this.cloth.castShadow = P.opacity > 0.5;
+    this.clothMat.opacity = sheetOp;
+    this.faceMat.opacity = sheetOp;
+    this.cloth.visible = this.faceMesh.visible = on && sheetOp > 0.01;
+    this.cloth.castShadow = sheetOp > 0.5;
+    if (this.style === 'scary') {
+      // the grey sheet lights up in a lightning flash; the red eyes glow
+      this.clothMat.emissive.copy(this.lit.setHex(SCARY.emissive).lerp(_flashLit, Math.min(1, this.flash)));
+      const glow = P.opacity * (0.35 + 0.65 * this.eyesOnly);
+      this.eyeMat.opacity = glow;
+      const size = 0.07 + 0.26 * this.eyesOnly; // bigger alone in the dark, to be seen from 20 m
+      for (const e of this.eyes) { e.visible = on && glow > 0.01; e.scale.setScalar(size); }
+    } else for (const e of this.eyes) e.visible = false;
     if (this.faceMat.map !== this.faces[P.face]) { this.faceMat.map = this.faces[P.face]; this.faceMat.needsUpdate = true; }
     this._rebuild();
   }
