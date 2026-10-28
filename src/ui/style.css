@@ -514,16 +514,45 @@ body.touch .scenario-btn { bottom: calc(26px + env(safe-area-inset-bottom, 0px))
 .quest-title { font-size: 0.72rem; color: var(--accent-2); letter-spacing: 0.02em; }
 .quest-goal { font-size: 1.02rem; font-weight: 700; color: var(--text); margin-top: 2px; }
 .quest-goal::before { content: '◆ '; color: var(--accent); }
-.quest.complete .quest-goal { color: #9fe59a; }
-.quest.complete .quest-goal::before { content: '✓ '; color: #9fe59a; }
 .quest-hint { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 .quest-hint:empty { display: none; }
-.quest-basket { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 7px; }
+.quest-basket { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 7px; max-height: 120px; overflow: hidden; transition: opacity 0.9s ease, max-height 0.9s ease, margin-top 0.9s ease; }
+.quest-basket.gone { opacity: 0; max-height: 0; margin-top: 0; }
 .quest-basket:empty { display: none; }
 .quest-item { font-size: 0.8rem; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: rgba(255, 255, 255, 0.04); }
 .quest-item.got { color: #10140f; background: #b9e4a8; border-color: transparent; font-weight: 700; }
 .quest.flash { animation: quest-flash 0.9s ease; }
 @keyframes quest-flash { 0% { box-shadow: 0 0 0 0 rgba(244, 195, 138, 0.8); } 100% { box-shadow: 0 0 0 14px rgba(244, 195, 138, 0); } }
+
+/* the errand's title card at its start and end, and short notes ("shopping done"):
+   in the middle of the view, coming up softly and slowly fading away */
+.banner {
+  position: fixed;
+  top: 34%;
+  left: 50%;
+  transform: translate(-50%, 10px);
+  z-index: 6;
+  width: max-content;
+  max-width: 90vw;
+  text-align: center;
+  font-size: clamp(1.7rem, 5vw, 3.2rem);
+  font-weight: 800;
+  color: #f4c38a;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.95), 0 0 40px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.6s ease, transform 1.6s ease;
+}
+.banner.show { opacity: 1; transform: translate(-50%, 0); transition-duration: 0.9s; }
+.banner.note {
+  font-size: clamp(1rem, 2.4vw, 1.35rem);
+  color: #10140f;
+  background: #b9e4a8;
+  padding: 7px 20px;
+  border-radius: 999px;
+  text-shadow: none;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
 
 .dialog {
   position: fixed;
