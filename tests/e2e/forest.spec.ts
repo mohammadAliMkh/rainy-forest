@@ -178,9 +178,20 @@ test('scenario 1: the button near the camp, the ghost, everyone runs and comes b
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
-  await page.evaluate(() => { const f = (window as any).forest; f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); f.errand.step = 'done'; f.player.teleport(1.5, -8, 0); }); // past the opening flight
-  // offered near the camp once the introductions (and the errand) are over
-  await page.waitForFunction(() => !document.getElementById('scenario-btn')!.classList.contains('hidden'), null, { timeout: 60_000 });
+  // past the opening flight; offered near the camp once the introductions (and the errand) are over
+  const offered = await page.evaluate(() => {
+    const f = (window as any).forest, c = f.camp;
+    c.intro.skip();
+    for (let k = 0; k < 30; k++) f.frame(0.05);
+    f.errand.step = 'done';
+    f.player.teleport(1.5, -8, 0);
+    for (let k = 0; k < 5; k++) f.frame(0.05);
+    return {
+      button: !document.getElementById('scenario-btn')!.classList.contains('hidden'),
+      intro: c.intro.active, cinematic: c.cinematic, scenarioDone: c.scenario.done, errand: f.errand.step, menu: f.session.menuOpen(),
+    };
+  });
+  expect(offered.button, JSON.stringify(offered)).toBe(true);
   const r = await page.evaluate(() => {
     const f = (window as any).forest, g = f.camp.gathering, s = f.camp.scenario;
     // step the game without drawing (software rendering is slow)
