@@ -9,7 +9,7 @@ import type { Picker } from '../player/Picker.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
 import { Ghost } from '../scenario/Ghost.ts';
 import { AmirScene } from './AmirScene.ts';
-import { TITLE, LINES, GOALS, HINTS, BASKET, PICKLES_LABEL, NEAR_AMIR, DELIVER_AT } from './errandScript.ts';
+import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, DELIVER_AT } from './errandScript.ts';
 
 // The first errand, step by step, after the introductions:
 //   Amir's spot blinks on the map -> walk up to him: he asks you to fetch
@@ -22,7 +22,8 @@ import { TITLE, LINES, GOALS, HINTS, BASKET, PICKLES_LABEL, NEAR_AMIR, DELIVER_A
 //   everyone has fled into the trees you are back in control while they
 //   come back to their seats.
 // What to do now is announced as QUEST (the goal line and the basket),
-// lines people say as DIALOG; `mapTarget()` is what blinks on the map.
+// lines people say as DIALOG, its name at the start and the end and
+// "shopping done" as BANNER; `mapTarget()` is what blinks on the map.
 
 type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'leave' | 'pickles' | 'ghost' | 'deliver' | 'scene' | 'done';
 
@@ -47,7 +48,6 @@ export class PartyErrand {
   private blinkT = 0;
   private fly = new THREE.Vector3();
   private readonly from = new THREE.Vector3();
-  private doneT = 0;
 
   constructor({ camp, store, player, picker, events, terrain, world, voices, touch, camera }: {
     camp: Camp; store: Store; player: PlayerLike; picker: Picker; events: EventBus<GameEvents>;
@@ -109,14 +109,11 @@ export class PartyErrand {
     // while Amir talks / the ghost is out, the goal before stays up
     const key = this.step === 'amirTalks' ? 'toAmir' : this.step === 'ghost' ? 'pickles' : this.step;
     const goal = (GOALS as Record<string, string>)[key];
-    if (!goal || this.step === 'scene') { this.events.emit(EV.QUEST, null); return; }
-    const showBasket = !['toAmir', 'amirTalks'].includes(this.step);
-    const basket = showBasket ? [
-      ...BASKET.map((b) => ({ label: b.label, got: this.got.has(b.key) })),
-      ...(this.got.has('pickles') ? [{ label: PICKLES_LABEL, got: true }] : []),
-    ] : null;
+    if (!goal) { this.events.emit(EV.QUEST, null); return; }
+    // the basket only while shopping (once paid for it fades away)
+    const basket = ['shop', 'pay'].includes(this.step) ? BASKET.map((b) => ({ label: b.label, got: this.got.has(b.key) })) : null;
     const hint = ['shop', 'pay', 'pickles'].includes(this.step) ? (this.touch() ? HINTS.tap : HINTS.click) : null;
-    this.events.emit(EV.QUEST, { title: TITLE, objective: goal, hint, basket, complete: this.step === 'done' });
+    this.events.emit(EV.QUEST, { title: TITLE, objective: goal, hint, basket });
   }
 
   // someone says a line: a recording if there is one, the caption either way
@@ -151,6 +148,7 @@ export class PartyErrand {
     const k = this.store.shopkeeper;
     k.nod();
     k.speak(this._say(LINES.thanks, k.human.headPivot.getWorldPosition(new THREE.Vector3())) - 0.4);
+    this.events.emit(EV.BANNER, { text: BANNERS.bought, kind: 'note', seconds: 2.6 });
     this._go('leave');
   }
 
@@ -245,7 +243,10 @@ export class PartyErrand {
     switch (this.step) {
       case 'wait':
         // after the introductions (played or skipped)
-        if (camp.intro.done && !camp.cinematic && this.t > 1.5) this._go('toAmir');
+        if (camp.intro.done && !camp.cinematic && this.t > 1.5) {
+          this.events.emit(EV.BANNER, { text: BANNERS.start, kind: 'title', seconds: 3.5 });
+          this._go('toAmir');
+        }
         break;
       case 'toAmir':
         if (toAmir < NEAR_AMIR && !camp.cinematic && amir) {
@@ -284,12 +285,11 @@ export class PartyErrand {
         }
         break;
       case 'scene':
-        if (!camp.scenario.active) { this._go('done'); this.doneT = 0; }
-        break;
-      case 'done':
-        // "done!" stays on screen for a while
-        this.doneT += dt;
-        if (this.doneT > 6 && this.doneT - dt <= 6) this.events.emit(EV.QUEST, null);
+        // everyone is back on their seats: the end
+        if (!camp.scenario.active) {
+          this._go('done');
+          this.events.emit(EV.BANNER, { text: BANNERS.end, kind: 'title', seconds: 4.5 });
+        }
         break;
     }
   }

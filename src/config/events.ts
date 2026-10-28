@@ -24,6 +24,7 @@ export const EV = {
   // the errand (src/game/quest): what to do now, and people talking to the player
   QUEST: 'quest:update',
   DIALOG: 'quest:dialog',
+  BANNER: 'quest:banner',
 
   // the weather (src/game/weather/Weather.ts)
   LIGHTNING: 'weather:lightning',
@@ -57,9 +58,12 @@ export interface GameEvents {
     | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish' | 'pickup' | 'pay' | 'lid'; position: Vector3 }
     | { cue: 'scream'; position: Vector3; who: string };
   /** the errand's current goal and the basket (null: no errand on screen) */
-  [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null; complete?: boolean } | null;
+  [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null } | null;
   /** someone says a line to the player (shown as a caption box), or null to clear it */
   [EV.DIALOG]: { speaker: string; text: string; seconds: number } | null;
+  /** a message across the middle of the view that fades away after `seconds`: a big
+   * title (the errand's name at its start and end) or a short note ("shopping done") */
+  [EV.BANNER]: { text: string; kind: 'title' | 'note'; seconds: number };
   /** a soft, distant flash; the rumble arrives `delay` seconds later */
   [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };

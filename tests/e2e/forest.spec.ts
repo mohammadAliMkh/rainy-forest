@@ -253,6 +253,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   const state = () => page.evaluate(() => (window as any).forest.errand.step);
   const click = async () => { const v = page.viewportSize()!; await page.mouse.click(v.width / 2, v.height / 2); };
   expect(await state()).toBe('toAmir');
+  expect(await page.textContent('#banner')).toBe('سناریوی روح سرگردان'); // its title card
   expect(await page.evaluate(() => (window as any).forest.errand.mapTarget())).not.toBeNull(); // Amir blinks on the map
   // Amir asks for the shopping
   await page.evaluate(() => { const f = (window as any).forest, a = f.camp.gathering.byName('amir'); f.player.teleport(a.seat.x + 1.2, a.seat.z + 1.4, 0); (window as any).step(0.5); });
@@ -278,6 +279,9 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   await click();
   expect(await state()).toBe('leave');
   expect(await page.evaluate(() => (window as any).forest.store.errand.cash.visible)).toBe(true);
+  // "shopping done", and the basket fades away
+  expect(await page.textContent('#banner')).toContain('خرید انجام شد');
+  await expect(page.locator('#quest-basket')).toHaveClass(/gone/);
   // outside he calls after you about the pickles; the ghost bursts out of the jar
   await page.evaluate(() => { const f = (window as any).forest; (window as any).goTo(1.0, 3.7); (window as any).step(1); (window as any).lookAt(f.store.errand.lid); });
   expect(await state()).toBe('pickles');
@@ -302,5 +306,6 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { started, handedBack, step: f.errand.step, seated: f.camp.gathering.people.every((p: any) => !p.flight) };
   });
   expect(end).toEqual({ started: true, handedBack: true, step: 'done', seated: true });
+  expect(await page.textContent('#banner')).toBe('پایان سناریوی روح سرگردان');
   expect(errors).toEqual([]);
 });

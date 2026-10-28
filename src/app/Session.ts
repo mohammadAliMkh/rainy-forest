@@ -68,9 +68,10 @@ export class Session {
     events.on(EV.INTRO_CAPTION, (name) => ui.setCaption(name));
     events.on(EV.INTRO_SUBTITLE, (text) => ui.setSubtitle(text));
     events.on(EV.INTRO_FADE, (a) => ui.setFade(a));
-    // the errand: the goal line, the basket, and lines people say
+    // the errand: the goal line, the basket, lines people say, its title cards
     events.on(EV.QUEST, (q) => ui.setQuest(q));
     events.on(EV.DIALOG, (d) => ui.showDialog(d));
+    events.on(EV.BANNER, (b) => ui.showBanner(b));
     ui.on('skip', () => { camp.intro.skip(); camp.scenario.skip(); for (const f of camp.films) f.skip?.(); });
     // scenario 1: its button, and offering it again from the menu
     ui.on('scenario', () => {

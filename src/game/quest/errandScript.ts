@@ -3,7 +3,14 @@
 // optional recording in public/audio/manifest.json (when there is one it
 // plays and the caption stays as long as it lasts).
 
-export const TITLE = 'مأموریت: مهمونی امشب';
+export const TITLE = 'سناریوی روح سرگردان';
+
+/** across the middle of the view: when it begins, when the shopping is paid for, at the end */
+export const BANNERS = {
+  start: TITLE,
+  bought: '✓ خرید انجام شد',
+  end: 'پایان سناریوی روح سرگردان',
+};
 
 export const LINES = {
   amir: {
@@ -23,7 +30,6 @@ export const GOALS = {
   leave: 'از مغازه بیرون برو',
   pickles: 'از دبه‌ی کنار در خیارشور بردار',
   deliver: 'خریدها را برای امیر اسماعیل ببر',
-  done: 'مأموریت انجام شد!',
 };
 
 /** a hint under the goal, for the steps where something has to be clicked / tapped */
@@ -38,7 +44,6 @@ export const BASKET = [
   { key: 'yogurt', label: 'ماست' },
   { key: 'drink', label: 'نوشیدنی' },
 ] as const;
-export const PICKLES_LABEL = 'خیارشور';
 
 /** how close to Amir he gets up to talk to you (metres) */
 export const NEAR_AMIR = 3.4;

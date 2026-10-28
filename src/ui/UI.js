@@ -85,7 +85,6 @@ export class UI {
     const el = $('quest');
     el.classList.toggle('hidden', !q);
     if (!q) return;
-    el.classList.toggle('complete', !!q.complete);
     $('quest-title').textContent = q.title;
     const goal = $('quest-goal');
     if (goal.textContent !== q.objective) {
@@ -95,12 +94,29 @@ export class UI {
     }
     $('quest-hint').textContent = q.hint || '';
     const b = $('quest-basket');
-    b.replaceChildren(...(q.basket || []).map((it) => {
+    clearTimeout(this._basketT);
+    if (!q.basket) {
+      // the shopping is done: the basket fades out of the box, then goes
+      if (b.childElementCount) { b.classList.add('gone'); this._basketT = setTimeout(() => b.replaceChildren(), 1000); }
+      return;
+    }
+    b.classList.remove('gone');
+    b.replaceChildren(...q.basket.map((it) => {
       const s = document.createElement('span');
       s.className = 'quest-item' + (it.got ? ' got' : '');
       s.textContent = (it.got ? '✓ ' : '') + it.label;
       return s;
     }));
+  }
+
+  /** a title card or a short note across the middle of the view, fading away after `seconds` */
+  showBanner(b) {
+    const el = $('banner');
+    clearTimeout(this._bannerT);
+    el.textContent = b.text;
+    el.classList.toggle('note', b.kind === 'note');
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    this._bannerT = setTimeout(() => el.classList.remove('show'), b.seconds * 1000);
   }
 
   /** someone talking to the player: their name and the line, for `seconds` (null clears it) */
