@@ -238,6 +238,13 @@
       "scene": true,
       "parts": [],
       "kb": 1032
+    },
+    "person_farajpour": {
+      "file": "assets/models/person_farajpour.glb",
+      "source": "MakeHuman/MPFB person (pipeline/blender_people.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 1129
     }
   }
 }

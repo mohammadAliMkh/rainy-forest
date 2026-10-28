@@ -3,8 +3,10 @@ import { Human } from '../people/Human.js';
 import { damp, clamp } from '../../utils/noise.js';
 import { COUNTER, F, SHOPKEEPER } from './storeLayout.ts';
 
-// The old shopkeeper behind the counter: grey hair round a bald crown,
-// reading glasses, a grey moustache, a plain shirt under a work apron.
+// Farajpour behind the counter: short and round, bald with black tufts
+// over the ears, a thick black moustache curled up at the ends, a cheerful
+// smile, a red shirt under a dark vest (the Blender model, pipeline/
+// blender_people.py; the hand-built person below is the fallback).
 // He stands with his hands on the counter, breathes, blinks, glances down
 // at his notebook now and then, turns his head to whoever walks in and
 // gives them a small nod.
@@ -17,18 +19,17 @@ export const SHOPKEEPER_SPEC = {
   height: 0.97, build: 1.05, shoulders: 0.92, belly: 0.03,
   skin: 0xc4977a,
   eyeColor: 0x3b2a1b,
-  hairColor: 0x9c968e,
-  face: { width: 1.03, length: 1.04, jaw: 0.62, nose: 1.22, noseWidth: 1.12, hump: 0.3, brow: 1.15, cheek: 0.85, lips: 0.85, chin: 0.95, lidOpen: -0.02 },
-  hair: { front: 0.2, recede: 0.15, bald: 0.42, sidesLine: 0.05, nape: -0.55, thick: 0.007, sides: 0.55, highlight: 0xcfcac2, rough: 0.35 },
-  beard: { style: 'mustache', thick: 0.009, mustache: 1.6, mustacheWidth: 0.06, color: 0x8e8880, highlight: 0xc9c4bc },
-  brows: { thick: 0.0042, width: 0.055 },
-  glasses: true,
+  hairColor: 0x15110e,
+  face: { width: 1.12, length: 0.96, jaw: 0.7, nose: 1.22, noseWidth: 1.2, hump: 0.1, brow: 1.15, cheek: 1.3, lips: 0.9, chin: 0.95, smile: 0.6 },
+  hair: { front: 0.2, recede: 0.15, bald: 0.42, sidesLine: 0.05, nape: -0.55, thick: 0.009, sides: 0.55, highlight: 0x2a221c, rough: 0.35 },
+  beard: { style: 'mustache', thick: 0.011, mustache: 1.8, mustacheWidth: 0.07, color: 0x15110e, highlight: 0x2a221c },
+  brows: { thick: 0.0048, width: 0.055 },
   hold: 'none',
   outfit: {
-    jacket: { color: 0x74818f, tex: 'fabric', sleeve: 0.05, pad: 0.01 },
+    jacket: { color: 0xb8261b, tex: 'fabric', sleeve: 0.05, pad: 0.01 },
     pants: { color: 0x3b342c, tex: 'fabric' },
     shoes: { style: 'boot', color: 0x2e2219 },
-    apron: { color: 0x4a3a2a },
+    apron: { color: 0x1b2236 },
   },
 };
 
@@ -49,11 +50,12 @@ export class Shopkeeper {
   // where the hands rest (shop frame) and the elbow / hand directions (shop frame)
   private readonly handsLocal: THREE.Vector3[];
 
-  constructor(shared: Shared) {
-    this.human = new Human(SHOPKEEPER_SPEC, shared);
+  /** `model`: Farajpour built in Blender, when loaded */
+  constructor(shared: Shared, model: THREE.Object3D | null = null) {
+    this.human = new Human(model ? { ...SHOPKEEPER_SPEC, model } : SHOPKEEPER_SPEC, shared);
     const h = this.human;
     this.root = h.root as THREE.Group;
-    h.head.group.scale.setScalar(1.1); // an old man's big head, a little narrower in the shoulders
+    if (!model) h.head.group.scale.setScalar(1.1); // the hand-built one: a big round head
     // facing the counter (the shop's -x)
     this.root.rotation.y = -Math.PI / 2;
     this.root.position.set(SHOPKEEPER.x, 0, SHOPKEEPER.z);

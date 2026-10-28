@@ -88,7 +88,7 @@ export class Store {
     g.add(this.building.group);
     this.goods = buildGoods(S);
     g.add(this.goods.group);
-    this.shopkeeper = new Shopkeeper(shared);
+    this.shopkeeper = new Shopkeeper(shared, scenes?.person_farajpour ?? null);
     g.add(this.shopkeeper.root);
     // everything inside is under the roof's shadow already: no shadow casting
     for (const o of [this.goods.group, this.shopkeeper.root]) o.traverse((m) => { m.castShadow = false; });

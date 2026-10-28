@@ -126,6 +126,28 @@ PEOPLE = {
         beard=dict(color=0x76522f, density=1.0, strength=1.15, mustache=1.0, chin=0.85, cheeks=0.45, cheek=0.35, neck=0.6, stubble=0.15),
         clothes=[("male_casualsuit06", dict(top=0x3e4229, bottom=0x24272d)), ("shoes02", 0x5a4632)],
     ),
+    # Farajpour, the shopkeeper: short and round with a belly, bald on top
+    # with black tufts above the ears, a round smiling face with full cheeks,
+    # big brown eyes under thick black brows, a thick black moustache curled
+    # up at the ends; a red long-sleeved shirt under a dark navy vest
+    "farajpour": dict(
+        phenotype=dict(gender=1.0, age=0.62, muscle=0.05, weight=1.0, proportions=0.3, height=0.32,
+                       race=dict(caucasian=0.75, asian=0.1, african=0.15)),
+        targets={"head-round": 1.0, "head-fat-incr": 1.0, "head-scale-horiz-incr": 0.4, "head-scale-vert-decr": 0.45,
+                 "forehead-scale-vert-decr": 0.4,
+                 "chin-height-decr": 0.25, "l-cheek-volume-incr": 1.0, "r-cheek-volume-incr": 1.0, "neck-double-incr": 1.0,
+                 "nose-volume-incr": 0.6, "nose-point-width-incr": 0.6, "nose-scale-horiz-incr": 0.35, "nose-scale-vert-decr": 0.15,
+                 "l-eye-scale-incr": 0.2, "r-eye-scale-incr": 0.2, "mouth-scale-horiz-incr": 0.15,
+                 "l-ear-scale-incr": 0.15, "r-ear-scale-incr": 0.15, "stomach-pregnant-incr": 0.7,
+                 "measure-waist-circ-incr": 0.6, "torso-scale-depth-incr": 0.4},
+        skin=0xe3a07a, eyes="brown", hair_color=0x0e0b0a,
+        eyebrows="eyebrow009", hair=None,
+        scalp=dict(color=0x120e0c, density=0.9, front=0.2, temples=0.2, bald=0.055),
+        tufts=dict(color=0x0e0b0a),
+        moustache=dict(color=0x0e0b0a),
+        beard=dict(color=0x120e0c, density=1.0, strength=1.1, mustache=1.0, chin=0.0, cheeks=0.0, cheek=0.0, neck=0.0, stubble=0.0),
+        clothes=[("toigo_fisherman_sweater", dict(shirt=0xb8261b, vest=0x1b2236)), ("toigo_wool_pants", 0x2a2a30), ("shoes03", 0x161412)],
+    ),
 }
 P = PEOPLE[KEY]
 
@@ -528,6 +550,9 @@ def scalp_weight(co):
     t = smooth(0.05, 0.14, back)  # from the forehead round to the back of the head
     line = front * (1.0 - t) + (-0.075) * t
     w = smooth(line - 0.003, line + 0.008, up)
+    if c.get("bald") is not None:  # a bald crown: hair only round the sides and the back
+        w = smooth(-0.075 - 0.003, -0.075 + 0.008, up) * (1.0 - smooth(c["bald"] - 0.012, c["bald"] + 0.006, up))
+        w *= smooth(0.035, 0.07, back)  # nothing on the forehead / temples
     # bare around the ears
     if lx > 0.055 and 0.06 < back < 0.13 and up < 0.035:
         w *= smooth(0.02, 0.035, up)
@@ -782,7 +807,31 @@ for obj in list(rig.children):
     img = None
     if tex and os.path.isfile(tex):
         img0, arr = load_pixels(tex, size)
-        if isinstance(color, dict):
+        if isinstance(color, dict) and "vest" in color:
+            # a vest over the shirt: the torso (not the sleeves), open down the front
+            H, W = arr.shape[:2]
+            from mathutils.geometry import intersect_point_line
+            arms = [(bone_head("upperarm01." + sd_), bone_head("wrist." + sd_)) for sd_ in ("L", "R")]
+            mid_y = (bone_head("spine03").y + bone_head("spine01").y) / 2
+            neck_z = bone_head("neck01").z
+            vest = {}
+            for poly in obj.data.polygons:
+                c = obj.matrix_world @ poly.center
+                sleeve = False
+                for a_, b_ in arms:
+                    q_, t_ = intersect_point_line(c, a_, b_)
+                    if -0.08 < t_ < 1.1 and (c - q_).length < 0.11:
+                        sleeve = True
+                torso = not sleeve and c.z < neck_z - 0.03
+                opening = c.y < mid_y and abs(c.x) < 0.035 + max(0.0, c.z - (neck_z - 0.15)) * 0.55
+                vest[poly.index] = 1.0 if torso and not opening else 0.0
+            m_ = blur(raster_faces(obj, vest, H, W), 1)
+            ms_ = blur(raster_faces(obj, {k: 1.0 - v for k, v in vest.items()}, H, W), 1)
+            a_v = tint(arr.copy(), enc(color["vest"]), keep=0.1, region=m_)
+            a_s = tint(arr.copy(), enc(color["shirt"]), keep=0.1, region=ms_)
+            arr[..., :3] = a_v[..., :3] * m_[..., None] + a_s[..., :3] * (1 - m_[..., None])
+            color = None
+        elif isinstance(color, dict):
             H, W = arr.shape[:2]
             # each half tinted against its own pixels only (not the empty background)
             tops = island_tops(obj, WAIST_Z)
@@ -961,6 +1010,73 @@ if P.get("sunglasses"):
     frame = mesh_obj("sunglasses_frame", bm, frame_m)
     for ob in (lens, frame):
         rigid_on(ob)
+
+if P.get("tufts"):
+    # spiky black tufts of hair standing out above and behind the ears
+    tuft_m = principled("tufts", color=lin(P["tufts"]["color"]), roughness=0.6)
+    bm = bmesh.new()
+    rnd = random.Random(5)
+    for sd in (-1, 1):
+        side = [v.co.copy() for v in head_verts if v.co.x * sd > 0.055 and 0.085 < v.co.y - MOUTH.y < 0.16 and -0.02 < v.co.z - EYE_Z < 0.035]
+        if not side:
+            continue
+        for k in range(42):
+            base = rnd.choice(side)
+            out = Vector((sd, rnd.uniform(0.3, 1.1), rnd.uniform(-0.35, 0.35))).normalized()
+            length, r = rnd.uniform(0.025, 0.048), rnd.uniform(0.009, 0.016)
+            p1 = out.cross(Vector((0, 0, 1))).normalized()
+            p2 = out.cross(p1)
+            ring = [bm.verts.new(base - out * 0.006 + (p1 * math.cos(a) + p2 * math.sin(a) * 0.55) * r)
+                    for a in [2 * math.pi * j / 5 for j in range(5)]]
+            apex = bm.verts.new(base + out * length)
+            for j in range(5):
+                bm.faces.new((ring[j], ring[(j + 1) % 5], apex))
+    tufts = mesh_obj("tufts", bm, tuft_m)
+    rigid_on(tufts)
+
+if P.get("moustache"):
+    # a thick black moustache along the upper lip, its ends curling up: drawn
+    # as a ribbon in front of the face, pressed onto it, then made thick
+    mou_m = principled("moustache", color=lin(P["moustache"]["color"]), roughness=0.55)
+    bm = bmesh.new()
+    y0 = LIPS.y - 0.06
+    for sd in (-1, 1):
+        # (sideways, height above the mouth, half width)
+        ctrl = [(0.0, 0.017, 0.009), (0.02, 0.015, 0.0105), (0.04, 0.0095, 0.0095), (0.056, 0.006, 0.0075),
+                (0.068, 0.0095, 0.0055), (0.075, 0.02, 0.0038), (0.073, 0.031, 0.0025)]
+        pts = []
+        for i in range(len(ctrl) - 1):
+            for t in (0.0, 0.25, 0.5, 0.75):
+                pts.append(tuple(ctrl[i][k] * (1 - t) + ctrl[i + 1][k] * t for k in range(3)))
+        pts.append(ctrl[-1])
+        rows = []
+        for i, (lx, up, hw) in enumerate(pts):
+            nx_ = pts[min(i + 1, len(pts) - 1)]
+            pv_ = pts[max(i - 1, 0)]
+            tx, tz = (nx_[0] - pv_[0]) * sd, nx_[1] - pv_[1]
+            ln = math.hypot(tx, tz) or 1.0
+            nxp, nzp = -tz / ln, tx / ln  # across the ribbon
+            cx, cz = sd * lx, MOUTH.z + up
+            rows.append((bm.verts.new((cx + nxp * hw, y0, cz + nzp * hw)), bm.verts.new((cx - nxp * hw, y0, cz - nzp * hw))))
+        for i in range(len(rows) - 1):
+            bm.faces.new((rows[i][0], rows[i + 1][0], rows[i + 1][1], rows[i][1]))
+    mou = mesh_obj("moustache", bm, mou_m)
+    sw = mou.modifiers.new("onto the face", "SHRINKWRAP")
+    sw.target = body
+    sw.wrap_method = "PROJECT"
+    sw.use_project_y = True
+    sw.use_negative_direction = True
+    sw.use_positive_direction = True
+    sw.offset = 0.003
+    so = mou.modifiers.new("thick", "SOLIDIFY")
+    so.thickness = 0.011
+    so.offset = 0.0
+    sub = mou.modifiers.new("soft", "SUBSURF")
+    sub.levels = 1
+    bpy.context.view_layer.objects.active = mou
+    for m in list(mou.modifiers):
+        bpy.ops.object.modifier_apply(modifier=m.name)
+    rigid_on(mou)
 
 if P.get("earrings"):
     metal = principled("earring", color=(0.8, 0.8, 0.82), roughness=0.25, metallic=1.0)
