@@ -21,16 +21,23 @@ const enter = (page: Page) => page.evaluate(() => {
   return document.getElementById('start')!.classList.contains('hidden');
 });
 
-test('entering: the start screen closes at once, the scene is complete, the map shows', async ({ page }) => {
+test('entering: the start screen closes at once, the opening flight, the scene is complete, then the map shows', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   expect(await enter(page)).toBe(true);
   await page.waitForTimeout(1000);
   const stats = await page.evaluate(() => {
+    const f = (window as any).forest;
     let meshes = 0, lights = 0;
-    (window as any).forest.scene.traverse((o: { isMesh?: boolean; isLight?: boolean }) => { if (o.isMesh) meshes++; if (o.isLight) lights++; });
-    return { meshes, lights, map: !document.querySelector('.minimap')!.classList.contains('hidden') };
+    f.scene.traverse((o: { isMesh?: boolean; isLight?: boolean }) => { if (o.isMesh) meshes++; if (o.isLight) lights++; });
+    // the game opens with the welcome's flight: no map meanwhile
+    const flying = f.camp.cinematic, mapDuring = !document.querySelector('.minimap')!.classList.contains('hidden');
+    f.camp.intro.skip();
+    for (let k = 0; k < 30; k++) f.frame(0.05);
+    return { meshes, lights, flying, mapDuring, map: !document.querySelector('.minimap')!.classList.contains('hidden') };
   });
+  expect(stats.flying).toBe(true);
+  expect(stats.mapDuring).toBe(false);
   expect(stats.meshes).toBeGreaterThan(400);
   expect(stats.lights).toBe(7);
   expect(stats.map).toBe(true);
