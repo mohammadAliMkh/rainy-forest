@@ -137,7 +137,7 @@ test('the shop: up the steps and in, the door opens with its bell, the shopkeepe
   await enter(page);
   const r = await page.evaluate(() => {
     const f = (window as any).forest, s = f.store, V = f.THREE.Vector3, pl = f.player;
-    f.camp.intro.done = true;
+    f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); // past the opening flight
     // on the footpath in front of the steps, facing the door
     const a = s.group.localToWorld(new V(1.05, 0, 8)), b = s.group.localToWorld(new V(1.05, 0, -1));
     pl.teleport(a.x, a.z, Math.atan2(-(b.x - a.x), -(b.z - a.z)));
@@ -171,7 +171,7 @@ test('scenario 1: the button near the camp, the ghost, everyone runs and comes b
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
-  await page.evaluate(() => { const f = (window as any).forest; f.camp.intro.done = true; f.errand.step = 'done'; f.player.teleport(1.5, -8, 0); });
+  await page.evaluate(() => { const f = (window as any).forest; f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); f.errand.step = 'done'; f.player.teleport(1.5, -8, 0); }); // past the opening flight
   // offered near the camp once the introductions (and the errand) are over
   await page.waitForFunction(() => !document.getElementById('scenario-btn')!.classList.contains('hidden'), null, { timeout: 60_000 });
   const r = await page.evaluate(() => {
@@ -229,7 +229,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
       f.frame(0.05);
     };
     (window as any).goTo = (lx: number, lz: number) => { const e = f.store.group.localToWorld(new f.THREE.Vector3(lx, 0, lz)); f.player.teleport(e.x, e.z, 0); (window as any).step(0.3); };
-    f.camp.intro.done = true;
+    f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); // past the opening flight
     (window as any).step(2);
   });
   const state = () => page.evaluate(() => (window as any).forest.errand.step);
@@ -238,8 +238,12 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await page.evaluate(() => (window as any).forest.errand.mapTarget())).not.toBeNull(); // Amir blinks on the map
   // Amir asks for the shopping
   await page.evaluate(() => { const f = (window as any).forest, a = f.camp.gathering.byName('amir'); f.player.teleport(a.seat.x + 1.2, a.seat.z + 1.4, 0); (window as any).step(0.5); });
+  // he gets up and talks to the player as a film scene
   expect(await state()).toBe('amirTalks');
-  expect(await page.textContent('#dialog-text')).toContain('فرج‌پور');
+  expect(await page.evaluate(() => (window as any).forest.camp.cinematic)).toBe(true);
+  await page.evaluate(() => (window as any).step(2.5));
+  expect(await page.textContent('#dialog-text')).toContain('مهمونی');
+  expect(await page.evaluate(() => (window as any).forest.camp.gathering.byName('amir').act?.phase)).toBe('talk');
   await page.evaluate(() => (window as any).step(14));
   expect(await state()).toBe('toStore');
   // in the shop: click the four things

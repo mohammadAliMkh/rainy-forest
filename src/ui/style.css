@@ -548,3 +548,5 @@ body.touch .scenario-btn { bottom: calc(26px + env(safe-area-inset-bottom, 0px))
 body.touch .quest { top: calc(8px + env(safe-area-inset-top, 0px)); max-width: calc(100vw - 230px); padding: 6px 12px 8px; }
 body.touch .quest-goal { font-size: 0.9rem; }
 body.touch .dialog { bottom: auto; top: 112px; font-size: 0.92rem; max-width: calc(100vw - 230px); }
+/* in a film scene the line sits just above the bottom letterbox bar, clear of the faces */
+body.in-cinema .dialog { bottom: calc(11vh + 12px + env(safe-area-inset-bottom, 0px)); top: auto; }

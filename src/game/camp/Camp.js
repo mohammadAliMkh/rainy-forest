@@ -222,6 +222,9 @@ export class Camp {
     }
 
     this.intro = new IntroDirector(this);
+    /** other film scenes that can take the camera (e.g. the errand's)
+     * @type {{ filming: boolean, applyCamera: (camera: THREE.PerspectiveCamera, dt: number) => void, skip?: () => void }[]} */
+    this.films = [];
     // scenario 1: the sheet ghost (started from its button, see app/Session.ts)
     this.scenario = new GhostScenario(this.gathering, terrain, this.events);
     this.group.add(this.scenario.ghost.group);
@@ -261,16 +264,17 @@ export class Camp {
   addTo(scene) { scene.add(this.group); }
 
   /** a film camera has the view (the introductions or a scenario) */
-  get cinematic() { return this.intro.active || this.scenario.filming; }
+  get cinematic() { return this.intro.active || this.scenario.filming || this.films.some((f) => f.filming); }
 
   /** system "film camera": right after the player has placed the camera */
   applyCamera(camera, dt) {
     this.intro.applyCamera(camera, dt);
     this.scenario.applyCamera(camera, dt);
+    for (const f of this.films) f.applyCamera(camera, dt);
   }
 
   // the voice service (set by app/createGame.js):
-  //   voices.play(key, position) -> { duration, done, level(), stop() } | null
+  //   voices.play(key, position) -> { duration, done, level(), elapsed(), stop() } | null
   //   voices.ready() -> bool (the introductions wait for the recordings)
   // what the introductions announce is listed in config/events.ts (INTRO_*)
 

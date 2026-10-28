@@ -6,6 +6,7 @@ import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
 import type { Dog } from '../creatures/Dog.js';
 import type { Flight } from './Flight.ts';
+import type { StandTalk } from './StandTalk.ts';
 
 // The friends sitting around the fire: who talks, who listens, sips of tea,
 // laughter, glances at the dog and a greeting when the player walks up.
@@ -54,6 +55,8 @@ class Seated {
   strumY = 0; strumHand = 0; fretX = 0;
   /** running from something (a scenario sets it; the gathering then leaves them alone) */
   flight: Flight | null = null;
+  /** up on their feet talking to the player (a scene sets it; the gathering then leaves them alone) */
+  act: StandTalk | null = null;
 
   constructor(spec: Spec, seat: Seat, shared: Shared, rand: () => number) {
     this.h = new Human(spec, shared);
@@ -223,6 +226,14 @@ export class Gathering {
     for (let i = 0; i < this.people.length; i++) {
       const p = this.people[i];
       const h = p.h;
+      if (p.act) {
+        p.act.update(dt, cam);
+        p.headPos.copy(h.headPivot.getWorldPosition(_v));
+        h.updateFace(dt);
+        h.syncModel();
+        if (p.act.done) p.act = null;
+        continue;
+      }
       if (p.flight) {
         p.flight.update(dt, this.scare ?? cam);
         p.headPos.copy(h.headPivot.getWorldPosition(_v));

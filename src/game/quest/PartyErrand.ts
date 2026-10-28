@@ -8,6 +8,7 @@ import { ERRAND_ITEMS, type ErrandItem } from '../store/ErrandProps.ts';
 import type { Picker } from '../player/Picker.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
 import { Ghost } from '../scenario/Ghost.ts';
+import { AmirScene } from './AmirScene.ts';
 import { TITLE, LINES, GOALS, HINTS, BASKET, PICKLES_LABEL, NEAR_AMIR, DELIVER_AT } from './errandScript.ts';
 
 // The first errand, step by step, after the introductions:
@@ -36,6 +37,9 @@ export class PartyErrand {
   private readonly events: EventBus<GameEvents>;
   private readonly voices: () => VoiceService | null;
   private readonly touch: () => boolean;
+  private readonly camera: THREE.Camera;
+  /** Amir's talk with the player (the errand begins) */
+  readonly amirScene: AmirScene;
   /** the ghost in the pickle jar */
   readonly jarGhost: Ghost;
   private readonly got = new Set<string>();
@@ -45,10 +49,10 @@ export class PartyErrand {
   private readonly from = new THREE.Vector3();
   private doneT = 0;
 
-  constructor({ camp, store, player, picker, events, terrain, world, voices, touch }: {
+  constructor({ camp, store, player, picker, events, terrain, world, voices, touch, camera }: {
     camp: Camp; store: Store; player: PlayerLike; picker: Picker; events: EventBus<GameEvents>;
     terrain: { heightAt(x: number, z: number): number }; world: THREE.Object3D;
-    voices: () => VoiceService | null; touch: () => boolean;
+    voices: () => VoiceService | null; touch: () => boolean; camera: THREE.Camera;
   }) {
     this.camp = camp;
     this.store = store;
@@ -56,6 +60,10 @@ export class PartyErrand {
     this.events = events;
     this.voices = voices;
     this.touch = touch;
+    this.camera = camera;
+    // Amir getting up to ask you, as a film scene
+    this.amirScene = new AmirScene({ gathering: camp.gathering, terrain, events, voices });
+    camp.films.push(this.amirScene);
     this.jarGhost = new Ghost(terrain);
     world.add(this.jarGhost.group);
     const props = store.errand;
@@ -225,6 +233,7 @@ export class PartyErrand {
   update(dt: number): void {
     this.t += dt;
     this.blinkT += dt;
+    this.amirScene.update(dt);
     const camp = this.camp, store = this.store;
     const amir = camp.gathering.byName('amir');
     const toAmir = amir ? Math.hypot(this.player.x - amir.seat.x, this.player.z - amir.seat.z) : Infinity;
@@ -240,14 +249,14 @@ export class PartyErrand {
         break;
       case 'toAmir':
         if (toAmir < NEAR_AMIR && !camp.cinematic && amir) {
-          const seconds = this._say(LINES.amir, amir.headPos);
-          camp.gathering.say('amir', seconds);
+          // he gets up and talks to you, pointing the way to the shop at the end
+          const s = store.mapShape();
+          this.amirScene.start(LINES.amir, new THREE.Vector3(s.x, amir.headPos.y, s.z), this.camera);
           this._go('amirTalks');
-          this.t = -seconds;
         }
         break;
       case 'amirTalks':
-        if (this.t > 0.3) this._go('toStore');
+        if (!this.amirScene.filming) this._go('toStore');
         break;
       case 'toStore':
         if (store.playerInside) {

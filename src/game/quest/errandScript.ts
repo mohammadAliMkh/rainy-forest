@@ -9,7 +9,7 @@ export const LINES = {
   amir: {
     speaker: 'امیر اسماعیل',
     voice: 'amir_party',
-    text: 'داداش، شب تو کلبه مهمونی گرفتم. بی‌زحمت برو از فرج‌پور (سوپرمارکتی) چند تا چیپس و پفک و ماست و نوشیدنی بخر بیار.',
+    text: 'داداش، برای امشب قراره یه مهمونی خودمونی بگیریم تو کلبه. بی‌زحمت برو از سوپرمارکت یه خورده خیارشور، پفک، چیپس، ماست و نوشیدنی بخر بیار برامون.',
   },
   thanks: { speaker: 'فرج‌پور', voice: 'farajpour_thanks', text: 'قربون دستت، نوش جون!' },
   pickles: { speaker: 'فرج‌پور', voice: 'farajpour_pickles', text: 'خیارشور اگه می‌خوای، از دبه‌ی بیرون مغازه برو خودت بردار.' },
@@ -40,7 +40,7 @@ export const BASKET = [
 ] as const;
 export const PICKLES_LABEL = 'خیارشور';
 
-/** how close counts as "at" someone (metres) */
-export const NEAR_AMIR = 2.8;
+/** how close to Amir he gets up to talk to you (metres) */
+export const NEAR_AMIR = 3.4;
 /** bringing the shopping back: the ghost scene starts this close to Amir */
 export const DELIVER_AT = 4.2;

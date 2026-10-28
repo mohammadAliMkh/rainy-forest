@@ -162,7 +162,10 @@ export class IntroDirector {
       return;
     }
     if (!s || !s.voice || this.cutPhase === 'out') return;
-    s.t += dt;
+    // time in the line by the audio clock, so the flight lands as the welcome
+    // ends even when frames come slowly (a busy laptop just after entering
+    // drops frames, and the game's step is capped at 1/20 s)
+    s.t = s.voice.elapsed?.() ?? s.t + dt;
     // next line a moment after the audio really finished (frame-rate independent);
     // the flight lands on the owner just as the welcome ends: no cut, he starts right away
     if (s.voice.done) s.gap += dt;
