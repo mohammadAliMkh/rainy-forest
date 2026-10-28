@@ -4,6 +4,7 @@ import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
 import type { Gathering } from '../people/Gathering.ts';
 import { StandTalk } from '../people/StandTalk.ts';
+import { fitFov } from '../intro/IntroDirector.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
 import type { VoiceHandle } from '../sound/Soundscape.ts';
 
@@ -144,7 +145,7 @@ export class AmirScene {
       tPos = head.clone().addScaledVector(toYou, d).addScaledVector(UP, -0.06);
       tPos.y = Math.max(tPos.y, this.terrain.heightAt(tPos.x, tPos.z) + 1.2);
       tLook = head.clone().addScaledVector(UP, -0.05 - 0.15 * pt);
-      fov = 38 + 16 * pt;
+      fov = fitFov(38 + 16 * pt, camera.aspect);
     }
     _m.lookAt(tPos, tLook, UP);
     const tq = new THREE.Quaternion().setFromRotationMatrix(_m);
