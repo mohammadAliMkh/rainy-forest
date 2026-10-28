@@ -5,7 +5,7 @@ import type { EventBus } from '../../engine/events.ts';
 import { clamp } from '../../utils/noise.js';
 import type { Gathering } from '../people/Gathering.ts';
 import { Flight } from '../people/Flight.ts';
-import { Ghost } from './Ghost.ts';
+import { Ghost, type GhostFace } from './Ghost.ts';
 import { TITLE, GHOST_IN, CORNER, T, FLEE, SHOTS } from './ghostScript.ts';
 
 // Plays scenario 1 (see ghostScript.ts) like a short film: takes the camera
@@ -15,6 +15,8 @@ import { TITLE, GHOST_IN, CORNER, T, FLEE, SHOTS } from './ghostScript.ts';
 // doesn't offer itself again this visit, unless replayed from the menu.
 
 const UP = new THREE.Vector3(0, 1, 0);
+// the scary look's moods for the same moments (until it scares itself)
+const SCARY_FACE: Partial<Record<GhostFace, GhostFace>> = { sly: 'stare', boo: 'scream', happy: 'grin' };
 const _m = new THREE.Matrix4();
 
 interface Terrain { heightAt(x: number, z: number): number }
@@ -68,6 +70,8 @@ export class GhostScenario {
   /** the film camera has the view (in the errand it hands back once everyone has run off) */
   filming = false;
   private handBack = false;
+  /** at night on the haunted walk back: the scary ghost (until it gets spooked) */
+  private scary = false;
 
   get active(): boolean { return this.t >= 0; }
 
@@ -76,13 +80,17 @@ export class GhostScenario {
 
   /**
    * `handBack`: the camera goes back to the player once everyone has run into
-   * the trees; the ghost and the friends carry on around them
+   * the trees; the ghost and the friends carry on around them.
+   * `scary`: the grey ghost with red eyes sneaks up and screams; the comic
+   * end stays (spooked by its own trick, it flees with the funny face)
    */
-  start({ handBack = false }: { handBack?: boolean } = {}): void {
+  start({ handBack = false, scary = false }: { handBack?: boolean; scary?: boolean } = {}): void {
     if (this.active) return;
     this.done = true;
     this.filming = true;
     this.handBack = handBack;
+    this.scary = scary;
+    this.ghost.setStyle(scary ? 'scary' : 'funny');
     this.t = 0; this.shot = -1; this.ending = 0; this.returned = false;
     this.cue.clear();
     this.ghost.show(true);
@@ -133,6 +141,7 @@ export class GhostScenario {
     }
     if (t > 3.2) this._once('title', () => this.events.emit(EV.INTRO_CAPTION, null));
     this._ghost(dt, t);
+    if (this.scary && t < T.spooked) this.ghost.pose.face = SCARY_FACE[this.ghost.pose.face] ?? this.ghost.pose.face;
     this.ghost.update(dt);
     this.ghost.headWorld(this.head);
     this.gathering.scare = this.ghost.group.visible ? this.head : null;
@@ -202,7 +211,7 @@ export class GhostScenario {
       Object.assign(g, { lift: 0.47 + Math.sin(Math.min(1, k / 0.25) * Math.PI) * 0.12, lean: -0.08 + (k < 0.3 ? 0.25 * Math.sin((k / 0.3) * Math.PI) : 0), arms: 1, puff: k < 0.2 ? k / 0.2 : Math.max(0.3, 1 - (k - 0.2) * 0.6), face: 'boo' });
     } else if (t < T.lookAround) {
       // pleased with itself: giggles and spins round once
-      this._once('giggle', () => this.events.emit(EV.SCENARIO_CUE, { cue: 'giggle', position: this.head }));
+      this._once('giggle', () => this.events.emit(EV.SCENARIO_CUE, { cue: this.scary ? 'laughDeep' : 'giggle', position: this.head }));
       const k = (t - T.giggle) / (T.lookAround - T.giggle);
       Object.assign(g, { heading: g.heading + dt * Math.PI * 2 / (T.lookAround - T.giggle) * Math.sin(k * Math.PI) * 1.6, lift: 0.3 + Math.abs(Math.sin(t * 9)) * 0.08, lean: 0, tilt: Math.sin(t * 9) * 0.12, arms: 0.55 + Math.sin(t * 9) * 0.25, puff: Math.max(0, g.puff - dt * 2), face: 'happy' });
     } else if (t < T.spooked) {

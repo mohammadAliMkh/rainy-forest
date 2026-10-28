@@ -6,8 +6,11 @@ import { PannerPool, rnd } from './shared.js';
 // a giggle, the squeak when it scares itself, and a whoosh as it fades
 // away. All synthesized (a plucked string, and voice-like sounds from a
 // buzzing source through vowel formants); a real recording in
-// public/audio/manifest.json (ghost_boo, ghost_giggle, scream_<name>)
-// replaces the synthesized one.
+// public/audio/manifest.json (ghost_boo, ghost_giggle, scream_<name>,
+// ghost_laugh_scary, ghost_whisper, luna_bark) replaces the synthesized one.
+// The haunted walk back adds its own: a deep, distorted laugh with a long
+// tail, an electric glitch when the ghost blinks, a whisper that circles
+// your head, a heartbeat, a shriek, and Luna's bark.
 
 // vowel formants (Hz, bandwidth as Q, level)
 const VOWEL = {
@@ -55,6 +58,18 @@ function pluck(d, sr, at, freq, amp) {
 }
 
 const note = (semi) => 110 * Math.pow(2, semi / 12); // semitones above A2
+
+// soft clipping (a little distortion), in place
+function drive(d, k) { for (let i = 0; i < d.length; i++) d[i] = Math.tanh(d[i] * k) / Math.tanh(k); }
+
+// a long, dark tail: a few decaying echoes mixed in (in place)
+function tail(d, sr, seconds) {
+  const taps = [[0.137, 0.55], [0.211, 0.45], [0.293, 0.4], [0.377, 0.33]];
+  for (const [delay, g] of taps) {
+    const n = Math.floor(delay * sr);
+    for (let i = n; i < d.length; i++) d[i] += d[i - n] * g * Math.exp(-i / (sr * seconds));
+  }
+}
 
 export class ScenarioSound {
   constructor(engine) {
@@ -124,6 +139,74 @@ export class ScenarioSound {
       normalize(d, 0.7);
     });
     this.pool = new PannerPool(e, 'voices', 6, { ref: 2.5, rolloff: 0.9, max: 80, reverb: 0.25 });
+
+    // ---- the haunted walk back ----
+    // the giggle an octave down and slowed, distorted, with a long tail
+    this.laughDeep = makeBuffer(ctx, 3.6, 1, (d, sr) => {
+      const g = voice(ctx, 2.3, (t) => (280 - 50 * t + 18 * Math.sin(t * 22)) * 0.95, (t) => {
+        const k = t / 0.3, p = k - Math.floor(k);
+        return k < 6.5 ? Math.sin(Math.min(1, p / 0.7) * Math.PI) ** 0.5 * (1 - k / 10) : 0;
+      }, 'a', 0.35).getChannelData(0);
+      d.set(g);
+      drive(d, 3);
+      biquad(d, sr, 'lowpass', 1800, 0.7);
+      tail(d, sr, 1.4);
+      normalize(d, 0.85);
+    });
+    // an electric crackle: a buzzing hum broken into stutters, with clicks
+    this.glitch = makeBuffer(ctx, 0.32, 1, (d, sr) => {
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        const gate = Math.sin(t * 2 * Math.PI * 31) > -0.2 ? 1 : 0;
+        const buzz = Math.sign(Math.sin(2 * Math.PI * 120 * t)) * 0.5 + Math.sin(2 * Math.PI * 360 * t) * 0.3;
+        d[i] = (buzz * gate + (Math.random() < 0.01 ? (Math.random() * 2 - 1) * 3 : 0) + (Math.random() * 2 - 1) * 0.3) * Math.min(1, t / 0.005) * Math.max(0, 1 - t / 0.32);
+      }
+      biquad(d, sr, 'highpass', 180, 0.7);
+      normalize(d, 0.7);
+    });
+    // a whisper: breath through the vowels, in syllables
+    this.whisper = makeBuffer(ctx, 2.6, 1, (d, sr) => {
+      const src = new Float32Array(d.length);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        const k = t / 0.32, p = k - Math.floor(k);
+        src[i] = (Math.random() * 2 - 1) * (k < 7 ? Math.sin(Math.min(1, p / 0.8) * Math.PI) ** 0.8 : 0) * (0.6 + 0.4 * Math.sin(t * 3));
+      }
+      for (const [f, q, level] of [...VOWEL.i, ...VOWEL.u]) {
+        const band = biquad(Float32Array.from(src), sr, 'bandpass', f * 1.2, q * 0.6);
+        for (let i = 0; i < d.length; i++) d[i] += band[i] * level;
+      }
+      const hiss = biquad(Float32Array.from(src), sr, 'highpass', 4500, 0.7);
+      for (let i = 0; i < d.length; i++) d[i] += hiss[i] * 0.35;
+      normalize(d, 0.8);
+    });
+    // lub-dub
+    this.heartbeat = makeBuffer(ctx, 0.8, 1, (d, sr) => {
+      for (const [at, a] of [[0, 1], [0.24, 0.7]]) {
+        const n0 = Math.floor(at * sr);
+        for (let i = 0; i < sr * 0.22 && n0 + i < d.length; i++) {
+          const t = i / sr;
+          d[n0 + i] += Math.sin(2 * Math.PI * (52 + 30 * Math.exp(-t / 0.03)) * t) * a * Math.min(1, t / 0.006) * Math.exp(-t / 0.06);
+        }
+      }
+      normalize(d, 0.9);
+    });
+    // a shriek: high, harsh, sliding up
+    this.shriek = makeBuffer(ctx, 1.3, 1, (d) => {
+      d.set(voice(ctx, 1.3, (t) => (1000 + 600 * Math.min(1, t / 0.2)) * (1 + 0.06 * Math.sin(t * 47)), (t) => Math.min(1, t / 0.03) * Math.max(0, 1 - Math.max(0, t - 0.6) / 0.7), 'i', 0.5).getChannelData(0));
+      drive(d, 2.5);
+      normalize(d, 0.85);
+    });
+    // Luna: a low, loud "woof"
+    this.bark = makeBuffer(ctx, 0.42, 1, (d, sr) => {
+      d.set(voice(ctx, 0.42, (t) => 330 - 240 * Math.min(1, t / 0.16), (t) => Math.min(1, t / 0.008) * Math.exp(-Math.max(0, t - 0.05) / 0.07), 'a', 0.6).getChannelData(0));
+      for (let i = 0; i < sr * 0.02; i++) d[i] += (Math.random() * 2 - 1) * (1 - i / (sr * 0.02)) * 0.5;
+      drive(d, 2);
+      biquad(d, sr, 'lowpass', 2400, 0.7);
+      normalize(d, 0.9);
+    });
+    // far away, with lots of the forest's echo
+    this.far = new PannerPool(e, 'voices', 2, { ref: 6, rolloff: 0.5, max: 250, reverb: 0.8 });
     this.started = true;
   }
 
@@ -166,6 +249,39 @@ export class ScenarioSound {
       case 'scream': {
         const buf = file(`scream_${cue.who}`) ?? this.screams[cue.who] ?? this.screams.owner;
         this.pool.play(buf, cue.position, { gain: 0.9, rate: rnd(0.97, 1.03) });
+        break;
+      }
+      case 'laughDeep':
+        this.far.play(file('ghost_laugh_scary') ?? this.laughDeep, cue.position, { gain: 1.1 });
+        break;
+      case 'glitch':
+        this.pool.play(this.glitch, cue.position, { gain: 0.7, rate: rnd(0.9, 1.1) });
+        break;
+      case 'shriek':
+        this.pool.play(this.shriek, cue.position, { gain: 0.9 });
+        break;
+      case 'bark':
+        this.pool.play(file('luna_bark') ?? this.bark, cue.position, { gain: 1.3, rate: rnd(0.95, 1.05) });
+        break;
+      case 'heartbeat':
+        // inside your head: not placed in the world
+        e.oneShot(this.heartbeat, e.buses.voices, { gain: 0.8 });
+        break;
+      case 'whisper': {
+        // once round the listener's head (cue.position), close by
+        const p = e.panner(cue.position, 'voices', { ref: 1, rolloff: 1, max: 20, reverb: 0.1 });
+        const { x, y, z } = cue.position;
+        const a0 = Math.random() * Math.PI * 2;
+        for (let k = 0; k <= 16; k++) {
+          const a = a0 + (k / 16) * Math.PI * 2, at = t + (k / 16) * 2.6;
+          if (!p.positionX) break;
+          const set = k === 0 ? 'setValueAtTime' : 'linearRampToValueAtTime';
+          p.positionX[set](x + Math.cos(a) * 0.9, at);
+          p.positionY[set](y + 0.1, at);
+          p.positionZ[set](z + Math.sin(a) * 0.9, at);
+        }
+        const src = e.oneShot(file('ghost_whisper') ?? this.whisper, p, { gain: 0.9 });
+        src.addEventListener('ended', () => { p.disconnect(); p._send?.disconnect(); });
         break;
       }
       case 'vanish': {

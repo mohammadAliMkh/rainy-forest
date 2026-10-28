@@ -242,11 +242,9 @@ test('scenario 1: the button near the camp, the ghost, everyone runs and comes b
   expect(errors).toEqual([]);
 });
 
-test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, deliver', async ({ page }) => {
-  const errors: string[] = [];
-  await open(page, errors);
-  await enter(page);
-  // step the game without drawing; helpers to look at things and to click the middle of the view
+// the errand tests: step the game without drawing; helpers to look at things,
+// to walk to a spot by the shop, and to walk home along the trail
+async function errandSetup(page: Page) {
   await page.evaluate(() => {
     const f = (window as any).forest;
     for (const name of ['render', 'environment map']) { const sys = f.game.systems.find((x: { name: string }) => x.name === name); sys.update = () => {}; }
@@ -258,9 +256,41 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
       f.frame(0.05);
     };
     (window as any).goTo = (lx: number, lz: number) => { const e = f.store.group.localToWorld(new f.THREE.Vector3(lx, 0, lz)); f.player.teleport(e.x, e.z, 0); (window as any).step(0.3); };
+    // the way home: the shop's path, then the trail to the fire; walking pace, looking ahead, a step every half second
+    (window as any).walkHome = (until: () => boolean, maxSec = 90) => {
+      const t = f.terrain, end = t.storePath[t.storePath.length - 1];
+      let best = 0;
+      t.pathLine.forEach(([x, z]: number[], i: number) => { if (Math.hypot(x - end[0], z - end[1]) < Math.hypot(t.pathLine[best][0] - end[0], t.pathLine[best][1] - end[1])) best = i; });
+      // ...up to the fire, then over to beside Amir
+      const a = f.camp.gathering.byName('amir');
+      const route = [...t.storePath, ...t.pathLine.slice(best + 1)].filter(([x, z]: number[]) => Math.hypot(x - f.FIRE.x, z - f.FIRE.z) > 4);
+      route.push([a.seat.x + 2.0, a.seat.z + 2.6]);
+      f.player.teleport(route[0][0], route[0][1]);
+      let wp = 0;
+      for (let i = 0; i < maxSec * 20 && !until(); i++) {
+        while (wp < route.length - 1 && Math.hypot(route[wp][0] - f.player.x, route[wp][1] - f.player.z) < 0.5) wp++;
+        const dx = route[wp][0] - f.player.x, dz = route[wp][1] - f.player.z, d = Math.hypot(dx, dz);
+        if (d > 0.05) {
+          const k = Math.min(1, 0.07 / d);
+          f.player.teleport(f.player.x + dx * k, f.player.z + dz * k, Math.atan2(-dx, -dz));
+        }
+        if (i % 10 === 0) f.events.emit('player:step', { running: false, surface: 'mud', side: 1, speed: 1.4 });
+        f.frame(0.05);
+      }
+    };
+    // what made a sound, and the lightning
+    (window as any).cues = []; f.events.on('scenario:cue', (c: { cue: string }) => (window as any).cues.push(c.cue));
+    (window as any).flashes = 0; f.events.on('weather:lightning', () => (window as any).flashes++);
     f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); // past the opening flight
     (window as any).step(2);
   });
+}
+
+test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, the haunted walk back, deliver, the twist', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await enter(page);
+  await errandSetup(page);
   const state = () => page.evaluate(() => (window as any).forest.errand.step);
   const click = async () => { const v = page.viewportSize()!; await page.mouse.click(v.width / 2, v.height / 2); };
   expect(await state()).toBe('toAmir');
@@ -287,8 +317,10 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await state()).toBe('pay');
   // pay Farajpour
   await page.evaluate(() => { const f = (window as any).forest; (window as any).goTo(0.9, 0.1); (window as any).lookAt(f.store.errand.keeperProxy); });
+  const hourBefore = await page.evaluate(() => (window as any).forest.day.hour);
   await click();
   expect(await state()).toBe('leave');
+  expect(await page.textContent('#dialog-text')).toContain('شب نری سمت دبه'); // Farajpour's warning
   expect(await page.evaluate(() => (window as any).forest.store.errand.cash.visible)).toBe(true);
   // "shopping done", and the basket fades away
   expect(await page.textContent('#banner')).toContain('خرید انجام شد');
@@ -300,14 +332,27 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   await click();
   expect(await state()).toBe('ghost');
   expect(await page.evaluate(() => { (window as any).step(1); return (window as any).forest.errand.jarGhost.group.visible; })).toBe(true);
+  expect(await page.evaluate(() => (window as any).forest.errand.jarGhost.style)).toBe('scary');
   await page.evaluate(() => (window as any).step(5));
   expect(await state()).toBe('deliver');
-  // back to Amir: scenario 1 plays; once they have all fled the player has control while they come back
+  // night has fallen, in heavy rain
+  expect(await page.evaluate(() => { const f = (window as any).forest; return { night: f.day.hour > 21, rain: f.weather.kind, haunted: f.errand.haunted }; }))
+    .toEqual({ night: true, rain: 'heavy', haunted: true });
+  // the walk back: eyes, steps behind, three lightning reveals in order, the whisper, Luna barks; then the scene at the fire
+  const walk = await page.evaluate(() => {
+    const f = (window as any).forest, w = f.errand.nightWalk;
+    let seenGhost = 0;
+    const flashes0 = (window as any).flashes;
+    (window as any).walkHome(() => { if (f.errand.jarGhost.group.visible) seenGhost++; return f.errand.step === 'scene'; });
+    return { fired: [...w.fired], flashes: (window as any).flashes - flashes0, seenGhost: seenGhost > 0, barked: (window as any).cues.includes('bark'), echoes: (window as any).cues.includes('echoStep'), step: f.errand.step };
+  });
+  expect(walk.fired.filter((b: string) => b.startsWith('reveal'))).toEqual(['reveal1', 'reveal2', 'reveal3']);
+  expect(walk.fired).toEqual(expect.arrayContaining(['eyes', 'steps', 'whisper', 'luna']));
+  expect(walk).toMatchObject({ flashes: 3, seenGhost: true, barked: true, echoes: true, step: 'scene' });
+  // scenario 1 at night with the scary ghost; once they have all fled the player has control while they come back
   const end = await page.evaluate(() => {
-    const f = (window as any).forest, a = f.camp.gathering.byName('amir');
-    f.player.teleport(a.seat.x + 2.0, a.seat.z + 2.6, 0);
-    (window as any).step(0.3);
-    const started = f.errand.step === 'scene' && f.camp.cinematic;
+    const f = (window as any).forest;
+    const started = f.errand.step === 'scene' && f.camp.cinematic && f.camp.scenario.ghost.style === 'scary';
     let handedBack = false;
     for (let k = 0; k < 900 && f.camp.scenario.active; k++) {
       f.frame(0.05);
@@ -318,5 +363,41 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   });
   expect(end).toEqual({ started: true, handedBack: true, step: 'done', seated: true });
   expect(await page.textContent('#banner')).toBe('پایان سناریوی روح سرگردان');
+  // ...or maybe not: the ghost at the fire with a glass of tea
+  const twist = await page.evaluate(() => {
+    const f = (window as any).forest, g = f.errand.jarGhost;
+    (window as any).step(6.5);
+    return { filming: f.errand.twist.filming, cinematic: f.camp.cinematic, visible: g.group.visible, nearFire: Math.hypot(g.pose.x - f.FIRE.x, g.pose.z - f.FIRE.z) < 2.5 };
+  });
+  expect(twist).toEqual({ filming: true, cinematic: true, visible: true, nearFire: true });
+  expect(await page.textContent('#banner')).toBe('...یا شاید هم نه 👻');
+  // then the view is the player's again and the night lifts
+  const after = await page.evaluate(() => { const f = (window as any).forest; (window as any).step(16); return { cinematic: f.camp.cinematic, hour: f.day.hour, night: f.errand.nightfall.active, lantern: f.lighting.lanternMax }; });
+  expect(after).toMatchObject({ cinematic: false, night: false, lantern: 5.5 });
+  expect(Math.abs(after.hour - hourBefore)).toBeLessThan(0.3);
+  expect(errors).toEqual([]);
+});
+
+test('the errand with «روح ترسناک» off: daylight stays, no scares on the way back, the funny ghost', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await enter(page);
+  await errandSetup(page);
+  // switched off in the menu
+  await page.evaluate(() => { const c = document.getElementById('scary-ghost') as HTMLInputElement; c.checked = false; c.dispatchEvent(new Event('change')); });
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand;
+    const hour = f.day.hour;
+    // paid (straight to it), out of the door, the jar
+    (window as any).goTo(0.9, 0.1); e.step = 'pay'; e._pay();
+    (window as any).goTo(1.0, 3.7); (window as any).step(1);
+    (window as any).lookAt(f.store.errand.lid); e._openJar(); (window as any).step(0.8);
+    const face = e.jarGhost.pose.face, style = e.jarGhost.style;
+    (window as any).step(5);
+    (window as any).walkHome(() => e.step === 'scene');
+    return { haunted: e.haunted, dayStays: Math.abs(f.day.hour - hour) < 0.5, face, style, fired: e.nightWalk.fired.size, step: e.step, scenarioGhost: f.camp.scenario.ghost.style };
+  });
+  expect(r).toEqual({ haunted: false, dayStays: true, face: 'boo', style: 'funny', fired: 0, step: 'scene', scenarioGhost: 'funny' });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('rainy-forest-settings-v2')!).scaryGhost)).toBe(false);
   expect(errors).toEqual([]);
 });

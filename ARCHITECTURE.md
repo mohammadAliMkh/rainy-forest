@@ -42,8 +42,8 @@ utils/    ابزارهای کوچک ریاضی و نویز (به هیچ‌چیز
 | `src/game/store/` | سوپرمارکت جنگل: ساختمان، جنس‌ها، فروشنده‌ی پیر، تابلوی مسیر |
 | `src/game/camp/` | دور آتش: آتش، نشیمن‌ها، سایه‌بان، پارکینگ |
 | `src/game/intro/` | معرفی سینمایی و متن آن |
-| `src/game/quest/` | مأموریت ۱ (`PartyErrand.ts`: مراحل، هدف روی نقشه، دبه و روحش؛ `AmirScene.ts`: صحنه‌ی سینمایی حرف زدن امیر) و متن آن (`errandScript.ts`) |
-| `src/game/scenario/` | سناریوها: روح پارچه‌ای (`Ghost.ts`)، کارگردان صحنه (`GhostScenario.ts`) و متن صحنه (`ghostScript.ts`) |
+| `src/game/quest/` | مأموریت ۱ (`PartyErrand.ts`: مراحل، هدف روی نقشه، دبه و روحش؛ `AmirScene.ts`: صحنه‌ی سینمایی حرف زدن امیر؛ `NightWalk.ts`: شب و باران و ترس‌های راه برگشت؛ `TwistScene.ts`: غافلگیری پایانی) و متن آن (`errandScript.ts`) |
+| `src/game/scenario/` | سناریوها: روح پارچه‌ای (`Ghost.ts`، با دو ظاهر بامزه و ترسناک)، کارگردان صحنه (`GhostScenario.ts`) و متن صحنه (`ghostScript.ts`) |
 | `src/game/people/` | آدم‌ها، رفتارشان، گیتار، مشخصات دوستان |
 | `src/game/creatures/` | لونا، آهوها، پرنده‌ها و خرگوش‌ها |
 | `src/game/vehicles/` | پاترول و هورنت |

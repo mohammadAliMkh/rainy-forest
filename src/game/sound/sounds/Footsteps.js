@@ -1,5 +1,5 @@
 import { makeBuffer, addClick, addTick, biquad, normalize } from '../../../engine/audio/dsp.js';
-import { rnd, pick } from './shared.js';
+import { rnd, pick, PannerPool } from './shared.js';
 
 // Player footsteps on wet ground: soft leaf-litter crunch, muddy squelch on
 // the trail, splashes in puddles, and hollow knocks on wooden boards (the
@@ -24,6 +24,9 @@ export class Footsteps {
     this.out.connect(this.e.buses.steps);
     const send = ctx.createGain(); send.gain.value = 0.08;
     this.out.connect(send).connect(this.e.reverbIn);
+
+    // steps somewhere else in the world (someone following you...)
+    this.pool = new PannerPool(this.e, 'steps', 3, { ref: 1.5, rolloff: 1, max: 60, reverb: 0.25 });
 
     const variants = (fn) => [0, 1, 2, 3, 4, 5].map(() => makeBuffer(ctx, 0.45, 1, (d, sr) => { fn(d, sr); normalize(d, 0.8); }));
 
@@ -108,6 +111,12 @@ export class Footsteps {
       }),
     };
     this.started = true;
+  }
+
+  /** a step at a world position */
+  stepAt(surface, pos, running = false) {
+    if (!this.started) return;
+    this.pool.play(pick(this.buffers[surface] || this.buffers.leaves), pos, { gain: (running ? 0.85 : 0.55) * rnd(0.85, 1.05), rate: rnd(0.85, 1.0) });
   }
 
   step({ surface, running, side }) {
