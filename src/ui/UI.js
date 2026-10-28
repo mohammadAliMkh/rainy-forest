@@ -19,6 +19,7 @@ export class UI {
       showFps: false,
       subtitles: false, // subtitles for the introductions (off unless the visitor wants them)
       minimap: true,
+      scaryGhost: true, // the haunted walk back and the scary ghost in «سناریوی روح سرگردان»
       weather: 'auto', // the rain comes and goes by itself
     };
     try {
@@ -229,6 +230,9 @@ export class UI {
     $('minimap').checked = s.minimap;
     const setMap = (on) => { s.minimap = on; $('minimap').checked = on; this.save(); this.emit('minimap', on); };
     $('minimap').addEventListener('change', () => setMap($('minimap').checked));
+
+    $('scary-ghost').checked = s.scaryGhost;
+    $('scary-ghost').addEventListener('change', () => { s.scaryGhost = $('scary-ghost').checked; this.save(); });
 
     $('subtitles').checked = s.subtitles;
     $('subtitles').addEventListener('change', () => {

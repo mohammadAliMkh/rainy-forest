@@ -18,8 +18,8 @@ export const LINES = {
     voice: 'amir_party',
     text: 'داداش، برای امشب قراره یه مهمونی خودمونی بگیریم تو کلبه. بی‌زحمت برو از سوپرمارکت یه خورده خیارشور، پفک، چیپس، ماست و نوشیدنی بخر بیار برامون.',
   },
-  thanks: { speaker: 'فرج‌پور', voice: 'farajpour_thanks', text: 'قربون دستت، نوش جون!' },
-  pickles: { speaker: 'فرج‌پور', voice: 'farajpour_pickles', text: 'خیارشور اگه می‌خوای، از دبه‌ی بیرون مغازه برو خودت بردار.' },
+  thanks: { speaker: 'فرج‌پور', voice: 'farajpour_thanks', text: 'قربون دستت، نوش جون! فقط... شب نری سمت دبه‌ی خیارشور، باشه؟' },
+  pickles: { speaker: 'فرج‌پور', voice: 'farajpour_pickles', text: 'خیارشور اگه می‌خوای، از دبه‌ی بیرون مغازه برو خودت بردار... ولی من بودم نمی‌رفتم.' },
 };
 
 export const GOALS = {

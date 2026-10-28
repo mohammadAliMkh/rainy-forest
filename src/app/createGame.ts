@@ -197,8 +197,11 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const questWorld = new THREE.Group(); // the jar's ghost flies in world coordinates
   scene.add(questWorld);
   errand = new PartyErrand({
-    camp, store, player, picker, events, terrain, world: questWorld,
+    camp, store, player, picker, events, terrain, collision, world: questWorld,
     voices: () => camp.voices, touch: () => session.touch.enabled, camera,
+    night: { day, weather, lighting },
+    // «روح ترسناک» in the menu: read when the walk back begins
+    scary: () => ui.settings.scaryGhost !== false,
   });
   const theErrand = errand;
   const hud = new Hud({ ui, day });
