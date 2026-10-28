@@ -25,6 +25,8 @@ export interface VoiceHandle {
   stop(): void;
   /** current loudness 0..1 (for lip sync) */
   level(): number;
+  /** seconds since it was asked to play, by the audio clock (what the listener hears, whatever the frame rate) */
+  elapsed(): number;
 }
 
 type CreatureSound = GameEvents[typeof EV.CREATURE_SOUND];
@@ -111,6 +113,7 @@ export class Soundscape {
     an.fftSize = 512;
     an.connect(p);
     if (duck) engine.setDucking(true);
+    const t0 = ctx.currentTime;
     const src = engine.oneShot(buf, an, { when: 0.25 }); // after the ambience has dipped
     const data = new Float32Array(an.fftSize);
     let ended = false;
@@ -118,6 +121,7 @@ export class Soundscape {
     return {
       duration: buf.duration + 0.25,
       get done() { return ended; },
+      elapsed() { return ended ? buf.duration + 0.25 : Math.max(0, ctx.currentTime - t0); },
       stop() { if (!ended) try { src.stop(); } catch { /* not started yet */ } },
       level() {
         if (ended) return 0;

@@ -198,7 +198,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   scene.add(questWorld);
   errand = new PartyErrand({
     camp, store, player, picker, events, terrain, world: questWorld,
-    voices: () => camp.voices, touch: () => session.touch.enabled,
+    voices: () => camp.voices, touch: () => session.touch.enabled, camera,
   });
   const theErrand = errand;
   const hud = new Hud({ ui, day });

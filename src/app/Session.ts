@@ -71,7 +71,7 @@ export class Session {
     // the errand: the goal line, the basket, and lines people say
     events.on(EV.QUEST, (q) => ui.setQuest(q));
     events.on(EV.DIALOG, (d) => ui.showDialog(d));
-    ui.on('skip', () => { camp.intro.skip(); camp.scenario.skip(); });
+    ui.on('skip', () => { camp.intro.skip(); camp.scenario.skip(); for (const f of camp.films) f.skip?.(); });
     // scenario 1: its button, and offering it again from the menu
     ui.on('scenario', () => {
       if (!this._scenarioReady()) return;
@@ -164,6 +164,7 @@ export class Session {
       e.preventDefault();
       intro.skip();
       scenario.skip();
+      for (const f of this.camp.films) f.skip?.();
       return;
     }
     // Esc opens / closes the settings menu
