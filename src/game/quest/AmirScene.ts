@@ -36,6 +36,7 @@ export class AmirScene {
   private t = -1;
   private lineT = -1; // seconds into the line, -1 before it
   private lineLen = 0;
+  private afterT = 0; // seconds since his line finished
   private ending = 0;
   private fade = 0;
   // the camera: from the player's eye, in to a close shot of his face
@@ -86,6 +87,7 @@ export class AmirScene {
     this.voice = this.voices()?.play(line.voice, p.headPos, { duck: true, gain: VOICE_GAIN }) ?? null;
     this.lineLen = this.voice ? this.voice.duration : Math.max(4, line.text.length * 0.075);
     this.lineT = 0;
+    this.afterT = 0;
     if (!this.voice) this.events.emit(EV.DIALOG, { speaker: line.speaker, text: line.text, seconds: this.lineLen + 0.6 });
     const act = this.act!;
     act.speaking = true;
@@ -103,7 +105,9 @@ export class AmirScene {
       this.lineT = this.voice ? this.voice.elapsed() : this.lineT + dt;
       // the last couple of seconds: "that way, to the shop"
       if (act) act.point = Math.min(1, Math.max(0, (this.lineT - (this.lineLen - 2.8)) / 2.6));
-      if (this.lineT >= this.lineLen + 0.4 && !this.ending) this.ending = 1e-6;
+      // over once the recording has really finished (its clock stops at its length) or the caption's time is up
+      if (this.voice ? this.voice.done : this.lineT >= this.lineLen) this.afterT += dt;
+      if (this.afterT >= 0.4 && !this.ending) this.ending = 1e-6;
     }
     // dip to black, back to the player, then he sits down
     if (this.ending) {

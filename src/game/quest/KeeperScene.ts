@@ -6,12 +6,14 @@ import type { Shopkeeper } from '../store/Shopkeeper.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
 import type { VoiceHandle } from '../sound/Soundscape.ts';
 import { VOICE_GAIN, type SceneLine } from './AmirScene.ts';
+import type { Hands } from '../player/Hands.ts';
 
 // Paying Farajpour, as a short film scene: the camera comes in to a close
 // shot of him behind the counter and he talks to you (his recording, or a
 // caption without one). Partway through he takes out the stone amulet and
-// holds it out to you in his open hand - against the ghost - and then it is
-// yours: it flies to you. A dip to black and the view is yours again.
+// holds it out to you in his open hand - against the ghost - and you take
+// it with your own hand (into your bag). A dip to black and the view is
+// yours again.
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -29,10 +31,15 @@ export class KeeperScene {
   private readonly events: EventBus<GameEvents>;
   private readonly voices: () => VoiceService | null;
   private readonly amulet: THREE.Object3D;
+  private readonly hands: Hands;
+  private readonly onGiven: () => void;
+  private taking = false;
+  private grabbed = false;
   private voice: VoiceHandle | null = null;
   private t = -1;
   private lineT = 0;
   private lineLen = 0;
+  private afterT = 0; // seconds since his line finished
   private ending = 0;
   private fade = 0;
   private handT = -1; // seconds since he brought it out
@@ -49,7 +56,12 @@ export class KeeperScene {
   private readonly fly = new THREE.Vector3();
 
   /** `amulet`: the amulet, in world space (hidden until he brings it out) */
-  constructor({ keeper, events, voices, amulet }: { keeper: Shopkeeper; events: EventBus<GameEvents>; voices: () => VoiceService | null; amulet: THREE.Object3D }) {
+  /** `onGiven`: the amulet is in your bag */
+  constructor({ keeper, events, voices, amulet, hands, onGiven }: {
+    keeper: Shopkeeper; events: EventBus<GameEvents>; voices: () => VoiceService | null; amulet: THREE.Object3D; hands: Hands; onGiven: () => void;
+  }) {
+    this.hands = hands;
+    this.onGiven = onGiven;
     this.keeper = keeper;
     this.events = events;
     this.voices = voices;
@@ -61,7 +73,7 @@ export class KeeperScene {
   /** `giveAt`: seconds into his recording when he brings out the amulet (without one: halfway) */
   start(line: SceneLine, camera: THREE.Camera, giveAt: number): void {
     if (this.active) return;
-    this.t = 0; this.ending = 0; this.handT = -1; this.given = false;
+    this.t = 0; this.ending = 0; this.handT = -1; this.given = false; this.taking = false; this.grabbed = false;
     this.from.copy(camera.position);
     this.pos.copy(camera.position);
     this.quat.copy(camera.quaternion);
@@ -73,6 +85,7 @@ export class KeeperScene {
     this.voice = this.voices()?.play(line.voice, k.human.headPivot.getWorldPosition(this.head), { duck: true, gain: VOICE_GAIN }) ?? null;
     this.lineLen = this.voice ? this.voice.duration : Math.max(5, line.text.length * 0.075);
     this.lineT = 0;
+    this.afterT = 0;
     k.speak(this.lineLen);
     this.giveAt = this.voice ? Math.min(giveAt, this.lineLen - HOLD - 1) : this.lineLen * 0.5;
     // a caption only when there is no recording
@@ -102,18 +115,23 @@ export class KeeperScene {
       const e = rise * rise * (3 - 2 * rise);
       this.offer.copy(this.counter).lerp(this.tLook.copy(this.head).addScaledVector(UP, -0.42).addScaledVector(toYou, 0.38), e);
       k.offer = this.offer;
-      if (this.handT < HOLD) {
+      if (!this.grabbed) {
         this.amulet.position.copy(this.offer).addScaledVector(UP, 0.03).addScaledVector(toYou, 0.06); // in his fingers
         this.amulet.lookAt(this.amulet.position.x + toYou.x, this.amulet.position.y, this.amulet.position.z + toYou.z);
-      } else {
-        // it's yours: over to the camera, getting smaller as it goes out of view
-        const f = Math.min(1, (this.handT - HOLD) / 0.6);
-        this.amulet.position.lerp(this.pos, f * 0.35);
-        k.offer = null;
-        if (f >= 1) { this.given = true; this.amulet.visible = false; }
+      }
+      // you step up to the counter and take it from his hand
+      if (this.handT >= HOLD && !this.taking) {
+        this.taking = true;
+        this.hands.take(this.amulet, 'right', {
+          reach: 0.7,
+          onGrab: () => { this.grabbed = true; k.offer = null; },
+          onDone: () => { this.given = true; this.onGiven(); },
+        });
       }
     }
-    if (!this.ending && this.lineT >= this.lineLen + 0.4 && (this.given || this.handT < 0)) this.ending = 1e-6;
+    // over once the recording has really finished (its clock stops at its length) and the amulet is yours
+    if (this.voice ? this.voice.done : this.lineT >= this.lineLen) this.afterT += dt;
+    if (!this.ending && this.afterT >= 0.4 && (this.given || this.handT < 0)) this.ending = 1e-6;
     if (!this.ending) return;
     // dip to black, back to the player
     this.ending += dt;
@@ -126,7 +144,7 @@ export class KeeperScene {
         k.offer = null;
         k.speak(0);
         this.amulet.visible = false;
-        this.given = true;
+        if (!this.given) { this.given = true; this.onGiven(); } // (skipped: it is yours all the same)
         this.events.emit(EV.DIALOG, null);
         this.events.emit(EV.INTRO_CINEMATIC, false);
       }
@@ -144,7 +162,8 @@ export class KeeperScene {
     const far = Math.max(1.2, toYou.length());
     toYou.normalize();
     const out = this.handT >= 0 && !this.given ? 1 : 0;
-    const d = Math.min(far, 1.5 + 0.35 * out);
+    // a step closer while you take it from him
+    const d = Math.min(far, this.taking ? 1.05 : 1.5 + 0.35 * out);
     this.tPos.copy(this.head).addScaledVector(toYou, d).addScaledVector(UP, -0.08 - 0.1 * out);
     this.tLook.copy(this.head).addScaledVector(UP, -0.08 - 0.3 * out);
     _m.lookAt(this.tPos, this.tLook, UP);

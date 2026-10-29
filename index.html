@@ -39,6 +39,7 @@
           <div><kbd>کلیک راست + کشیدن</kbd><span>نگاه کردن به اطراف از هر جای صفحه</span></div>
           <div><kbd>Q</kbd><kbd>E</kbd><span>چرخش به چپ و راست با کیبورد</span></div>
           <div><kbd>R</kbd><kbd>F</kbd><span>نگاه به بالا و پایین با کیبورد</span></div>
+          <div><kbd>B</kbd><span>کوله: برداشتن چیزی در دست</span></div>
           <div><kbd>Shift</kbd><span>دویدن</span></div>
           <div><kbd>Esc</kbd><span>تنظیمات</span></div>
           <div><kbd>M</kbd><span>قطع و وصل صدا</span></div>
@@ -126,6 +127,16 @@
       <svg class="icon-on" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
       <svg class="icon-off" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6"/><path d="M22 9l-5 6"/></svg>
     </button>
+
+    <!-- the bag: what the player has; choose something to hold it (B) -->
+    <button id="bag-btn" class="bag-btn hidden" title="کوله (B)" aria-label="کوله" aria-expanded="false">
+      <span class="bag-icon" aria-hidden="true">🎒</span><span id="bag-count" class="bag-count"></span>
+    </button>
+    <div id="bag" class="bag hidden" dir="rtl" role="dialog" aria-label="کوله">
+      <div class="bag-title">کوله</div>
+      <div id="bag-items" class="bag-items"></div>
+      <div class="bag-hint">چیزی را انتخاب کن تا در دستت بگیری؛ دوباره بزن تا برگردد توی کوله</div>
+    </div>
 
     <!-- On-screen controls (phones / tablets) -->
     <div id="touch-ui" class="touch-ui hidden">

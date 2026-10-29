@@ -265,7 +265,82 @@ body.touch .desktop-only { display: none; }
 .touch-ui.hidden { opacity: 0; visibility: hidden; }
 /* film scenes (the opening, Amir's talk, scenario 1): nothing of the game on
    screen but "skip" and the sound button (people's lines and title cards stay) */
-body.in-cinema .touch-ui, body.in-cinema .minimap, body.in-cinema .scenario-btn, body.in-cinema .toast { opacity: 0; visibility: hidden; pointer-events: none; }
+body.in-cinema .touch-ui, body.in-cinema .minimap, body.in-cinema .scenario-btn, body.in-cinema .toast,
+body.in-cinema .bag-btn, body.in-cinema .bag { opacity: 0; visibility: hidden; pointer-events: none; }
+
+/* ---------- the bag (top left) ---------- */
+.bag-btn {
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: calc(env(safe-area-inset-left, 0px) + 14px);
+  z-index: 9;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 16, 0.55);
+  backdrop-filter: blur(4px);
+  font-size: 1.55rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.2s ease, opacity 0.3s ease;
+}
+.bag-btn:hover { transform: scale(1.06); background: rgba(30, 38, 40, 0.75); }
+.bag-btn.hidden { opacity: 0; pointer-events: none; }
+.bag-btn.open { background: rgba(60, 50, 30, 0.8); border-color: var(--accent-2); }
+.bag-btn.new { animation: bagNew 0.6s ease 3; }
+@keyframes bagNew { 50% { transform: scale(1.22); border-color: var(--accent-2); } }
+.bag-count {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #1a1209;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.bag {
+  position: fixed;
+  top: calc(74px + env(safe-area-inset-top, 0px));
+  left: calc(env(safe-area-inset-left, 0px) + 14px);
+  z-index: 9;
+  width: min(300px, calc(100vw - 28px));
+  padding: 10px 12px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 16, 0.82);
+  backdrop-filter: blur(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.bag.hidden { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+.bag-title { font-size: 0.8rem; color: var(--accent-2); margin-bottom: 8px; }
+.bag-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.bag-item {
+  font-family: inherit;
+  color: var(--text);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 8px 4px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+}
+.bag-item .bag-item-icon { font-size: 1.7rem; line-height: 1; }
+.bag-item:hover { background: rgba(255, 255, 255, 0.1); }
+.bag-item.held { border-color: var(--accent-2); background: rgba(240, 170, 80, 0.18); }
+.bag-empty { font-size: 0.78rem; opacity: 0.7; }
+.bag-hint { margin-top: 8px; font-size: 0.68rem; opacity: 0.65; line-height: 1.5; }
 
 /* joystick rests bottom-left; while held it jumps under the thumb */
 .joy {

@@ -35,6 +35,8 @@ import { DeerHerd } from '../game/creatures/Deer.js';
 import { Wildlife } from '../game/creatures/Wildlife.js';
 import { CollisionWorld } from '../game/player/Collision.js';
 import { PlayerController } from '../game/player/PlayerController.ts';
+import { Hands } from '../game/player/Hands.ts';
+import { Inventory, type ItemId } from '../game/items/Inventory.ts';
 import { Soundscape } from '../game/sound/Soundscape.ts';
 import { Minimap } from '../ui/Minimap.js';
 import { Session } from './Session.ts';
@@ -201,12 +203,20 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement, errandDone: () => errand?.finished ?? true });
   const questWorld = new THREE.Group(); // the jar's ghost flies in world coordinates
   scene.add(questWorld);
+  // the player's own hands, and the bag (a flashlight in it from the start)
+  const hands = new Hands({ scene, world: questWorld, ground: (x, z) => terrain.heightAt(x, z) });
+  const inventory = new Inventory({ hands, events, scene });
+  events.on(EV.INVENTORY, (inv) => ui.setInventory(inv));
+  ui.on('equip', (id) => inventory.equip(id as ItemId | null));
+  ui.on('enter', () => ui.showBag(true));
+  inventory.add('flashlight');
   errand = new PartyErrand({
     camp, store, player, picker, events, terrain, collision, world: questWorld,
     voices: () => camp.voices, touch: () => session.touch.enabled, camera,
     night: { day, weather, lighting },
     // «روح ترسناک» in the menu: read when the walk back begins
     scary: () => ui.settings.scaryGhost !== false,
+    hands, inventory,
   });
   const theErrand = errand;
   const hud = new Hud({ ui, day });
@@ -253,6 +263,11 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
       (scene.fog as THREE.FogExp2).density *= 1 - 0.6 * up;
     }
   });
+  // the hands (and what they hold) follow the camera; shown while playing, not in film scenes
+  sys('hands', (f) => {
+    hands.update(f.dt, f.camera, session.entered && !camp.cinematic, player.speed / player.walkSpeed);
+    inventory.update(f.dt, f.camera, camp.cinematic);
+  });
   sys('culling', () => culling.update());
   sys('lighting', (f) => lighting.update(f));
   // 3. the world moves
@@ -286,7 +301,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     // for tests and the browser console (?debug)
     window.forest = {
       game, events, frame: (dt?: number) => game.frame(dt), THREE, frustum: culling.frustum, scene, camera, renderer, gpu, gov: quality.gov, quality,
-      player, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, store, errand: theErrand, picker, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
+      player, hands, inventory, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, store, errand: theErrand, picker, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
       applyQuality: (name: Parameters<QualityManager['apply']>[0]) => quality.apply(name), FIRE,
     };
   }

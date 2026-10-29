@@ -26,4 +26,6 @@ export interface UiEvents {
   minimap: boolean;
   /** 'auto' (rain comes and goes), 'rain' (always) or 'dry' */
   weather: string;
+  /** take something from the bag into the hand (null, or the one held: put it away) */
+  equip: string | null;
 }

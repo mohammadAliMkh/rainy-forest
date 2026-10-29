@@ -82,6 +82,48 @@ export class UI {
   }
 
   /** the errand's goal line and basket (null hides it) */
+  /** the bag: what is in it and what is held (INVENTORY) */
+  setInventory(inv) {
+    const list = $('bag-items');
+    const before = this._bagCount ?? 0;
+    this._bagCount = inv.items.length;
+    $('bag-count').textContent = inv.items.length ? String(inv.items.length) : '';
+    list.replaceChildren();
+    if (!inv.items.length) {
+      const e = document.createElement('div');
+      e.className = 'bag-empty';
+      e.textContent = 'کوله خالی است';
+      list.append(e);
+    }
+    for (const it of inv.items) {
+      const b = document.createElement('button');
+      b.className = 'bag-item' + (inv.held === it.id ? ' held' : '');
+      b.innerHTML = '<span class="bag-item-icon" aria-hidden="true"></span><span class="bag-item-name"></span>';
+      b.querySelector('.bag-item-icon').textContent = it.icon;
+      b.querySelector('.bag-item-name').textContent = inv.held === it.id ? it.label + ' (در دست)' : it.label;
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.emit('equip', it.id); this.setBagOpen(false); });
+      list.append(b);
+    }
+    // something new: the bag blinks
+    if (inv.items.length > before && before > 0) {
+      const btn = $('bag-btn');
+      btn.classList.remove('new');
+      void btn.offsetWidth;
+      btn.classList.add('new');
+    }
+  }
+
+  /** show the bag button (once the player is in the forest) */
+  showBag(on) { $('bag-btn').classList.toggle('hidden', !on); if (!on) this.setBagOpen(false); }
+
+  setBagOpen(open) {
+    $('bag').classList.toggle('hidden', !open);
+    $('bag-btn').classList.toggle('open', open);
+    $('bag-btn').setAttribute('aria-expanded', String(open));
+  }
+
+  get bagOpen() { return !$('bag').classList.contains('hidden'); }
+
   setQuest(q) {
     const el = $('quest');
     el.classList.toggle('hidden', !q);
@@ -249,7 +291,13 @@ export class UI {
       this.save();
     });
 
+    // the bag
+    $('bag-btn').addEventListener('click', (e) => { e.stopPropagation(); this.setBagOpen(!this.bagOpen); });
+    for (const id of ['bag-btn', 'bag']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+    $('bag').addEventListener('click', (e) => e.stopPropagation());
+
     window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyB' && !e.repeat && !$('bag-btn').classList.contains('hidden') && !document.body.classList.contains('in-cinema')) this.setBagOpen(!this.bagOpen);
       if (e.code === 'KeyM' && !e.repeat) this.setMuted(!s.muted);
       if (e.code === 'KeyN' && !e.repeat) setMap(!s.minimap);
     });

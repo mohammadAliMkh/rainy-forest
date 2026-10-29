@@ -39,7 +39,7 @@ test('entering: the start screen closes at once, the opening flight, the scene i
   expect(stats.flying).toBe(true);
   expect(stats.mapDuring).toBe(false);
   expect(stats.meshes).toBeGreaterThan(400);
-  expect(stats.lights).toBe(7);
+  expect(stats.lights).toBe(8); // (with the flashlight's beam, dark until it is taken out)
   expect(stats.map).toBe(true);
   expect(errors).toEqual([]);
 });
@@ -328,7 +328,9 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   for (const [key, lx, lz] of [['chips', 0.4, 0.9], ['puffs', 0.4, 0.9], ['yogurt', 0.77, -1.2], ['drink', 1.1, -1.25]] as const) {
     await page.evaluate(([key, lx, lz]) => { const f = (window as any).forest; (window as any).goTo(lx, lz); (window as any).lookAt(f.store.errand.items[key]); }, [key, lx, lz] as const);
     await click();
-    expect(await page.evaluate((key) => !(window as any).forest.store.errand.items[key].visible, key)).toBe(true);
+    // a hand takes it off the shelf and it goes in the basket
+    expect(await page.evaluate(() => (window as any).forest.hands.busy)).toBe(true);
+    expect(await page.evaluate((key) => { (window as any).step(1.5); return !(window as any).forest.store.errand.items[key].visible; }, key)).toBe(true);
   }
   expect(await state()).toBe('pay');
   // pay Farajpour
@@ -347,6 +349,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { held, step: e.step, has: e.hasAmulet };
   });
   expect(handed).toEqual({ held: true, step: 'leave', has: true });
+  expect(await page.evaluate(() => (window as any).forest.inventory.items)).toEqual(['flashlight', 'amulet']); // in the bag
   expect(await page.evaluate(() => (window as any).forest.store.errand.cash.visible)).toBe(true);
   // "shopping done", and the basket fades away
   expect(await page.textContent('#banner')).toContain('خرید انجام شد');
@@ -401,6 +404,52 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   const after = await page.evaluate(() => { const f = (window as any).forest; (window as any).step(16); return { cinematic: f.camp.cinematic, hour: f.day.hour, night: f.errand.nightfall.active, lantern: f.lighting.lanternMax }; });
   expect(after).toMatchObject({ cinematic: false, night: false, lantern: 5.5 });
   expect(Math.abs(after.hour - hourBefore)).toBeLessThan(0.3);
+  expect(errors).toEqual([]);
+});
+
+test('the hands and the bag: a flashlight from the start, taken out it lights the way ahead, put away again', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await enter(page);
+  await errandSetup(page);
+  await expect(page.locator('#bag-btn')).not.toHaveClass(/hidden/);
+  expect(await page.evaluate(() => { const f = (window as any).forest; f.day.cycleSeconds = 0; f.day.setHour(22.5); (window as any).step(1); return f.hands.rig.visible; })).toBe(true);
+  // the bag: open it, the flashlight is in it; choose it
+  await page.click('#bag-btn');
+  await expect(page.locator('#bag')).not.toHaveClass(/hidden/);
+  await expect(page.locator('.bag-item')).toHaveCount(1);
+  expect(await page.textContent('.bag-item')).toContain('چراغ‌قوه');
+  await page.click('.bag-item');
+  const on = await page.evaluate(() => {
+    const f = (window as any).forest;
+    (window as any).step(1.5);
+    // the beam: from the lens in the right hand, toward a few metres ahead of where the player looks
+    const b = f.inventory.beam, dir = new f.THREE.Vector3(), to = b.target.position.clone().sub(b.position).normalize();
+    f.camera.getWorldDirection(dir);
+    return { held: f.inventory.held, inHand: f.hands.right.held?.visible, beam: b.intensity > 20, ahead: dir.dot(to) > 0.95, near: b.position.distanceTo(f.camera.position) < 0.8 };
+  });
+  expect(on).toEqual({ held: 'flashlight', inHand: true, beam: true, ahead: true, near: true });
+  await expect(page.locator('#bag')).toHaveClass(/hidden/);
+  // B opens the bag; choosing it again puts it away
+  await page.keyboard.press('KeyB');
+  await expect(page.locator('#bag')).not.toHaveClass(/hidden/);
+  await expect(page.locator('.bag-item.held')).toHaveCount(1);
+  await page.click('.bag-item');
+  const off = await page.evaluate(() => { const f = (window as any).forest; (window as any).step(1.5); return { held: f.inventory.held, beam: f.inventory.beam.intensity < 0.5 }; });
+  expect(off).toEqual({ held: null, beam: true });
+  // and they can throw what they hold: it flies off and lands on the ground
+  const thrown = await page.evaluate(() => {
+    const f = (window as any).forest, ball = new f.THREE.Mesh(new f.THREE.SphereGeometry(0.03), new f.THREE.MeshBasicMaterial());
+    f.hands.hold(ball, 'right');
+    (window as any).step(0.5);
+    let landed = false;
+    const from = f.camera.position.clone();
+    f.hands.throwHeld('right', { onLand: () => { landed = true; } });
+    (window as any).step(3);
+    const at = ball.getWorldPosition(new f.THREE.Vector3());
+    return { landed, far: Math.hypot(at.x - from.x, at.z - from.z) > 3, onGround: Math.abs(at.y - f.terrain.heightAt(at.x, at.z)) < 0.1 };
+  });
+  expect(thrown).toEqual({ landed: true, far: true, onGround: true });
   expect(errors).toEqual([]);
 });
 
