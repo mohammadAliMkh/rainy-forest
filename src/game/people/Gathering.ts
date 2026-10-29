@@ -97,6 +97,11 @@ export class Gathering {
   scare: THREE.Vector3 | null = null;
   /** ignore the camera (a scenario's film camera is not someone walking up) */
   blind = false;
+  /** Amin's guitar: 'auto' = songs and rests by itself, 'on' = playing on and on
+   * (under the introductions), 'off' = not at all (someone important is talking) */
+  guitar: 'auto' | 'on' | 'off' = 'auto';
+  /** how loud he strums (0..1) */
+  guitarLevel = 1;
 
   constructor(seats: Seat[], shared: Shared, rand: () => number, events?: EventBus<GameEvents>) {
     this.events = events;
@@ -128,12 +133,13 @@ export class Gathering {
     if (p.gtTimer === undefined) { p.gtTimer = 6 + this.rand() * 10; p.gtPlaying = false; p.gtStep = 0; p.gtClock = 0; p.strumY = 0; }
     p.gtTimer! -= dt;
     // a song ends with its round of chords: it stops only where the progression starts over
-    if (p.gtTimer! <= 0 && (!p.gtPlaying || p.gtStep % 32 === 0)) {
+    if (this.guitar === 'auto' && p.gtTimer! <= 0 && (!p.gtPlaying || p.gtStep % 32 === 0)) {
       p.gtPlaying = !p.gtPlaying;
       p.gtTimer = p.gtPlaying ? 60 + this.rand() * 40 : 10 + this.rand() * 14;
       p.gtStep = 0; p.gtClock = 0;
     }
-    const playing = p.gtPlaying && !quiet;
+    if (this.guitar === 'on' && !p.gtPlaying) { p.gtPlaying = true; p.gtTimer = 60 + this.rand() * 40; p.gtStep = 0; p.gtClock = 0; }
+    const playing = p.gtPlaying && this.guitar !== 'off' && (!quiet || this.guitar === 'on');
     // 1 down, -1 up, 0 rest
     const PATTERN = Math.floor(p.gtStep / 32) % 2 ? [1, 0, 1, 0, 1, -1, 1, -1] : [1, 0, 1, -1, 0, -1, 1, -1];
     if (playing) {
@@ -145,7 +151,7 @@ export class Gathering {
         const chord = Math.floor(p.gtStep / 8) % 4;
         if (s) {
           p.strumY = s > 0 ? 1 : -1;
-          this.events?.emit(EV.GUITAR_STRUM, { position: gt.strum.getWorldPosition(new THREE.Vector3()), chord, down: s > 0, velocity: s > 0 ? 0.8 + this.rand() * 0.2 : 0.45 + this.rand() * 0.15 });
+          this.events?.emit(EV.GUITAR_STRUM, { position: gt.strum.getWorldPosition(new THREE.Vector3()), chord, down: s > 0, velocity: (s > 0 ? 0.8 + this.rand() * 0.2 : 0.45 + this.rand() * 0.15) * this.guitarLevel });
         }
         p.gtStep++;
       }

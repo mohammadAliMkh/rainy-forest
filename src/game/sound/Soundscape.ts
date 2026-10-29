@@ -95,7 +95,7 @@ export class Soundscape {
   // or null if there is no recording.
   // `flat`: narration (the film-style introductions) - centred, not placed
   // in 3D, so it doesn't jump between ears when the camera cuts.
-  playVoice(key: string, pos: THREE.Vector3, { duck = true, flat = false } = {}): VoiceHandle | null {
+  playVoice(key: string, pos: THREE.Vector3, { duck = true, flat = false, gain = 1 } = {}): VoiceHandle | null {
     if (!this.started) return null;
     const file = this.engine.file(key);
     if (!file || Array.isArray(file)) return null;
@@ -106,7 +106,7 @@ export class Soundscape {
     let p: AudioNode;
     if (flat) {
       const g = ctx.createGain();
-      g.gain.value = 1;
+      g.gain.value = gain;
       g.connect(engine.buses!.voices); // buses and reverb exist once started
       const s = ctx.createGain();
       s.gain.value = 0.05;

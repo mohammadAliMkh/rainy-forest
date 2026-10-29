@@ -12,13 +12,17 @@ import { FIRE } from '../../config/config.js';
 import { AmirScene } from './AmirScene.ts';
 import { Nightfall, NightWalk } from './NightWalk.ts';
 import { TwistScene } from './TwistScene.ts';
-import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, DELIVER_AT } from './errandScript.ts';
+import { KeeperScene } from './KeeperScene.ts';
+import { makeAmulet } from './Amulet.ts';
+import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, DELIVER_AT, KEEPER_GIVES_AT } from './errandScript.ts';
 
 // The first errand, step by step, after the introductions:
 //   Amir's spot blinks on the map -> walk up to him: he asks you to fetch
 //   snacks for tonight's party from Farajpour's -> the shop blinks on the
 //   map -> inside, the chips, puffs, yogurt and a drink blink: click each
-//   into the basket -> pay Farajpour (click him) -> step outside: he calls
+//   into the basket -> pay Farajpour (click him): he talks to you as a film
+//   scene and gives you a stone amulet against the ghost (you carry it in
+//   view from then on) -> step outside: he calls
 //   after you to help yourself to pickles from the jar by the door -> lift
 //   its lid: the sheet ghost bursts out of the jar and flies off into the
 //   woods -> take the shopping back to Amir: scenario 1 plays, and once
@@ -32,11 +36,14 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, DELIVER_AT } fr
 // lines people say as DIALOG, its name at the start and the end and
 // "shopping done" as BANNER; `mapTarget()` is what blinks on the map.
 
-type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'leave' | 'pickles' | 'ghost' | 'deliver' | 'scene' | 'done';
+type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keeper' | 'leave' | 'pickles' | 'ghost' | 'deliver' | 'scene' | 'done';
 
 interface Line { speaker: string; voice: string; text: string }
 interface PlayerLike { x: number; z: number; y: number; yaw: number; pitch: number }
 type Night = ConstructorParameters<typeof Nightfall>[0];
+// where the amulet is held in view (camera space) and how it is turned
+const HELD_AT = new THREE.Vector3(0.15, -0.27, -0.55); // (left of the map in the corner)
+const HELD_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.12, -0.45, 0.06));
 // the scary look's moods for the jar act
 const SCARY_FACE: Partial<Record<GhostFace, GhostFace>> = { boo: 'scream', happy: 'grin' };
 
@@ -59,6 +66,11 @@ export class PartyErrand {
   readonly nightWalk: NightWalk;
   /** the ghost at the fire with a glass of tea, after the end */
   readonly twist: TwistScene;
+  /** paying: Farajpour talks to you and gives you the amulet */
+  readonly keeperScene: KeeperScene;
+  /** you have the amulet (it is in your hand, in view) */
+  hasAmulet = false;
+  private readonly held: THREE.Object3D;
   private readonly scary: () => boolean;
   /** this time round the walk back is haunted (read on leaving the shop) */
   haunted = false;
@@ -95,6 +107,16 @@ export class PartyErrand {
       ghost: this.jarGhost, events, player, terrain, collision, lighting: night.lighting,
       dog: () => camp.dog ?? null, from: shop, to: FIRE,
     });
+    // the amulet: the one he holds out to you, and the one you carry
+    const given = makeAmulet();
+    given.visible = false;
+    world.add(given);
+    this.held = makeAmulet();
+    this.held.visible = false;
+    this.held.scale.setScalar(0.8);
+    world.add(this.held);
+    this.keeperScene = new KeeperScene({ keeper: store.shopkeeper, events, voices, amulet: given });
+    camp.films.push(this.keeperScene);
     this.twist = new TwistScene({ ghost: this.jarGhost, terrain, events, shared: camp.shared, fire: FIRE, trail: terrain.pathLine });
     camp.films.push(this.twist);
     const props = store.errand;
@@ -138,7 +160,7 @@ export class PartyErrand {
   // the goal line and the basket
   private _announce(): void {
     // while Amir talks / the ghost is out, the goal before stays up
-    const key = this.step === 'amirTalks' ? 'toAmir' : this.step === 'ghost' ? 'pickles' : this.step;
+    const key = this.step === 'amirTalks' ? 'toAmir' : this.step === 'ghost' ? 'pickles' : this.step === 'keeper' ? 'pay' : this.step;
     const goal = (GOALS as Record<string, string>)[key];
     if (!goal) { this.events.emit(EV.QUEST, null); return; }
     // the basket only while shopping (once paid for it fades away)
@@ -176,11 +198,19 @@ export class PartyErrand {
     props.cash.visible = true;
     props.setBeacon(null);
     this._cue('pay', props.cash.getWorldPosition(new THREE.Vector3()));
-    const k = this.store.shopkeeper;
-    k.nod();
-    k.speak(this._say(LINES.thanks, k.human.headPivot.getWorldPosition(new THREE.Vector3())) - 0.4);
-    this.events.emit(EV.BANNER, { text: BANNERS.bought, kind: 'note', seconds: 2.6 });
-    this._go('leave');
+    // he thanks you, warns you about the jar and gives you the amulet
+    this.keeperScene.start(LINES.thanks, this.camera, KEEPER_GIVES_AT);
+    this._go('keeper');
+  }
+
+  // the amulet in your hand: low on the right of the view, turned a little toward you
+  private _hold(): void {
+    const h = this.held, show = this.hasAmulet && !this.camp.cinematic && this.step !== 'done';
+    h.visible = show;
+    if (!show) return;
+    const c = this.camera;
+    h.position.copy(HELD_AT).applyQuaternion(c.quaternion).add(c.position);
+    h.quaternion.copy(c.quaternion).multiply(HELD_TURN);
   }
 
   private _openJar(): void {
@@ -265,6 +295,7 @@ export class PartyErrand {
     this.t += dt;
     this.blinkT += dt;
     this.amirScene.update(dt);
+    this.keeperScene.update(dt);
     this.nightfall.update(dt);
     this.twist.update(dt);
     if (this.nightWalk.active) this.nightWalk.update(dt, this.step !== 'ghost');
@@ -293,7 +324,8 @@ export class PartyErrand {
         }
         break;
       case 'amirTalks':
-        if (!this.amirScene.filming) this._go('toStore');
+        // on your way to the shop the sun goes down
+        if (!this.amirScene.filming) { this.nightfall.dusk(); this._go('toStore'); }
         break;
       case 'toStore':
         if (store.playerInside) {
@@ -301,12 +333,21 @@ export class PartyErrand {
           this._go('shop');
         }
         break;
+      case 'keeper':
+        // the scene is over: shopping done, the amulet is yours
+        if (!this.keeperScene.filming) {
+          this.hasAmulet = true;
+          this.events.emit(EV.BANNER, { text: BANNERS.bought, kind: 'note', seconds: 2.6 });
+          this._go('leave');
+        }
+        break;
       case 'leave':
         // out of the door: he calls after you about the pickles
         if (!store.playerInside && this.t > 0.5) {
           // night falls on the way back (unless the scary ghost is switched off)
           this.haunted = this.scary();
-          if (this.haunted) { this.nightfall.fall(); this.nightWalk.start(); }
+          this.nightfall.fall(this.haunted);
+          if (this.haunted) this.nightWalk.start();
           const k = store.shopkeeper;
           k.speak(this._say(LINES.pickles, k.human.headPivot.getWorldPosition(new THREE.Vector3())) - 0.4);
           store.errand.setBlink(store.errand.lid, true);
@@ -338,7 +379,10 @@ export class PartyErrand {
           this.twistDone = true;
           this.twist.start(() => this.nightfall.lift());
         }
+        // (without the twist: the night lifts once the end card has gone)
+        if (!this.haunted && this.t > 6) this.nightfall.lift();
         break;
     }
+    this._hold();
   }
 }

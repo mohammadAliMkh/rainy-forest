@@ -18,7 +18,7 @@ export const LINES = {
     voice: 'amir_party',
     text: 'داداش، برای امشب قراره یه مهمونی خودمونی بگیریم تو کلبه. بی‌زحمت برو از سوپرمارکت یه خورده خیارشور، پفک، چیپس، ماست و نوشیدنی بخر بیار برامون.',
   },
-  thanks: { speaker: 'فرج‌پور', voice: 'farajpour_thanks', text: 'قربون دستت، نوش جون! فقط... شب نری سمت دبه‌ی خیارشور، باشه؟' },
+  thanks: { speaker: 'فرج‌پور', voice: 'farajpour_thanks', text: 'قربون دستت، نوش جون! فقط... شب نری سمت دبه‌ی خیارشور، باشه؟ اینم بگیر پیشت باشه؛ اگه روح دیدی نشونش بده.' },
   pickles: { speaker: 'فرج‌پور', voice: 'farajpour_pickles', text: 'خیارشور اگه می‌خوای، از دبه‌ی بیرون مغازه برو خودت بردار... ولی من بودم نمی‌رفتم.' },
 };
 
@@ -44,6 +44,9 @@ export const BASKET = [
   { key: 'yogurt', label: 'ماست' },
   { key: 'drink', label: 'نوشیدنی' },
 ] as const;
+
+/** paying: when (seconds into his recording `farajpour_thanks`) Farajpour brings out the amulet and holds it out to you */
+export const KEEPER_GIVES_AT = 42.2;
 
 /** how close to Amir he gets up to talk to you (metres) */
 export const NEAR_AMIR = 3.4;

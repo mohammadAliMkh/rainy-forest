@@ -71,6 +71,9 @@ export class Shopkeeper {
   /** he says something (his lips move, he looks at the customer) */
   speak(seconds: number): void { this.sayT = seconds; }
 
+  /** where his right hand holds something out to the customer, palm up (world), or null: hands on the counter */
+  offer: THREE.Vector3 | null = null;
+
   /** a nod of thanks */
   nod(): void { this.nodT = 0.5; }
 
@@ -127,13 +130,21 @@ export class Shopkeeper {
     const left = new THREE.Vector3(0, 0, 1).applyQuaternion(q); // his left
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1; // arm 0 is his right
-      const target = shop.localToWorld(_v.copy(this.handsLocal[i]));
       const out = left.clone().multiplyScalar(side);
+      if (i === 0 && this.offer) {
+        // holding something out, palm up, fingers toward the customer
+        const pole = out.clone().multiplyScalar(0.6).addScaledVector(UP, -0.8).normalize();
+        h.reach(0, this.offer, pole, out.clone(), fwd.clone().addScaledVector(UP, 0.1).normalize());
+        continue;
+      }
+      const target = shop.localToWorld(_v.copy(this.handsLocal[i]));
       const pole = out.clone().multiplyScalar(0.45).addScaledVector(fwd, -0.8).addScaledVector(UP, -0.3).normalize();
       const thumb = out.clone().negate().addScaledVector(fwd, 0.3).normalize();
       const fingers = fwd.clone().addScaledVector(out, -0.15).addScaledVector(UP, -0.25).normalize();
       h.reach(i, target, pole, thumb, fingers);
     }
     h.updateFace(dt);
+    // the Blender-built body follows the rig while someone is in the shop (his arms, his nod)
+    if (inside || this.offer) h.syncModel();
   }
 }

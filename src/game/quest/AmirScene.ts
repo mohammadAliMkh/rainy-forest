@@ -19,6 +19,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
 
 export interface SceneLine { speaker: string; voice: string; text: string }
+/** spoken lines in the errand's scenes: a little louder than the narration */
+export const VOICE_GAIN = 1.3;
 
 export class AmirScene {
   /** the film camera has the view */
@@ -70,6 +72,7 @@ export class AmirScene {
     this.quat.copy(camera.quaternion);
     this.fov = (camera as THREE.PerspectiveCamera).fov ?? 70;
     this.filming = true;
+    this.gathering.guitar = 'off'; // Amin stops playing while he asks
     this.events.emit(EV.INTRO_CINEMATIC, true); // (his name is on the line's caption box)
   }
 
@@ -79,7 +82,8 @@ export class AmirScene {
   private _say(): void {
     const line = this.line!;
     const p = this.gathering.byName('amir')!;
-    this.voice = this.voices()?.play(line.voice, p.headPos) ?? null;
+    // clear and a little louder: the ambience dips, the guitar has stopped
+    this.voice = this.voices()?.play(line.voice, p.headPos, { duck: true, gain: VOICE_GAIN }) ?? null;
     this.lineLen = this.voice ? this.voice.duration : Math.max(4, line.text.length * 0.075);
     this.lineT = 0;
     if (!this.voice) this.events.emit(EV.DIALOG, { speaker: line.speaker, text: line.text, seconds: this.lineLen + 0.6 });
@@ -117,7 +121,7 @@ export class AmirScene {
       } else {
         this.fade = Math.max(0, this.fade - dt / 0.45);
         this.events.emit(EV.INTRO_FADE, this.fade);
-        if (this.fade <= 0 && (!act || act.done)) { this.t = -1; this.act = null; }
+        if (this.fade <= 0 && (!act || act.done)) { this.t = -1; this.act = null; this.gathering.guitar = 'auto'; }
       }
     }
   }

@@ -156,7 +156,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const sound = new Soundscape(world, events);
   // the camp's introductions keep the ambience lowered across all of their lines
   camp.voices = {
-    play: (key: string, pos: THREE.Vector3) => sound.playVoice(key, pos, { duck: false, flat: true }),
+    play: (key: string, pos: THREE.Vector3, o?: { duck?: boolean; gain?: number }) => sound.playVoice(key, pos, { duck: o?.duck ?? false, flat: true, gain: o?.gain ?? 1 }),
     ready: () => !!sound.engine.filesLoaded,
   };
 

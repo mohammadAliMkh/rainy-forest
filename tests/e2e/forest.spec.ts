@@ -278,6 +278,15 @@ async function errandSetup(page: Page) {
         f.frame(0.05);
       }
     };
+    // the recorded lines as silent 6 s stand-ins that run on game time (a real
+    // recording runs on the audio clock, while the test fast-forwards the game)
+    let gameT = 0;
+    const day = f.game.systems.find((x: { name: string }) => x.name === 'day'), dayUpdate = day.update;
+    day.update = (fr: { dt: number }) => { gameT += fr.dt; dayUpdate(fr); };
+    f.camp.voices = {
+      ready: () => true,
+      play: () => { const t0 = gameT; return { duration: 6, get done() { return gameT - t0 > 6; }, elapsed: () => gameT - t0, level: () => 0.2, stop: () => {} }; },
+    };
     // what made a sound, and the lightning
     (window as any).cues = []; f.events.on('scenario:cue', (c: { cue: string }) => (window as any).cues.push(c.cue));
     (window as any).flashes = 0; f.events.on('weather:lightning', () => (window as any).flashes++);
@@ -297,6 +306,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await page.textContent('#banner')).toBe('سناریوی روح سرگردان'); // its title card
   expect(await page.evaluate(() => (window as any).forest.errand.mapTarget())).not.toBeNull(); // Amir blinks on the map
   // Amir asks for the shopping
+  const hourBefore = await page.evaluate(() => (window as any).forest.day.hour);
   await page.evaluate(() => { const f = (window as any).forest, a = f.camp.gathering.byName('amir'); f.player.teleport(a.seat.x + 1.2, a.seat.z + 1.4, 0); (window as any).step(0.5); });
   // he gets up and talks to the player as a film scene
   expect(await state()).toBe('amirTalks');
@@ -306,8 +316,12 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   const said = await page.evaluate(() => ((window as any).forest.errand.amirScene.voice ? 'voice' : document.getElementById('dialog-text')!.textContent));
   expect(said === 'voice' || said!.includes('مهمونی')).toBe(true);
   expect(await page.evaluate(() => (window as any).forest.camp.gathering.byName('amir').act?.phase)).toBe('talk');
-  await page.evaluate(() => (window as any).step(14));
+  // (as long as his line lasts)
+  await page.evaluate(() => { const e = (window as any).forest.errand; for (let k = 0; k < 120 && e.step === 'amirTalks'; k++) (window as any).step(1); });
   expect(await state()).toBe('toStore');
+  // the sun goes down on the way to the shop
+  await page.evaluate(() => (window as any).step(13));
+  expect(await page.evaluate(() => (window as any).forest.day.hour)).toBeGreaterThan(17.5);
   // in the shop: click the four things
   await page.evaluate(() => (window as any).goTo(0.4, 0.9));
   expect(await state()).toBe('shop');
@@ -319,10 +333,20 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await state()).toBe('pay');
   // pay Farajpour
   await page.evaluate(() => { const f = (window as any).forest; (window as any).goTo(0.9, 0.1); (window as any).lookAt(f.store.errand.keeperProxy); });
-  const hourBefore = await page.evaluate(() => (window as any).forest.day.hour);
   await click();
-  expect(await state()).toBe('leave');
-  expect(await page.textContent('#dialog-text')).toContain('شب نری سمت دبه'); // Farajpour's warning
+  // he talks to you as a film scene (his recording or the caption) and gives you the amulet
+  expect(await state()).toBe('keeper');
+  expect(await page.evaluate(() => (window as any).forest.camp.cinematic)).toBe(true);
+  await page.evaluate(() => (window as any).step(1));
+  const warned = await page.evaluate(() => ((window as any).forest.errand.keeperScene.voice ? 'voice' : document.getElementById('dialog-text')!.textContent));
+  expect(warned === 'voice' || warned!.includes('شب نری سمت دبه')).toBe(true);
+  const handed = await page.evaluate(() => {
+    const e = (window as any).forest.errand;
+    let held = false;
+    for (let k = 0; k < 2400 && e.step === 'keeper'; k++) { (window as any).forest.frame(0.05); held ||= !!(window as any).forest.store.shopkeeper.offer; }
+    return { held, step: e.step, has: e.hasAmulet };
+  });
+  expect(handed).toEqual({ held: true, step: 'leave', has: true });
   expect(await page.evaluate(() => (window as any).forest.store.errand.cash.visible)).toBe(true);
   // "shopping done", and the basket fades away
   expect(await page.textContent('#banner')).toContain('خرید انجام شد');
@@ -380,7 +404,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(errors).toEqual([]);
 });
 
-test('the errand with «روح ترسناک» off: daylight stays, no scares on the way back, the funny ghost', async ({ page }) => {
+test('the errand with «روح ترسناک» off: night on the way back but no storm, no scares, the funny ghost', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
@@ -389,17 +413,18 @@ test('the errand with «روح ترسناک» off: daylight stays, no scares on 
   await page.evaluate(() => { const c = document.getElementById('scary-ghost') as HTMLInputElement; c.checked = false; c.dispatchEvent(new Event('change')); });
   const r = await page.evaluate(() => {
     const f = (window as any).forest, e = f.errand;
-    const hour = f.day.hour;
-    // paid (straight to it), out of the door, the jar
+    // paid (straight to it), Farajpour's scene, out of the door, the jar
     (window as any).goTo(0.9, 0.1); e.step = 'pay'; e._pay();
+    for (let k = 0; k < 2400 && e.step === 'keeper'; k++) f.frame(0.05);
     (window as any).goTo(1.0, 3.7); (window as any).step(1);
     (window as any).lookAt(f.store.errand.lid); e._openJar(); (window as any).step(0.8);
     const face = e.jarGhost.pose.face, style = e.jarGhost.style;
     (window as any).step(5);
+    const night = f.day.hour > 21, storm = f.weather.kind === 'heavy';
     (window as any).walkHome(() => e.step === 'scene');
-    return { haunted: e.haunted, dayStays: Math.abs(f.day.hour - hour) < 0.5, face, style, fired: e.nightWalk.fired.size, step: e.step, scenarioGhost: f.camp.scenario.ghost.style };
+    return { haunted: e.haunted, night, storm, face, style, fired: e.nightWalk.fired.size, step: e.step, scenarioGhost: f.camp.scenario.ghost.style };
   });
-  expect(r).toEqual({ haunted: false, dayStays: true, face: 'boo', style: 'funny', fired: 0, step: 'scene', scenarioGhost: 'funny' });
+  expect(r).toEqual({ haunted: false, night: true, storm: false, face: 'boo', style: 'funny', fired: 0, step: 'scene', scenarioGhost: 'funny' });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('rainy-forest-settings-v2')!).scaryGhost)).toBe(false);
   expect(errors).toEqual([]);
 });
