@@ -9,7 +9,7 @@ import type { Picker } from '../player/Picker.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
 import { Ghost, type GhostFace } from '../scenario/Ghost.ts';
 import { FIRE } from '../../config/config.js';
-import { AmirScene } from './AmirScene.ts';
+import { AmirScene, VOICE_GAIN } from './AmirScene.ts';
 import { Nightfall, NightWalk } from './NightWalk.ts';
 import { TwistScene } from './TwistScene.ts';
 import { KeeperScene } from './KeeperScene.ts';
@@ -40,7 +40,6 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, DELIVER_AT, KEE
 
 type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keeper' | 'leave' | 'pickles' | 'ghost' | 'deliver' | 'scene' | 'done';
 
-interface Line { speaker: string; voice: string; text: string }
 interface PlayerLike { x: number; z: number; y: number; yaw: number; pitch: number }
 type Night = ConstructorParameters<typeof Nightfall>[0];
 // the scary look's moods for the jar act
@@ -168,14 +167,6 @@ export class PartyErrand {
     const basket = ['shop', 'pay'].includes(this.step) ? BASKET.map((b) => ({ label: b.label, got: this.got.has(b.key) })) : null;
     const hint = ['shop', 'pay', 'pickles'].includes(this.step) ? (this.touch() ? HINTS.tap : HINTS.click) : null;
     this.events.emit(EV.QUEST, { title: TITLE, objective: goal, hint, basket });
-  }
-
-  // someone says a line: a recording if there is one, the caption either way
-  private _say(line: Line, from: THREE.Vector3): number {
-    const v = this.voices()?.play(line.voice, from) ?? null;
-    const seconds = v ? v.duration + 0.4 : Math.max(3.5, line.text.length * 0.075);
-    this.events.emit(EV.DIALOG, { speaker: line.speaker, text: line.text, seconds });
-    return seconds;
   }
 
   private _cue(cue: 'pickup' | 'pay' | 'lid' | 'boo' | 'giggle' | 'laughDeep' | 'vanish', at: THREE.Vector3): void {
@@ -343,8 +334,10 @@ export class PartyErrand {
           this.haunted = this.scary();
           this.nightfall.fall(this.haunted);
           if (this.haunted) this.nightWalk.start();
+          // (only his recording, if there is one: no caption box - the goal line says it)
           const k = store.shopkeeper;
-          k.speak(this._say(LINES.pickles, k.human.headPivot.getWorldPosition(new THREE.Vector3())) - 0.4);
+          const v = this.voices()?.play(LINES.pickles.voice, k.human.headPivot.getWorldPosition(new THREE.Vector3()), { duck: true, gain: VOICE_GAIN }) ?? null;
+          if (v) k.speak(v.duration);
           store.errand.setBlink(store.errand.lid, true);
           store.errand.setBeacon('jar');
           this._go('pickles');

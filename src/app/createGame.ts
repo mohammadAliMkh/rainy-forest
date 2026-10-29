@@ -204,7 +204,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const questWorld = new THREE.Group(); // the jar's ghost flies in world coordinates
   scene.add(questWorld);
   // the player's own hands, and the bag (a flashlight in it from the start)
-  const hands = new Hands({ scene, world: questWorld, ground: (x, z) => terrain.heightAt(x, z) });
+  const hands = new Hands({ scene, world: questWorld, ground: (x, z) => terrain.heightAt(x, z), model: (T as TextureSet).scenes?.fp_arms ?? null });
   const inventory = new Inventory({ hands, events, scene });
   events.on(EV.INVENTORY, (inv) => ui.setInventory(inv));
   ui.on('equip', (id) => inventory.equip(id as ItemId | null));

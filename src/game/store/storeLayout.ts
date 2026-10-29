@@ -59,7 +59,7 @@ export const ERRAND = {
   yogurt: { x: 0.765, y: 0.82, z: FRIDGES[0].z1 - 0.12, yaw: 0 },
   drink: { x: 1.565, y: 0.82, z: FRIDGES[1].z1 - 0.12, yaw: 0 },
   /** the pickle jar on the porch, right of the door */
-  jar: { x: DOOR.x1 + 0.45, z: Z1 + 0.34 },
+  jar: { x: DOOR.x1 + 0.45, z: Z1 + 0.36, scale: 1.5 }, // a big one, ~70 cm tall
   /** where the money is laid on the counter (customer side) */
   cash: { x: COUNTER.x0 + 0.22, z: 0.25 },
 };

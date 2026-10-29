@@ -357,7 +357,6 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   // outside he calls after you about the pickles; the ghost bursts out of the jar
   await page.evaluate(() => { const f = (window as any).forest; (window as any).goTo(1.0, 3.7); (window as any).step(1); (window as any).lookAt(f.store.errand.lid); });
   expect(await state()).toBe('pickles');
-  expect(await page.textContent('#dialog-text')).toContain('خیارشور');
   await click();
   expect(await state()).toBe('ghost');
   expect(await page.evaluate(() => { (window as any).step(1); return (window as any).forest.errand.jarGhost.group.visible; })).toBe(true);

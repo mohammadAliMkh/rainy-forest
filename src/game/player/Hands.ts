@@ -15,7 +15,10 @@ import * as THREE from 'three';
 // Each action runs over time and calls back at its moment (`onGrab`,
 // `onRelease`, `onDone`); one action per hand at a time (`busy`).
 // The hands live in the scene (so the lantern and the flashlight light
-// them) and follow the camera, placed in the camera's own frame.
+// them) and follow the camera, placed in the camera's own frame. They are
+// the owner's own forearms and hands (fp_arms.glb, cut from his model by
+// pipeline/blender_fp_arms.py): their forearm, wrist and finger bones are
+// moved to match; without that file, simple built ones stand in.
 
 export type Side = 'left' | 'right';
 
@@ -45,7 +48,7 @@ const euler = (x: number, y: number, z: number) => new THREE.Quaternion().setFro
 /** the camera-space poses, for the right hand (the left one is the mirror image) */
 const POSE = {
   /** resting low at the corner of the view, seen from the side (thumb up), fingers relaxed */
-  rest: { pos: new THREE.Vector3(0.21, -0.285, -0.42), quat: euler(0.15, 0.35, 1.25), grip: 0.3 },
+  rest: { pos: new THREE.Vector3(0.21, -0.27, -0.42), quat: euler(0.15, 0.35, 1.25), grip: 0.3 },
   /** holding something up in front, ready to use it (turned a little inward, so it is seen from the side) */
   hold: { pos: new THREE.Vector3(0.19, -0.2, -0.4), quat: euler(0.16, 0.3, 1.35), grip: 1 },
   /** out of view, down by the side */
@@ -63,6 +66,9 @@ const _v = new THREE.Vector3();
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _c = new THREE.Vector3();
+const _q1 = new THREE.Quaternion();
+const _q2 = new THREE.Quaternion();
+const _q3 = new THREE.Quaternion();
 const _w = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const ease = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
@@ -71,6 +77,92 @@ function mirror(p: Pose): Pose {
   // the left hand: x flipped, and the rotation mirrored across the y-z plane
   const e = new THREE.Euler().setFromQuaternion(p.quat, 'YXZ');
   return { pos: p.pos.clone().setX(-p.pos.x), quat: euler(e.x, -e.y, -e.z), grip: p.grip };
+}
+
+/** a bone of the model by its name in Blender (the loader drops the dot: "wrist.R" -> "wristR") */
+function bone(root: THREE.Object3D, name: string): THREE.Bone | null {
+  return (root.getObjectByName(name) ?? root.getObjectByName(name.replace('.', '')) ?? root.getObjectByName(name.replace('.', '_'))) as THREE.Bone | null;
+}
+
+/** an orthonormal frame as a quaternion: y = up, z = back (minus forward), x = y x z */
+function frame(forward: THREE.Vector3, up: THREE.Vector3): THREE.Quaternion {
+  const z = forward.clone().negate().normalize();
+  const x = new THREE.Vector3().crossVectors(up, z).normalize();
+  const y = new THREE.Vector3().crossVectors(z, x);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+}
+
+/**
+ * One of the model's arms: the forearm bone set every frame from where the
+ * elbow is and where the wrist must be, the wrist bone turned to the hand's
+ * pose, the finger bones curled toward the palm by the grip.
+ */
+class ModelArm {
+  private readonly fore: THREE.Bone;
+  private readonly fore2: THREE.Bone;
+  private readonly wrist: THREE.Bone;
+  private readonly fingers: { bone: THREE.Bone; bind: THREE.Quaternion; axis: THREE.Vector3; amount: number }[] = [];
+  /** forearm length (lowerarm01 head to the wrist), bind direction and the back of the hand */
+  readonly length: number;
+  private readonly d0: THREE.Vector3;
+  private readonly u0: THREE.Vector3;
+  private readonly fore0: THREE.Quaternion;
+  /** the wrist bone's world rotation relative to the hand's own frame */
+  private readonly wristOff: THREE.Quaternion;
+
+  constructor(model: THREE.Object3D, side: Side, container: THREE.Object3D) {
+    const S = side === 'right' ? 'R' : 'L';
+    const need = (n: string) => { const b = bone(model, `${n}.${S}`); if (!b) throw new Error(`fp_arms: no bone ${n}.${S}`); return b; };
+    this.fore = need('lowerarm01');
+    this.fore2 = need('lowerarm02');
+    this.wrist = need('wrist');
+    model.updateMatrixWorld(true);
+    const at = (b: THREE.Object3D) => b.getWorldPosition(new THREE.Vector3());
+    const w = at(this.wrist), f0 = at(this.fore);
+    const index = at(need('finger2-1')), little = at(need('finger5-1'));
+    const fwd = index.clone().add(little).multiplyScalar(0.5).sub(w).normalize();
+    const toThumb = index.clone().sub(little).normalize();
+    // the back of the hand (its palm faces the other way)
+    const up = side === 'right' ? new THREE.Vector3().crossVectors(fwd, toThumb) : new THREE.Vector3().crossVectors(toThumb, fwd);
+    up.normalize();
+    const hand0 = frame(fwd, up);
+    this.wristOff = hand0.clone().invert().multiply(this.wrist.getWorldQuaternion(new THREE.Quaternion()));
+    this.length = w.distanceTo(f0);
+    this.d0 = w.clone().sub(f0).normalize();
+    this.u0 = up.clone().addScaledVector(this.d0, -up.dot(this.d0)).normalize();
+    this.fore0 = this.fore.getWorldQuaternion(new THREE.Quaternion());
+    // the fingers: each joint bends about the axis that turns it toward the palm
+    const palm = up.clone().negate();
+    const AMOUNT = [[0.35, 0.55, 0.45], [1.15, 1.35, 0.95], [1.2, 1.4, 1.0], [1.2, 1.4, 1.0], [1.15, 1.35, 0.95]];
+    for (let i = 1; i <= 5; i++) {
+      for (let j = 1; j <= 3; j++) {
+        const b = need(`finger${i}-${j}`);
+        const dir = (b.children[0] ? at(b.children[0]) : at(b).addScaledVector(fwd, 0.02)).sub(at(b)).normalize();
+        const axis = new THREE.Vector3().crossVectors(dir, palm).normalize();
+        axis.applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion()).invert());
+        this.fingers.push({ bone: b, bind: b.quaternion.clone(), axis, amount: AMOUNT[i - 1][j - 1] });
+      }
+    }
+    // the forearm is moved on its own from now on (in world space)
+    container.attach(this.fore);
+  }
+
+  /** the hand's frame (world) and where the elbow side of the forearm points from (world) */
+  pose(handPos: THREE.Vector3, handQuat: THREE.Quaternion, elbow: THREE.Vector3, grip: number): void {
+    const d = _a.subVectors(handPos, elbow).normalize();
+    const up = _b.set(0, 1, 0).applyQuaternion(handQuat);
+    up.addScaledVector(d, -up.dot(d)).normalize();
+    // turn the forearm as a whole from its bind direction to this one, keeping the back of the hand up
+    const align = frame(d, up).multiply(frame(this.d0, this.u0).invert());
+    this.fore.quaternion.copy(align).multiply(this.fore0);
+    this.fore.position.copy(handPos).addScaledVector(d, -this.length);
+    this.fore.updateMatrixWorld(true);
+    // the wrist turned to the hand's pose
+    const parent = this.fore2.getWorldQuaternion(_q1);
+    this.wrist.quaternion.copy(parent.invert()).multiply(_q2.copy(handQuat).multiply(this.wristOff));
+    for (const f of this.fingers) f.bone.quaternion.copy(f.bind).multiply(_q1.setFromAxisAngle(f.axis, -0.05 + f.amount * grip));
+    this.fore.updateMatrixWorld(true);
+  }
 }
 
 class Hand {
@@ -89,6 +181,9 @@ class Hand {
   stepT = 0;
   private readonly fingers: THREE.Object3D[][] = [];
   private readonly thumb: THREE.Object3D[] = [];
+  /** the owner's own arm (else the simple one built here) */
+  model: ModelArm | null = null;
+  private readonly built: THREE.Object3D[] = [];
 
   constructor(side: Side, skin: THREE.Material, sleeve: THREE.Material) {
     this.side = side;
@@ -107,6 +202,7 @@ class Hand {
     palm.scale.set(0.044, 0.016, 0.048);
     palm.position.set(0, 0, -0.045);
     this.root.add(cuff, palm);
+    this.built.push(cuff, palm, this.arm);
     const seg = (len: number, r: number) => {
       const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len - 2 * r, 3, 8), skin);
       m.rotation.x = Math.PI / 2;
@@ -122,6 +218,7 @@ class Hand {
       k1.add(seg(f.len * 0.55, 0.0085), k2);
       k2.add(seg(f.len * 0.45, 0.0078));
       this.root.add(k1);
+      this.built.push(k1);
       this.fingers.push([k1, k2]);
     }
     // the thumb, from the side of the palm, forward and in
@@ -133,6 +230,7 @@ class Hand {
     t1.add(seg(0.034, 0.0105), t2);
     t2.add(seg(0.03, 0.0095));
     this.root.add(t1);
+    this.built.push(t1);
     this.thumb.push(t1, t2);
     this.grip.position.set(0, -0.032, -0.07);
     this.root.add(this.grip);
@@ -146,6 +244,12 @@ class Hand {
     this.goal.quat.copy(q.quat);
     this.goal.grip = q.grip;
     this.speed = speed;
+  }
+
+  /** use the model's arm instead of the built one */
+  useModel(m: ModelArm): void {
+    this.model = m;
+    for (const o of this.built) o.visible = false;
   }
 
   update(dt: number, bob: THREE.Vector3): void {
@@ -181,11 +285,14 @@ export class Hands {
   private readonly world: THREE.Object3D;
   private readonly ground: (x: number, z: number) => number;
   private walk = 0;
+  /** the owner's arms (world space; shown with the rig) */
+  private readonly arms: THREE.Object3D | null = null;
   private readonly bob = new THREE.Vector3();
   private readonly lastCam = new THREE.Vector3();
 
   /** `world`: where thrown things go; `ground`: the ground height at (x, z) */
-  constructor({ scene, world, ground }: { scene: THREE.Object3D; world: THREE.Object3D; ground: (x: number, z: number) => number }) {
+  /** `model`: fp_arms.glb (the owner's forearms and hands), or null for the built ones */
+  constructor({ scene, world, ground, model = null }: { scene: THREE.Object3D; world: THREE.Object3D; ground: (x: number, z: number) => number; model?: THREE.Object3D | null }) {
     this.world = world;
     this.ground = ground;
     const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.7 });
@@ -194,6 +301,23 @@ export class Hands {
     this.right = new Hand('right', skin, sleeve);
     this.rig.add(this.left.root, this.right.root, this.left.arm, this.right.arm);
     scene.add(this.rig);
+    if (model) {
+      try {
+        const arms = new THREE.Group();
+        arms.add(model);
+        model.traverse((o) => {
+          o.frustumCulled = false;
+          const m = o as THREE.Mesh;
+          if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; }
+        });
+        scene.add(arms);
+        this.right.useModel(new ModelArm(model, 'right', arms));
+        this.left.useModel(new ModelArm(model, 'left', arms));
+        this.arms = arms;
+      } catch (e) {
+        console.warn('first-person arms: using the built hands', e);
+      }
+    }
   }
 
   hand(side: Side): Hand { return side === 'right' ? this.right : this.left; }
@@ -366,7 +490,19 @@ export class Hands {
       }
       h.update(dt, this.bob);
     }
+    if (this.arms) {
+      this.rig.updateMatrixWorld(true);
+      for (const h of [this.left, this.right]) {
+        const m = h.model!;
+        const pos = h.root.getWorldPosition(_v);
+        const quat = h.root.getWorldQuaternion(_q3);
+        // the elbow: out toward the lower corner of the view, a forearm's length away
+        const elbow = this.rig.localToWorld(_w.set(ELBOW.x * (h.side === 'right' ? 1 : -1), ELBOW.y, ELBOW.z)).sub(pos).setLength(m.length).add(pos);
+        m.pose(pos, quat, elbow, h.pose.grip);
+      }
+    }
     this.rig.visible = this.enabled && (show || this.busy);
+    if (this.arms) this.arms.visible = this.rig.visible;
     this._fly(dt);
   }
 

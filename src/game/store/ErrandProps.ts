@@ -55,6 +55,7 @@ export class ErrandProps {
     {
       const j = this.jar;
       j.position.set(ERRAND.jar.x, F, ERRAND.jar.z);
+      j.scale.setScalar(ERRAND.jar.scale);
       const R = 0.17, HJ = 0.46;
       const body = new THREE.Mesh(
         new THREE.LatheGeometry([[0, 0], [R * 0.92, 0], [R, 0.03], [R, HJ * 0.8], [R * 0.82, HJ * 0.92], [R * 0.62, HJ * 0.95], [R * 0.62, HJ]].map(([r, y]) => new THREE.Vector2(r, y)), 24),
@@ -128,7 +129,7 @@ export class ErrandProps {
   /** the marker over the shopkeeper / the jar, or nowhere */
   setBeacon(where: 'keeper' | 'jar' | null): void {
     this.beaconAt = where === 'keeper' ? new THREE.Vector3(SHOPKEEPER.x - 0.05, F + 2.1, SHOPKEEPER.z)
-      : where === 'jar' ? new THREE.Vector3(ERRAND.jar.x, F + 0.85, ERRAND.jar.z) : null;
+      : where === 'jar' ? new THREE.Vector3(ERRAND.jar.x, F + 0.46 * ERRAND.jar.scale + 0.4, ERRAND.jar.z) : null;
     this.beacon.visible = !!this.beaconAt;
   }
 

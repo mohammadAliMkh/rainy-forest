@@ -140,7 +140,7 @@ export class Store {
     block(X0 - 0.64, X0, -2.25, 2.0);
     block(X1, X1 + 0.82, 0.6, 1.85);
     block(STEPS.x1 + 0.49, STEPS.x1 + 1.01, PZ1 + 0.18, PZ1 + 0.72);
-    round(ERRAND.jar.x, ERRAND.jar.z, 0.2); // the pickle jar
+    round(ERRAND.jar.x, ERRAND.jar.z, 0.17 * ERRAND.jar.scale + 0.03); // the pickle jar
     // inside: the counter and the space behind it (the shopkeeper's), fridges, shelves, crates
     block(COUNTER.x0, IX1, LIQUOR.z1, COUNTER_END.z1);
     block(FRIDGES[0].x0, FRIDGES[1].x1, IZ0, FRIDGES[0].z1);
