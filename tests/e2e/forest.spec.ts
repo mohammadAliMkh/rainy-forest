@@ -302,7 +302,9 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await state()).toBe('amirTalks');
   expect(await page.evaluate(() => (window as any).forest.camp.cinematic)).toBe(true);
   await page.evaluate(() => (window as any).step(2.5));
-  expect(await page.textContent('#dialog-text')).toContain('مهمونی');
+  // his recording, or (without it) the caption
+  const said = await page.evaluate(() => ((window as any).forest.errand.amirScene.voice ? 'voice' : document.getElementById('dialog-text')!.textContent));
+  expect(said === 'voice' || said!.includes('مهمونی')).toBe(true);
   expect(await page.evaluate(() => (window as any).forest.camp.gathering.byName('amir').act?.phase)).toBe('talk');
   await page.evaluate(() => (window as any).step(14));
   expect(await state()).toBe('toStore');

@@ -47,6 +47,24 @@ export class CollisionWorld {
     return this.resolve(p, radius, true);
   }
 
+  /** is a static collider with one of `tags` (e.g. 'post', 'tree') within `radius` of (x, z)? */
+  hasNear(x, z, radius, tags) {
+    const ix = Math.floor(x / CELL), iz = Math.floor(z / CELL);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        for (const c of this.cells.get(this._key(ix + dx, iz + dz)) || []) {
+          if (tags.includes(c.tag) && Math.hypot(x - c.x, z - c.z) < c.r + radius) return true;
+        }
+      }
+    }
+    for (const b of this.boxes) {
+      if (!tags.includes(b.tag)) continue;
+      const lx = (x - b.x) * b.cos - (z - b.z) * b.sin, lz = (x - b.x) * b.sin + (z - b.z) * b.cos;
+      if (Math.hypot(lx - Math.max(-b.hx, Math.min(b.hx, lx)), lz - Math.max(-b.hz, Math.min(b.hz, lz))) < radius) return true;
+    }
+    return false;
+  }
+
   /** Pushes p = {x, z} out of all colliders. Returns true if any contact. */
   resolve(p, radius, testOnly = false) {
     let hit = false;

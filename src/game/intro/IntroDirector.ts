@@ -11,9 +11,11 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // down over the area, lower and closer as the welcome ends, and lands on the
 // owner's face just as his own introduction starts. Then it cuts (a quick
 // dip to black) from face to face - a portrait of whoever is being
-// introduced, slowly pushing in - while the recordings play, and hands
-// control back. The voices are a voice-over: nobody's lips move. Once per
-// visit.
+// introduced, slowly pushing in - while the recordings play. Last, over one
+// shot of everyone at the fire from the open side of the ring, the narrator
+// introduces scenario 1; the player then stands exactly where that shot
+// ends and the game begins (also after a skip). The voices are a
+// voice-over: nobody's lips move. Once per visit.
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -22,6 +24,12 @@ const UP = new THREE.Vector3(0, 1, 0);
 // the whole seated person, head to feet, not just the face
 const PORTRAIT = { d: 2.1, up: -0.08, lookDown: 0.35, fov: 40 };
 const GUITAR = { d: 2.4, up: -0.08, lookDown: 0.35, fov: 42 };
+// everyone at once, as the player will see them (their eye level and field of
+// view, so taking over is seamless): how far from the fire, how much closer by
+// the end of the line, how high the camera and what it looks at
+const GROUP = { d: 4.9, push: 0.5, eye: 1.68, lookUp: 0.8, fov: 70 };
+/** the last line, over the group shot */
+const GROUP_KEY = 'scenario_intro';
 
 /** a shot's vertical field of view, widened on a tall (portrait) screen so the
  * sides of the frame - the person's body - are the same as on a square one */
@@ -45,6 +53,10 @@ type Step = (typeof INTRO)[number];
 export interface FlightObstacles {
   trees: readonly { x: number; z: number; height: number; kind: string }[];
   heightAt(x: number, z: number): number;
+  /** something solid (a pole, a log) within `radius` of (x, z): no standing there */
+  blocked?(x: number, z: number, radius: number): boolean;
+  /** something tall (a post, a trunk, a wall) within `radius` of (x, z): it hides what is behind */
+  tall?(x: number, z: number, radius: number): boolean;
 }
 
 /** the introductions in progress */
@@ -88,6 +100,11 @@ export class IntroDirector {
   private hoverT = 0;
   /** the trees the flight keeps above */
   obstacles: FlightObstacles | null = null;
+  /** puts the player where the last shot ends, looking the same way (set by app/createGame.ts) */
+  onHandBack: ((x: number, z: number, yaw: number, pitch: number) => void) | null = null;
+  private readonly _gPos = new THREE.Vector3();
+  private readonly _gLook = new THREE.Vector3();
+  private _groupAt: { a: number; d: number } | null = null;
 
   constructor(camp: Camp) {
     this.camp = camp;
@@ -132,7 +149,7 @@ export class IntroDirector {
       this.fly = null;
       s.played++;
       g.focus = step.focus;
-      this.camp.events.emit(EV.INTRO_CAPTION, this._name(step.focus));
+      this.camp.events.emit(EV.INTRO_CAPTION, step.key === GROUP_KEY ? null : this._name(step.focus));
       this.camp.events.emit(EV.INTRO_SUBTITLE, step.text || null);
       return;
     }
@@ -143,6 +160,10 @@ export class IntroDirector {
 
   private _finish(): void {
     const g = this.camp.gathering;
+    // the game starts where the group shot ends
+    this._group(1);
+    const p = this._gPos, l = this._gLook;
+    this.onHandBack?.(p.x, p.z, Math.atan2(-(l.x - p.x), -(l.z - p.z)), Math.atan2(l.y - p.y, Math.hypot(l.x - p.x, l.z - p.z)));
     this.seq = null;
     this.w = 0;
     g.focus = null;
@@ -184,7 +205,9 @@ export class IntroDirector {
     // the flight lands on the owner just as the welcome ends: no cut, he starts right away
     if (s.voice.done) s.gap += dt;
     const flying = !!this.fly;
-    if (s.gap > (flying ? 0.1 : 0.6)) { s.voice = null; if (flying) this._next(); else this._cut(() => this._next()); }
+    // (after the group shot no cut either: the player is simply standing there)
+    const seamless = flying || s.step?.key === GROUP_KEY;
+    if (s.gap > (seamless ? 0.1 : 0.6)) { s.voice = null; if (seamless) this._next(); else this._cut(() => this._next()); }
   }
 
   /** the ground at the fire, and which way the player stood from it */
@@ -259,12 +282,61 @@ export class IntroDirector {
     curve.updateArcLengths();
   }
 
+  // the shot of everyone at the fire, from the open side of the ring (away from
+  // where the seats are), `k` 0..1 through its slow push-in -> _gPos / _gLook
+  private _group(k: number): void {
+    const g = this.camp.gathering, fire = this.camp.fire;
+    let sx = 0, sz = 0;
+    for (const p of g.people) {
+      const dx = p.seat.x - fire.x, dz = p.seat.z - fire.z, d = Math.hypot(dx, dz) || 1;
+      sx += dx / d; sz += dz / d;
+    }
+    // straight out from the open side, or nearer / farther / a little round from
+    // it, where the player can stand and nothing hides anyone (found once)
+    if (!this._groupAt) {
+      const a0 = Math.atan2(-sx, -sz);
+      this._groupAt = { a: a0, d: GROUP.d };
+      search: for (let i = 0; i <= 40; i++) {
+        const a = a0 + Math.ceil(i / 2) * 0.05 * (i % 2 ? 1 : -1);
+        for (const dd of [0, -0.5, 0.5, -0.9, 1, 1.5]) {
+          const e = GROUP.d + dd - GROUP.push;
+          if (this._clearGroupView(fire.x + Math.sin(a) * e, fire.z + Math.cos(a) * e)) { this._groupAt = { a, d: GROUP.d + dd }; break search; }
+        }
+      }
+    }
+    const { a } = this._groupAt;
+    const d = this._groupAt.d - GROUP.push * k;
+    const x = fire.x + Math.sin(a) * d, z = fire.z + Math.cos(a) * d;
+    const ground = (px: number, pz: number) => this.obstacles?.heightAt(px, pz) ?? g.byName('owner')!.headPos.y - 1.15;
+    this._gPos.set(x, ground(x, z) + GROUP.eye, z);
+    this._gLook.set(fire.x, ground(fire.x, fire.z) + GROUP.lookUp, fire.z);
+  }
+
+  // the player can stand at (x, z), and no pole or post hides anyone at the fire from there
+  private _clearGroupView(x: number, z: number): boolean {
+    const o = this.obstacles;
+    if (!o?.blocked || !o.tall) return true;
+    if (o.blocked(x, z, 0.45)) return false;
+    for (const p of this.camp.gathering.people) {
+      const dx = p.seat.x - x, dz = p.seat.z - z, d = Math.hypot(dx, dz);
+      // (as wide as a person sitting there)
+      for (let t = 0.4; t < d - 0.4; t += 0.2) if (o.tall(x + (dx * t) / d, z + (dz * t) / d, 0.3)) return false;
+    }
+    return true;
+  }
+
   // where the film camera wants to be for the current line; returns its field of view
   private _shot(s: Sequence): number {
     const g = this.camp.gathering;
     const push = Math.min(s.t, 12) / 12; // slow push-in during each line
     const focus = s.step?.focus;
     this.exact = false;
+    if (s.step?.key === GROUP_KEY) {
+      this._group(Math.min(1, s.t / Math.max(1, s.voice?.duration ?? 1)));
+      this._tPos.copy(this._gPos);
+      this._tLook.copy(this._gLook);
+      return GROUP.fov;
+    }
     if (focus === 'luna') {
       const d = this.camp.dog;
       const left = new THREE.Vector3(d.forward.z, 0, -d.forward.x);

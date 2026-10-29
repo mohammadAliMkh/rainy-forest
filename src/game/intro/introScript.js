@@ -4,6 +4,8 @@
 // skipped), `focus` = who is being introduced (they turn to the player and
 // react, and their name appears above them), `text` = optional subtitle
 // (shown only when the visitor turns subtitles on in the settings).
+// The last line is the narrator introducing scenario 1, over one shot of
+// everyone at the fire; when it ends the player is standing right there.
 
 export const INTRO = [
   {
@@ -16,4 +18,5 @@ export const INTRO = [
   { key: 'intro_amin', focus: 'amin', text: '' },
   { key: 'intro_alireza', focus: 'alireza', text: '' },
   { key: 'intro_luna', focus: 'luna', text: '' },
+  { key: 'scenario_intro', focus: null, text: '' },
 ];
