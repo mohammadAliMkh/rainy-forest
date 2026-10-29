@@ -13,7 +13,7 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // the camera comes in to a close shot in front of him and he says his line
 // straight into it (to you), with his free hand; toward the end he points
 // the way to the shop. A dip to black, the view is yours again, and he sits
-// back down. The line is a recording when there is one, a caption always.
+// back down. The line is his recording when there is one, else a caption.
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -82,7 +82,7 @@ export class AmirScene {
     this.voice = this.voices()?.play(line.voice, p.headPos) ?? null;
     this.lineLen = this.voice ? this.voice.duration : Math.max(4, line.text.length * 0.075);
     this.lineT = 0;
-    this.events.emit(EV.DIALOG, { speaker: line.speaker, text: line.text, seconds: this.lineLen + 0.6 });
+    if (!this.voice) this.events.emit(EV.DIALOG, { speaker: line.speaker, text: line.text, seconds: this.lineLen + 0.6 });
     const act = this.act!;
     act.speaking = true;
     const v = this.voice;

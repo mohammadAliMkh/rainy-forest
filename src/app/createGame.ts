@@ -103,7 +103,12 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   await step(0.42, 'سوپرمارکت کوچک جنگل و صاحب پیرش…');
   const store = await Store.create(T, terrain, collision, { events, shared: camp.shared }); // before the forest too
   const forest = new Forest(T, terrain, collision);
-  camp.intro.obstacles = { trees: forest.trees, heightAt: (x, z) => terrain.heightAt(x, z) }; // the welcome's flight keeps above them
+  const TALL = ['post', 'tree', 'cabin', 'wall', 'store', 'car', 'chimney', 'woodpile'];
+  camp.intro.obstacles = { // the welcome's flight keeps above them; the player is put down where nothing stands
+    trees: forest.trees, heightAt: (x, z) => terrain.heightAt(x, z), blocked: (x, z, r) => collision.isBlocked(x, z, r), tall: (x, z, r) => collision.hasNear(x, z, r, TALL),
+  };
+  // after the introductions the player stands where their last shot ends
+  camp.intro.onHandBack = (x, z, yaw, pitch) => { player.teleport(x, z, yaw); player.pitch = pitch; };
   scene.add(forest.group);
 
   await step(0.5, 'سرخس‌ها، بوته‌های شبنم‌زده، سنگ‌ها و قارچ‌ها…');
