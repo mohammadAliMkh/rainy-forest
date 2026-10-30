@@ -37,6 +37,7 @@ import { CollisionWorld } from '../game/player/Collision.js';
 import { PlayerController } from '../game/player/PlayerController.ts';
 import { Hands } from '../game/player/Hands.ts';
 import { Inventory, type ItemId } from '../game/items/Inventory.ts';
+import { Wraith } from '../game/scenario/Wraith.ts';
 import { Soundscape } from '../game/sound/Soundscape.ts';
 import { Minimap } from '../ui/Minimap.js';
 import { Session } from './Session.ts';
@@ -278,6 +279,32 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('store', (f) => store.update(f.dt, f.camera, f.env));
   sys('errand', (f) => { if (session.entered) theErrand.update(f.dt); });
+  // ?lab=wraith: the ghost's true shape on its own, at night in front of the player,
+  // over and over: whirlwind (4 s) -> gathering into the spectre (2.5 s) -> the spectre (5 s)
+  if (new URLSearchParams(location.search).get('lab') === 'wraith') {
+    const wraith = new Wraith(terrain);
+    questWorld.add(wraith.group);
+    let labT = -1;
+    sys('lab', (f) => {
+      if (!session.entered) return;
+      if (camp.intro.active) { camp.intro.skip(); return; }
+      if (labT < 0) {
+        labT = 0;
+        day.cycleSeconds = 0;
+        day.setHour(23);
+        // in the dark of the woods on the trail, away from the fire's light
+        player.teleport(-3, 22, Math.atan2(-(FIRE.x + 3), -(FIRE.z - 22)));
+        player.pitch = 0.12;
+        const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+        Object.assign(wraith.pose, { x: player.x + fx * 4.5, z: player.z + fz * 4.5, heading: Math.atan2(-fx, -fz) });
+        wraith.show(true);
+      }
+      labT = (labT + f.dt) % 13;
+      wraith.pose.form = labT < 4 ? 0 : labT < 6.5 ? (labT - 4) / 2.5 : labT < 11.5 ? 1 : 1 - (labT - 11.5) / 1.5;
+      wraith.update(f.dt);
+    });
+    if (debug) (window as unknown as { wraith: Wraith }).wraith = wraith;
+  }
   sys('picker', () => picker.update());
   sys('rain', (f) => rain.update(f.dt, f.time, f.camera, f.env));
   sys('mist', (f) => { mist.setIndoor(store.playerInside); mist.update(f.dt, f.time, f.camera, f.env); });
