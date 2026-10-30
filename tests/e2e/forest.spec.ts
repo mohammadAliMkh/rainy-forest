@@ -349,7 +349,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { held, step: e.step, has: e.hasAmulet };
   });
   expect(handed).toEqual({ held: true, step: 'leave', has: true });
-  expect(await page.evaluate(() => (window as any).forest.inventory.items)).toEqual(['flashlight', 'amulet']); // in the bag
+  expect(await page.evaluate(() => (window as any).forest.inventory.items)).toEqual(['flashlight', 'chips', 'puffs', 'yogurt', 'drink', 'amulet']); // in the bag, with the shopping
   expect(await page.evaluate(() => (window as any).forest.store.errand.cash.visible)).toBe(true);
   // "shopping done", and the basket fades away
   expect(await page.textContent('#banner')).toContain('خرید انجام شد');
