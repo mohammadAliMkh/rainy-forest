@@ -44,8 +44,9 @@ const _m = new THREE.Matrix4();
 
 /** what the introductions need to play the recordings (set on the camp by app/createGame.ts) */
 export interface VoiceService {
-  /** `duck`: lower the ambience while it plays; `gain`: louder / quieter than the narration */
-  play(key: string, position: THREE.Vector3, opts?: { duck?: boolean; gain?: number }): VoiceHandle | null;
+  /** `duck`: lower the ambience while it plays; `gain`: louder / quieter than the narration;
+   * `from` / `length`: only that part of the recording (seconds) */
+  play(key: string, position: THREE.Vector3, opts?: { duck?: boolean; gain?: number; from?: number; length?: number }): VoiceHandle | null;
   /** the recordings have loaded (the introductions wait for them) */
   ready(): boolean;
 }

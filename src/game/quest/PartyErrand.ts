@@ -81,7 +81,6 @@ export class PartyErrand {
   private readonly got = new Set<string>();
   private t = 0; // seconds in this step
   private blinkT = 0;
-  private readonly fly = new THREE.Vector3();
 
   constructor({ camp, store, player, picker, events, terrain, collision, world, voices, touch, camera, night, scary, hands, inventory }: {
     camp: Camp; store: Store; player: PlayerLike; picker: Picker; events: EventBus<GameEvents>;
@@ -106,7 +105,7 @@ export class PartyErrand {
     world.add(this.jarGhost.group);
     this.wraith = new Wraith(terrain);
     world.add(this.wraith.group);
-    this.jarScene = new JarScene({ wraith: this.wraith, events, terrain, blocked: (x, z, r) => collision.isBlocked(x, z, r) });
+    this.jarScene = new JarScene({ wraith: this.wraith, events, voices });
     camp.films.push(this.jarScene);
     this.scary = scary;
     this.nightfall = new Nightfall(night);
@@ -213,10 +212,9 @@ export class PartyErrand {
     props.setBeacon(null);
     const mouth = props.jarMouthWorld();
     this._cue('lid', mouth);
-    // the whirlwind comes out and leaves the porch on its open side, over the
-    // railing (the shop's +x side, out from the wall)
-    this.fly.set(1, 0, 0.55).transformDirection(this.store.group.matrixWorld).setY(0).normalize();
-    this.jarScene.start(mouth, this.fly, this.camera);
+    // a film scene there on the porch, from the moment the lid comes off
+    const stage = props.jarStage();
+    this.jarScene.start(mouth, stage.stand, stage.view);
     this._go('ghost');
   }
 

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GoodsParts } from './StoreGoods.ts';
-import { F, ERRAND, COUNTER, SHOPKEEPER } from './storeLayout.ts';
+import { F, Z1, ERRAND, COUNTER, SHOPKEEPER } from './storeLayout.ts';
 import { place, type Geo } from './storeGeometry.ts';
 
 // The shop's part in the errand (game/quest): the four things to buy, each
@@ -120,6 +120,20 @@ export class ErrandProps {
 
   /** where the jar's mouth is (world) - the ghost comes out there */
   jarMouthWorld(target = new THREE.Vector3()): THREE.Vector3 { return this.jar.localToWorld(target.set(0, 0.46, 0)); }
+
+  /**
+   * the jar opened, as a film scene on the porch: where the ghost stands up
+   * (on the boards just in front of the jar) and where the camera sees it from
+   * (further along the porch, past the door, at eye height) - world
+   */
+  jarStage(): { stand: THREE.Vector3; view: THREE.Vector3 } {
+    const g = this.jar.parent!;
+    g.updateWorldMatrix(true, false);
+    return {
+      stand: g.localToWorld(new THREE.Vector3(ERRAND.jar.x, F, ERRAND.jar.z + 0.62)),
+      view: g.localToWorld(new THREE.Vector3(-2.3, F + 1.45, Z1 + 1.55)),
+    };
+  }
 
   setBlink(m: THREE.Mesh, on: boolean): void {
     if (on) this.blinking.add(m);

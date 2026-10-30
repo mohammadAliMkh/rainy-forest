@@ -95,7 +95,8 @@ export class Soundscape {
   // or null if there is no recording.
   // `flat`: narration (the film-style introductions) - centred, not placed
   // in 3D, so it doesn't jump between ears when the camera cuts.
-  playVoice(key: string, pos: THREE.Vector3, { duck = true, flat = false, gain = 1 } = {}): VoiceHandle | null {
+  // `from` / `length`: play only that part of the recording (seconds), fading out at its end
+  playVoice(key: string, pos: THREE.Vector3, { duck = true, flat = false, gain = 1, from = 0, length = 0 } = {}): VoiceHandle | null {
     if (!this.started) return null;
     const file = this.engine.file(key);
     if (!file || Array.isArray(file)) return null;
@@ -118,14 +119,28 @@ export class Soundscape {
     an.connect(p);
     if (duck) engine.setDucking(true);
     const t0 = ctx.currentTime;
-    const src = engine.oneShot(buf, an, { when: 0.25 }); // after the ambience has dipped
+    const len = length > 0 ? Math.min(length, buf.duration - from) : buf.duration - from;
+    let src: AudioBufferSourceNode;
+    if (from > 0 || length > 0) {
+      // a part of it: from `from`, for `len`, the last second fading out
+      const g = ctx.createGain();
+      const at = t0 + 0.25;
+      g.gain.setValueAtTime(1, at + Math.max(0, len - 1));
+      g.gain.linearRampToValueAtTime(0, at + len);
+      g.connect(an);
+      src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(g);
+      src.start(at, from, len);
+      src.addEventListener('ended', () => g.disconnect());
+    } else src = engine.oneShot(buf, an, { when: 0.25 }); // after the ambience has dipped
     const data = new Float32Array(an.fftSize);
     let ended = false;
     src.addEventListener('ended', () => { ended = true; an.disconnect(); if (duck) engine.setDucking(false); });
     return {
-      duration: buf.duration + 0.25,
+      duration: len + 0.25,
       get done() { return ended; },
-      elapsed() { return ended ? buf.duration + 0.25 : Math.max(0, ctx.currentTime - t0); },
+      elapsed() { return ended ? len + 0.25 : Math.max(0, ctx.currentTime - t0); },
       stop() { if (!ended) try { src.stop(); } catch { /* not started yet */ } },
       level() {
         if (ended) return 0;

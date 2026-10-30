@@ -359,15 +359,15 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await state()).toBe('pickles');
   await click();
   expect(await state()).toBe('ghost');
-  // a film scene: a whirlwind spins up out of the jar, leaves the porch and gathers into the ghost
+  // a film scene from the moment the lid is off: a whirlwind spins up out of the jar and gathers into the ghost beside it
   const jar = await page.evaluate(() => {
     const f = (window as any).forest, w = f.errand.wraith, mouth = f.store.errand.jarMouthWorld();
-    (window as any).step(1.5);
+    (window as any).step(0.8);
     const rising = { cinematic: f.camp.cinematic, shown: w.group.visible, atMouth: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) < 0.1, small: w.pose.grow < 0.4 };
-    (window as any).step(7);
-    return { rising, formed: w.pose.form === 1, inYard: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) > 2.5 };
+    (window as any).step(7.7);
+    return { rising, formed: w.pose.form === 1, byTheJar: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) < 1 };
   });
-  expect(jar).toEqual({ rising: { cinematic: true, shown: true, atMouth: true, small: true }, formed: true, inYard: true });
+  expect(jar).toEqual({ rising: { cinematic: true, shown: true, atMouth: true, small: true }, formed: true, byTheJar: true });
   await page.evaluate(() => (window as any).step(3.5));
   expect(await state()).toBe('deliver');
   // night has fallen, in heavy rain

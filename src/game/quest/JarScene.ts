@@ -3,14 +3,17 @@ import { EV } from '../../config/events.ts';
 import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
 import type { Wraith } from '../scenario/Wraith.ts';
+import type { VoiceService } from '../intro/IntroDirector.ts';
+import type { VoiceHandle } from '../sound/Soundscape.ts';
 
-// The pickle jar opened: a film scene. The lid flies off; from the jar's
-// mouth a small knot of pale light spins up, rises and, spinning, leaves the
-// porch over the railing, growing as it goes into a whirlwind standing in
-// the yard; the whirlwind gathers itself into the ghost, which turns to the
-// player and glares (a deep laugh). The camera starts close by the jar,
-// then cuts to the yard, a few metres off, to see it grow and take shape
-// with the shop behind it (from a spot with no tree in the way).
+// The pickle jar opened: a film scene, from the moment the lid comes off, in
+// one shot on the porch - the camera further along it, past the shop's door,
+// looking at the jar. The lid flies off; a small knot of pale light spins up
+// out of the jar's mouth, grows into a whirlwind that settles onto the
+// boards in front of the jar, and gathers itself into the ghost, which turns
+// and glares (a little smaller than out in the open, under the porch roof).
+// Its sound is a recording (`ghost_appear`): its first seconds - a rising
+// swell, then a deep heavy part - fit the scene, so the timings follow it.
 // (What follows - the shaking, the red sky, the ghost leaving for the woods -
 // comes next; for now the scene ends with a dip to black.)
 
@@ -19,91 +22,66 @@ const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-/** the scene's moments (seconds) */
+/** the scene's moments (seconds), set to the recording */
 const T = {
-  knot: 0.6, // the knot appears in the mouth
-  leave: 2.2, // it leaves the porch, growing
-  yard: 4.2, // a full whirlwind in the yard
-  gather: 5.0, // it gathers into the ghost...
-  formed: 7.5, // ...which stands there and glares
-  end: 10.5,
+  knot: 0.3, // the knot appears in the mouth (the sound starts)
+  settle: 1.8, // it comes down onto the boards in front of the jar...
+  full: 3.2, // ...a full whirlwind
+  gather: 3.5, // it gathers into the ghost (the deep part of the sound)...
+  formed: 6.0, // ...which turns and glares
+  end: 9.8,
 };
+/** the part of the recording that is played: from, how long */
+const SOUND = { from: 1.0, length: 9.6 };
+/** a little smaller than its full size, under the porch roof */
+const SCALE = 0.88;
 
 export class JarScene {
   /** the film camera has the view */
   filming = false;
   private readonly wraith: Wraith;
   private readonly events: EventBus<GameEvents>;
-  private readonly terrain: { heightAt(x: number, z: number): number };
-  private readonly blocked: (x: number, z: number, r: number) => boolean;
+  private readonly voices: () => VoiceService | null;
   private t = -1;
   private ending = 0;
   private fade = 0;
+  private voice: VoiceHandle | null = null;
   private readonly cue = new Set<string>();
   private readonly mouth = new THREE.Vector3();
-  private readonly yard = new THREE.Vector3();
-  private readonly toPlayer = new THREE.Vector3();
-  private readonly player = new THREE.Vector3();
+  private readonly stand = new THREE.Vector3();
+  private readonly view = new THREE.Vector3();
   // film camera
   private readonly pos = new THREE.Vector3();
   private readonly quat = new THREE.Quaternion();
-  private fov = 70;
+  private snap = false;
   private readonly tPos = new THREE.Vector3();
   private readonly tLook = new THREE.Vector3();
   private readonly head = new THREE.Vector3();
-  /** the second shot: where the camera stands in the yard */
-  private readonly wide = new THREE.Vector3();
-  private cut = false;
-  private snap = false;
 
-  constructor({ wraith, events, terrain, blocked }: {
-    wraith: Wraith; events: EventBus<GameEvents>; terrain: { heightAt(x: number, z: number): number }; blocked: (x: number, z: number, r: number) => boolean;
-  }) {
-    this.blocked = blocked;
+  constructor({ wraith, events, voices }: { wraith: Wraith; events: EventBus<GameEvents>; voices: () => VoiceService | null }) {
     this.wraith = wraith;
     this.events = events;
-    this.terrain = terrain;
+    this.voices = voices;
   }
 
   get active(): boolean { return this.t >= 0; }
 
-  /**
-   * `mouth`: the jar's mouth (world); `out`: which way off the porch (horizontal);
-   * `camera`: the player's view, where the first shot starts
-   */
-  start(mouth: THREE.Vector3, out: THREE.Vector3, camera: THREE.Camera): void {
+  /** `mouth`: the jar's mouth; `stand`: where the ghost stands up; `view`: where the camera is (all world) */
+  start(mouth: THREE.Vector3, stand: THREE.Vector3, view: THREE.Vector3): void {
     if (this.active) return;
-    this.t = 0; this.ending = 0; this.cue.clear();
+    this.t = 0; this.ending = 0; this.cue.clear(); this.voice = null;
     this.mouth.copy(mouth);
-    this.yard.copy(mouth).addScaledVector(out, 3.2);
-    this.yard.y = this.terrain.heightAt(this.yard.x, this.yard.z);
-    this.player.copy(camera.position);
-    this._wideShot(out);
-    this.cut = false;
-    this.toPlayer.subVectors(camera.position, mouth).setY(0).normalize();
-    this.pos.copy(camera.position);
-    this.quat.copy(camera.quaternion);
-    this.fov = (camera as THREE.PerspectiveCamera).fov ?? 70;
+    this.stand.copy(stand);
+    this.view.copy(view);
     const w = this.wraith;
-    Object.assign(w.pose, { x: mouth.x, z: mouth.z, base: mouth.y, grow: 0, form: 0, opacity: 1, heading: Math.atan2(this.toPlayer.x, this.toPlayer.z) });
+    w.group.scale.setScalar(SCALE);
+    Object.assign(w.pose, { x: mouth.x, z: mouth.z, base: mouth.y, grow: 0, form: 0, opacity: 1, heading: Math.atan2(view.x - mouth.x, view.z - mouth.z) });
     this.filming = true;
+    this.snap = true; // straight into the shot, as the lid comes off
     this.events.emit(EV.INTRO_CINEMATIC, true);
   }
 
   skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }
-
-  // the wide shot: out in the yard 4.5 m from where it will stand, looking back
-  // at it (the shop behind); turned this way or that until nothing stands between
-  private _wideShot(out: THREE.Vector3): void {
-    const y = this.yard, base = Math.atan2(out.x, out.z);
-    for (let i = 0; i < 13; i++) {
-      const a = base + Math.ceil(i / 2) * 0.17 * (i % 2 ? 1 : -1);
-      const x = y.x + Math.sin(a) * 4.5, z = y.z + Math.cos(a) * 4.5;
-      let clear = !this.blocked(x, z, 0.5);
-      for (let s = 0.8; clear && s < 4; s += 0.4) clear = !this.blocked(y.x + Math.sin(a) * s, y.z + Math.cos(a) * s, 0.3);
-      if (clear || i === 12) { this.wide.set(x, this.terrain.heightAt(x, z), z); return; }
-    }
-  }
 
   private _once(name: string, fn: () => void): void { if (!this.cue.has(name)) { this.cue.add(name); fn(); } }
 
@@ -114,19 +92,19 @@ export class JarScene {
     if (t >= T.knot && !this.ending) {
       this._once('knot', () => {
         w.show(true);
-        this.events.emit(EV.SCENARIO_CUE, { cue: 'whirl', position: this.mouth });
+        // its sound: the recording (only the part that fits), else the synthesized wind
+        this.voice = this.voices()?.play('ghost_appear', this.mouth, { duck: true, gain: 1, from: SOUND.from, length: SOUND.length }) ?? null;
+        if (!this.voice) this.events.emit(EV.SCENARIO_CUE, { cue: 'whirl', position: this.mouth });
       });
-      // up out of the mouth, then off the porch into the yard, coming down to the ground as it grows
-      const go = sstep(T.leave, T.yard, t);
-      P.x = this.mouth.x + (this.yard.x - this.mouth.x) * go;
-      P.z = this.mouth.z + (this.yard.z - this.mouth.z) * go;
-      P.base = this.mouth.y + (this.yard.y - this.mouth.y) * go;
-      P.grow = 0.3 * sstep(T.knot, T.leave, t) + 0.7 * go;
+      // up out of the mouth, then down onto the boards in front of the jar as it grows
+      const down = sstep(T.knot + 0.6, T.settle + 0.6, t);
+      P.x = this.mouth.x + (this.stand.x - this.mouth.x) * down;
+      P.z = this.mouth.z + (this.stand.z - this.mouth.z) * down;
+      P.base = this.mouth.y + (this.stand.y - this.mouth.y) * down;
+      P.grow = 0.25 * sstep(T.knot, T.settle, t) + 0.75 * sstep(T.settle, T.full, t);
       P.form = sstep(T.gather, T.formed, t);
-      // as it takes shape it turns to us (the camera in the yard) and glares
-      const at = t < T.leave ? this.player : this.wide;
-      P.heading = Math.atan2(at.x - P.x, at.z - P.z);
-      if (t >= T.formed - 0.6) this._once('laugh', () => this.events.emit(EV.SCENARIO_CUE, { cue: 'laughDeep', position: w.headWorld(this.head) }));
+      // it turns to us (the camera) as it takes shape, and glares
+      P.heading = Math.atan2(this.view.x - P.x, this.view.z - P.z);
       w.update(dt);
       if (t >= T.end) this.ending = 1e-6;
     }
@@ -138,7 +116,9 @@ export class JarScene {
       this.events.emit(EV.INTRO_FADE, this.fade);
       if (this.ending >= 0.4) {
         this.filming = false;
+        this.voice?.stop();
         w.show(false);
+        w.group.scale.setScalar(1);
         P.base = null;
         this.events.emit(EV.INTRO_CINEMATIC, false);
       }
@@ -149,33 +129,25 @@ export class JarScene {
     }
   }
 
+  // one shot from along the porch: on the jar's mouth at first, then following
+  // the whirlwind up, and drawing in a little on the ghost's face as it glares
   applyCamera(camera: THREE.PerspectiveCamera, dt: number): void {
     if (!this.filming) return;
     const t = this.t, w = this.wraith;
-    const side = _side.set(this.toPlayer.z, 0, -this.toPlayer.x); // to one side of the line from the jar to the player
-    if (t < T.leave) {
-      // close by the jar, a little to the side, watching its mouth
-      this.tPos.copy(this.mouth).addScaledVector(this.toPlayer, 1.25).addScaledVector(side, 0.35).addScaledVector(UP, 0.3);
-      this.tLook.copy(this.mouth).addScaledVector(UP, 0.15 + 0.5 * sstep(T.knot, T.leave, t));
-    } else {
-      // out in the yard, watching it grow and take shape, rising a little with it
-      if (!this.cut) { this.cut = true; this.snap = true; }
-      this.tPos.copy(this.wide).addScaledVector(UP, 1.3 + 0.35 * sstep(T.leave, T.formed, t));
-      w.headWorld(this.head);
-      const centre = w.group.position;
-      this.tLook.set(centre.x, centre.y + 1.2 * w.pose.grow, centre.z).lerp(this.head, sstep(T.gather, T.formed, t) * 0.6);
-    }
+    const push = sstep(T.formed - 1, T.end, t);
+    this.tPos.copy(this.view).lerp(this.stand, 0.18 * push);
+    const centre = w.group.position;
+    w.headWorld(this.head);
+    if (t < T.knot + 0.2) this.tLook.copy(this.mouth);
+    else this.tLook.set(centre.x, centre.y + 1.15 * w.pose.grow * SCALE, centre.z).lerp(this.head, sstep(T.gather, T.formed, t) * 0.75);
     _m.lookAt(this.tPos, this.tLook, UP);
     _q.setFromRotationMatrix(_m);
-    if (this.snap) { this.snap = false; this.pos.copy(this.tPos); this.quat.copy(_q); this.fov = 55; }
-    const k = 1 - Math.exp(-(t < 1 ? 3 : 4) * dt);
+    if (this.snap) { this.snap = false; this.pos.copy(this.tPos); this.quat.copy(_q); }
+    const k = 1 - Math.exp(-3 * dt);
     this.pos.lerp(this.tPos, k);
     this.quat.slerp(_q, k);
-    this.fov += (55 - this.fov) * k;
     camera.position.copy(this.pos);
     camera.quaternion.copy(this.quat);
-    if (Math.abs(camera.fov - this.fov) > 0.01) { camera.fov = this.fov; camera.updateProjectionMatrix(); }
+    if (Math.abs(camera.fov - 55) > 0.01) { camera.fov = 55; camera.updateProjectionMatrix(); }
   }
 }
-
-const _side = new THREE.Vector3();
