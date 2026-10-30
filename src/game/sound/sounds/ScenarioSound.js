@@ -205,6 +205,16 @@ export class ScenarioSound {
       biquad(d, sr, 'lowpass', 2400, 0.7);
       normalize(d, 0.9);
     });
+    // the whirlwind: rushing wind with a low roar under it (shaped when played)
+    this.whirl = makeBuffer(ctx, 7, 1, (d, sr) => {
+      let lp = 0;
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        lp += ((Math.random() * 2 - 1) - lp) * 0.02;
+        d[i] = (Math.random() * 2 - 1) * 0.6 + lp * 4 + Math.sin(2 * Math.PI * (38 + 6 * Math.sin(t * 1.3)) * t) * 0.25;
+      }
+      normalize(d, 0.8);
+    });
     // far away, with lots of the forest's echo
     this.far = new PannerPool(e, 'voices', 2, { ref: 6, rolloff: 0.5, max: 250, reverb: 0.8 });
     this.started = true;
@@ -254,6 +264,24 @@ export class ScenarioSound {
       case 'laughDeep':
         this.far.play(file('ghost_laugh_scary') ?? this.laughDeep, cue.position, { gain: 1.1 });
         break;
+      case 'whirl': {
+        // the wind rising as the knot grows into a whirlwind, howling, then easing off
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass'; bp.Q.value = 1.4;
+        bp.frequency.setValueAtTime(260, t);
+        bp.frequency.exponentialRampToValueAtTime(1300, t + 3.5);
+        bp.frequency.exponentialRampToValueAtTime(700, t + 6.5);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(1, t + 3);
+        g.gain.setValueAtTime(1, t + 4.6);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 6.9);
+        const p = e.panner(cue.position, 'voices', { ref: 3, rolloff: 0.8, max: 80, reverb: 0.4 });
+        bp.connect(g).connect(p);
+        const src = e.oneShot(this.whirl, bp, { gain: 0.9 });
+        src.addEventListener('ended', () => { bp.disconnect(); g.disconnect(); p.disconnect(); p._send?.disconnect(); });
+        break;
+      }
       case 'glitch':
         this.pool.play(this.glitch, cue.position, { gain: 0.7, rate: rnd(0.9, 1.1) });
         break;

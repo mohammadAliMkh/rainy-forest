@@ -30,6 +30,8 @@ export interface WraithPose {
   heading: number;
   /** how high it floats */
   lift: number;
+  /** the height it stands on (world), or null: the ground under it (e.g. the jar's mouth on the porch) */
+  base: number | null;
   /** 0 = whirlwind .. 1 = the spectre */
   form: number;
   /** the whirlwind: 0 = a small knot spinning low down .. 1 = full height */
@@ -182,7 +184,7 @@ const FRAG = /* glsl */ `
 
 export class Wraith {
   readonly group = new THREE.Group();
-  readonly pose: WraithPose = { x: 0, z: 0, heading: 0, lift: 0.25, form: 1, grow: 1, arms: 1, opacity: 1, wind: 1 };
+  readonly pose: WraithPose = { x: 0, z: 0, heading: 0, lift: 0.25, base: null, form: 1, grow: 1, arms: 1, opacity: 1, wind: 1 };
   private readonly body: THREE.Mesh;
   private readonly mat: THREE.ShaderMaterial;
   private readonly solid: Float32Array;
@@ -315,7 +317,7 @@ export class Wraith {
     const f = Math.min(1, Math.max(0, P.form));
     const e = f * f * (3 - 2 * f);
     const g = this.group;
-    g.position.set(P.x, this.terrain.heightAt(P.x, P.z) + P.lift * e, P.z);
+    g.position.set(P.x, (P.base ?? this.terrain.heightAt(P.x, P.z)) + P.lift * e, P.z);
     // a whirlwind spins as a whole; as it gathers into the figure it slows and turns to face its way
     g.rotation.set(0, P.heading + (1 - e) * (1 - e) * t * 4, 0);
     // the sheet: the two shapes blended

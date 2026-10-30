@@ -59,7 +59,7 @@ export interface GameEvents {
   /** a moment in a scenario that makes a sound (the ghost's tiptoe tune, its BOO, a scream...) */
   [EV.SCENARIO_CUE]:
     | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish' | 'pickup' | 'pay' | 'lid'; position: Vector3 }
-    | { cue: 'laughDeep' | 'glitch' | 'whisper' | 'heartbeat' | 'shriek' | 'bark'; position: Vector3 }
+    | { cue: 'laughDeep' | 'glitch' | 'whisper' | 'heartbeat' | 'shriek' | 'bark' | 'whirl'; position: Vector3 }
     | { cue: 'scream'; position: Vector3; who: string }
     /** a footstep somewhere else (the steps following you on the walk back) */
     | { cue: 'echoStep'; position: Vector3; surface: 'water' | 'mud' | 'leaves' | 'wood'; running: boolean };

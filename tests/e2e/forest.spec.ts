@@ -359,9 +359,16 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await state()).toBe('pickles');
   await click();
   expect(await state()).toBe('ghost');
-  expect(await page.evaluate(() => { (window as any).step(1); return (window as any).forest.errand.jarGhost.group.visible; })).toBe(true);
-  expect(await page.evaluate(() => (window as any).forest.errand.jarGhost.style)).toBe('scary');
-  await page.evaluate(() => (window as any).step(5));
+  // a film scene: a whirlwind spins up out of the jar, leaves the porch and gathers into the ghost
+  const jar = await page.evaluate(() => {
+    const f = (window as any).forest, w = f.errand.wraith, mouth = f.store.errand.jarMouthWorld();
+    (window as any).step(1.5);
+    const rising = { cinematic: f.camp.cinematic, shown: w.group.visible, atMouth: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) < 0.1, small: w.pose.grow < 0.4 };
+    (window as any).step(7);
+    return { rising, formed: w.pose.form === 1, inYard: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) > 2.5 };
+  });
+  expect(jar).toEqual({ rising: { cinematic: true, shown: true, atMouth: true, small: true }, formed: true, inYard: true });
+  await page.evaluate(() => (window as any).step(3.5));
   expect(await state()).toBe('deliver');
   // night has fallen, in heavy rain
   expect(await page.evaluate(() => { const f = (window as any).forest; return { night: f.day.hour > 21, rain: f.weather.kind, haunted: f.errand.haunted }; }))
@@ -465,14 +472,14 @@ test('the errand with «روح ترسناک» off: night on the way back but no 
     (window as any).goTo(0.9, 0.1); e.step = 'pay'; e._pay();
     for (let k = 0; k < 2400 && e.step === 'keeper'; k++) f.frame(0.05);
     (window as any).goTo(1.0, 3.7); (window as any).step(1);
-    (window as any).lookAt(f.store.errand.lid); e._openJar(); (window as any).step(0.8);
-    const face = e.jarGhost.pose.face, style = e.jarGhost.style;
-    (window as any).step(5);
+    (window as any).lookAt(f.store.errand.lid); e._openJar(); (window as any).step(1.5);
+    const jar = e.wraith.group.visible;
+    for (let k = 0; k < 400 && e.step === 'ghost'; k++) f.frame(0.05);
     const night = f.day.hour > 21, storm = f.weather.kind === 'heavy';
     (window as any).walkHome(() => e.step === 'scene');
-    return { haunted: e.haunted, night, storm, face, style, fired: e.nightWalk.fired.size, step: e.step, scenarioGhost: f.camp.scenario.ghost.style };
+    return { haunted: e.haunted, night, storm, jar, fired: e.nightWalk.fired.size, step: e.step, scenarioGhost: f.camp.scenario.ghost.style };
   });
-  expect(r).toEqual({ haunted: false, night: true, storm: false, face: 'boo', style: 'funny', fired: 0, step: 'scene', scenarioGhost: 'funny' });
+  expect(r).toEqual({ haunted: false, night: true, storm: false, jar: true, fired: 0, step: 'scene', scenarioGhost: 'funny' });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('rainy-forest-settings-v2')!).scaryGhost)).toBe(false);
   expect(errors).toEqual([]);
 });
