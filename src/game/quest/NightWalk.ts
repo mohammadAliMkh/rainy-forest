@@ -12,7 +12,7 @@ import { GHOST_IN } from '../scenario/ghostScript.ts';
 // down while you walk to the shop; as you step out of it night comes down
 // in a few seconds (on the haunted walk with heavy rain and the lantern
 // burning low); as the ghost comes out of the jar the sky turns red
-// (`redden`); after the end the hour, the weather, the colour of the sky and
+// (`redden`) and back (`calm`) as it goes; after the end the hour, the weather, the colour of the sky and
 // the speed of the day come back slowly.
 //
 // NightWalk: the scares on the way back, each fired once by how far along
@@ -119,6 +119,11 @@ export class Nightfall {
   /** the sky turns red (the ghost is out), over `seconds` */
   redden(seconds = 3.5): void {
     this._blood(1, seconds);
+  }
+
+  /** the sky back to its own colour (the ghost has gone), over `seconds` */
+  calm(seconds = 8): void {
+    if (this.day.blood > 0 || this.rt >= 0) this._blood(0, seconds);
   }
 
   private _blood(to: number, seconds: number): void {

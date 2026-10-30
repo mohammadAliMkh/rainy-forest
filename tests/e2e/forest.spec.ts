@@ -368,16 +368,23 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { rising, formed: w.pose.form === 1, byTheJar: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) < 1 };
   });
   expect(jar).toEqual({ rising: { cinematic: true, shown: true, atMouth: true, small: true }, formed: true, byTheJar: true });
-  // then the second swell: the ground shakes (the camera) and the sky turns red, and stays red after the scene
+  // then the second swell: the ground shakes (the camera) and the sky turns red
   const quake = await page.evaluate(() => {
     const f = (window as any).forest, s = f.errand.jarScene, calm = { shaking: s.shaking, blood: f.day.blood };
     (window as any).step(5);
     return { calm, shaking: s.shaking > 0.9, blood: f.day.blood > 0.95 };
   });
   expect(quake).toEqual({ calm: { shaking: 0, blood: 0 }, shaking: true, blood: true });
-  await page.evaluate(() => (window as any).step(5.5));
+  // it goes off into the woods, fainter the further it goes, and the sky turns back as it goes
+  const going = await page.evaluate(() => {
+    const f = (window as any).forest, w = f.errand.wraith, mouth = f.store.errand.jarMouthWorld();
+    (window as any).step(10.5);
+    return { far: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) > 8, faint: w.pose.opacity < 0.8, calming: f.day.blood < 0.7, still: f.errand.jarScene.shaking };
+  });
+  expect(going).toEqual({ far: true, faint: true, calming: true, still: 0 });
+  await page.evaluate(() => (window as any).step(6));
   expect(await state()).toBe('deliver');
-  expect(await page.evaluate(() => (window as any).forest.day.blood)).toBe(1);
+  expect(await page.evaluate(() => (window as any).forest.day.blood)).toBe(0);
   // night has fallen, in heavy rain
   expect(await page.evaluate(() => { const f = (window as any).forest; return { night: f.day.hour > 21, rain: f.weather.kind, haunted: f.errand.haunted }; }))
     .toEqual({ night: true, rain: 'heavy', haunted: true });
@@ -482,7 +489,7 @@ test('the errand with «روح ترسناک» off: night on the way back but no 
     (window as any).goTo(1.0, 3.7); (window as any).step(1);
     (window as any).lookAt(f.store.errand.lid); e._openJar(); (window as any).step(1.5);
     const jar = e.wraith.group.visible;
-    for (let k = 0; k < 400 && e.step === 'ghost'; k++) f.frame(0.05);
+    for (let k = 0; k < 800 && e.step === 'ghost'; k++) f.frame(0.05);
     const night = f.day.hour > 21, storm = f.weather.kind === 'heavy';
     (window as any).walkHome(() => e.step === 'scene');
     return { haunted: e.haunted, night, storm, jar, fired: e.nightWalk.fired.size, step: e.step, scenarioGhost: f.camp.scenario.ghost.style };
