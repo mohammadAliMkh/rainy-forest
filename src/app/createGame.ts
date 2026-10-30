@@ -280,17 +280,17 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('store', (f) => store.update(f.dt, f.camera, f.env));
   sys('errand', (f) => { if (session.entered) theErrand.update(f.dt); });
   // ?lab=wraith: the ghost's true shape on its own, at night in front of the player,
-  // over and over: a small knot spinning up out of the ground into the whirlwind (3 s), the
-  // whirlwind (1.5 s), gathering into the spectre (2.5 s), the spectre (5 s), back (1 s)
+  // over and over: it comes (a small knot spinning up into the whirlwind, which gathers into
+  // the spectre), stays a while, goes the same way back, and after a moment comes again
   if (new URLSearchParams(location.search).get('lab') === 'wraith') {
     const wraith = new Wraith(terrain);
     questWorld.add(wraith.group);
-    let labT = -1;
+    let started = false, labT = 0;
     sys('lab', (f) => {
       if (!session.entered) return;
       if (camp.intro.active) { camp.intro.skip(); return; }
-      if (labT < 0) {
-        labT = 0;
+      if (!started) {
+        started = true;
         day.cycleSeconds = 0;
         day.setHour(23);
         // in the dark of the woods on the trail, away from the fire's light
@@ -298,12 +298,11 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
         player.pitch = 0.12;
         const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
         Object.assign(wraith.pose, { x: player.x + fx * 4.5, z: player.z + fz * 4.5, heading: Math.atan2(-fx, -fz) });
-        wraith.show(true);
+        wraith.appear();
       }
-      labT = (labT + f.dt) % 13;
-      wraith.pose.grow = Math.min(1, labT / 3);
-      wraith.pose.form = labT < 4.5 ? 0 : labT < 7 ? (labT - 4.5) / 2.5 : labT < 12 ? 1 : 0;
-      wraith.pose.opacity = labT < 12 ? 1 : 1 - (labT - 12);
+      labT += f.dt;
+      if (!wraith.busy && wraith.group.visible && labT > 10) wraith.vanish(() => { labT = -1.5; });
+      if (!wraith.busy && !wraith.group.visible && labT >= 0) { labT = 0; wraith.appear(); }
       wraith.update(f.dt);
     });
     if (debug) (window as unknown as { wraith: Wraith }).wraith = wraith;

@@ -8,6 +8,9 @@ import * as THREE from 'three';
 // pale light, narrow at the bottom and wide at the top. `form` goes from 0
 // (whirlwind) to 1 (the spectre); in between the swirl gathers itself into
 // the figure.
+// `appear()` plays its coming: a small knot spinning low down that rises
+// into the whirlwind, which gathers into the spectre; `vanish()` the same
+// backwards - into the whirlwind, shrinking, spinning ever faster, gone.
 // The surface is one parametric sheet (around u, down v) rebuilt every
 // frame, so the cloth can stream and the two shapes can blend; it glows
 // by its rim (bright where it is seen edge-on, faint where face-on), adds
@@ -109,6 +112,36 @@ function funnel(u: number, v: number, t: number, grow: number, out: THREE.Vector
   return 0.55 + 0.45 * (1 - h * 0.5);
 }
 
+/** a glowing slit eye; `side` -1 / +1: which eye (they slant down toward each other) */
+function eyeTexture(side: number): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 64;
+  const g = c.getContext('2d')!;
+  g.translate(64, 32);
+  g.rotate(-0.38 * side); // the inner corner low, the outer one high
+  const almond = (w: number, h: number) => {
+    g.beginPath();
+    g.moveTo(-w, h * 0.15);
+    g.quadraticCurveTo(-w * 0.1, -h * 1.1, w, -h * 0.35); // the upper lid, nearly straight and hard
+    g.quadraticCurveTo(w * 0.05, h * 0.9, -w, h * 0.15);
+    g.closePath();
+    g.fill();
+  };
+  g.shadowColor = 'rgba(255,30,10,1)';
+  g.shadowBlur = 14;
+  g.fillStyle = 'rgba(220,20,8,1)';
+  almond(46, 15);
+  g.shadowBlur = 6;
+  g.fillStyle = 'rgba(255,120,60,1)';
+  almond(34, 8);
+  g.shadowBlur = 0;
+  g.fillStyle = 'rgba(255,235,200,1)';
+  almond(20, 3.5);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 const VERT = /* glsl */ `
   attribute float aSolid;
   varying float vSolid;
@@ -155,7 +188,6 @@ export class Wraith {
   private readonly solid: Float32Array;
   private readonly face: THREE.Mesh;
   private readonly eyes: THREE.Sprite[] = [];
-  private readonly eyeMat: THREE.SpriteMaterial;
   private readonly motes: THREE.Points;
   private readonly moteSeed: Float32Array;
   private readonly terrain: { heightAt(x: number, z: number): number };
@@ -197,20 +229,11 @@ export class Wraith {
     this.face.position.set(0, H - RH * 1.25, RH * 0.55);
     this.face.renderOrder = 2;
     this.group.add(this.face);
-    // two faint red sparks deep in it
-    const c = document.createElement('canvas');
-    c.width = c.height = 64;
-    const g = c.getContext('2d')!;
-    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, 'rgba(255,220,200,1)'); gr.addColorStop(0.2, 'rgba(255,40,20,0.9)'); gr.addColorStop(1, 'rgba(120,0,0,0)');
-    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-    const glow = new THREE.CanvasTexture(c);
-    glow.colorSpace = THREE.SRGBColorSpace;
-    this.eyeMat = new THREE.SpriteMaterial({ map: glow, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true });
+    // two red eyes in it: long, narrow slits slanting down toward the middle - an angry glare
     for (const sx of [-1, 1]) {
-      const e = new THREE.Sprite(this.eyeMat);
-      e.position.set(sx * 0.045, H - RH * 1.05, RH * 0.6);
-      e.scale.setScalar(0.075);
+      const e = new THREE.Sprite(new THREE.SpriteMaterial({ map: eyeTexture(sx), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true }));
+      e.position.set(sx * 0.05, H - RH * 1.05, RH * 0.6);
+      e.scale.set(0.12, 0.06, 1);
       e.renderOrder = 4;
       this.eyes.push(e);
       this.group.add(e);
@@ -238,6 +261,47 @@ export class Wraith {
 
   show(on: boolean): void { this.group.visible = on; }
 
+  /** coming or going on its own (appear / vanish), and what to do when that is over */
+  private act: { kind: 'appear' | 'vanish'; t: number; onDone?: () => void } | null = null;
+
+  /** it comes: a small knot spinning low down rises into the whirlwind, which gathers into the spectre (~6.5 s) */
+  appear(onDone?: () => void): void {
+    Object.assign(this.pose, { grow: 0, form: 0, opacity: 1 });
+    this.show(true);
+    this.act = { kind: 'appear', t: 0, onDone };
+  }
+
+  /** it goes, the way it came: back into the whirlwind, which shrinks spinning ever faster to nothing (~3 s) */
+  vanish(onDone?: () => void): void {
+    this.act = { kind: 'vanish', t: 0, onDone };
+  }
+
+  /** coming or going */
+  get busy(): boolean { return !!this.act; }
+
+  private _act(dt: number): void {
+    const a = this.act!, P = this.pose;
+    a.t += dt;
+    const t = a.t;
+    let done: boolean;
+    if (a.kind === 'appear') {
+      P.grow = sstep(0, 3, t);
+      P.form = sstep(4.2, 6.7, t);
+      P.opacity = 1;
+      done = t >= 6.7;
+    } else {
+      P.form = 1 - sstep(0, 1.3, t);
+      P.grow = 1 - sstep(1.2, 2.8, t);
+      P.opacity = 1 - sstep(2.3, 3, t);
+      done = t >= 3;
+    }
+    if (done) {
+      this.act = null;
+      if (a.kind === 'vanish') this.show(false);
+      a.onDone?.();
+    }
+  }
+
   /** the top of the hood (world) */
   headWorld(target = new THREE.Vector3()): THREE.Vector3 {
     return this.group.localToWorld(target.set(0, H - RH, 0));
@@ -246,6 +310,7 @@ export class Wraith {
   update(dt: number): void {
     if (!this.group.visible) return;
     this.time += dt;
+    if (this.act) this._act(dt);
     const t = this.time, P = this.pose;
     const f = Math.min(1, Math.max(0, P.form));
     const e = f * f * (3 - 2 * f);
@@ -278,8 +343,10 @@ export class Wraith {
     const faced = sstep(0.7, 1, f) * P.opacity;
     this.face.visible = faced > 0.02;
     (this.face.material as THREE.MeshBasicMaterial).opacity = faced;
-    this.eyeMat.opacity = faced * (0.75 + 0.25 * Math.sin(t * 2.3));
-    for (const s of this.eyes) s.visible = faced > 0.02;
+    for (const s of this.eyes) {
+      s.visible = faced > 0.02;
+      (s.material as THREE.SpriteMaterial).opacity = faced * (0.8 + 0.2 * Math.sin(t * 2.3));
+    }
     // the motes
     const mp = this.motes.geometry.attributes.position as THREE.BufferAttribute;
     const sd = this.moteSeed;
