@@ -32,7 +32,7 @@
 | `src/game/creatures/` | حیوان‌ها: لونا، آهوها، پرنده‌ها | `Dog.js`، `Deer.js` |
 | `src/game/intro/` | معرفی‌های اول بازی (پرواز دوربین، قاب جمعی) | `IntroDirector.ts`، `introScript.js` |
 | `src/game/quest/` | **سناریوی روح سرگردان**: قدم‌ها، صحنه‌ها، متن | `PartyErrand.ts`، `errandScript.ts`، `KeeperScene.ts` |
-| `src/game/scenario/` | روح و صحنه‌ی ترساندن کنار آتش | `Ghost.ts`، `GhostScenario.ts` |
+| `src/game/scenario/` | روح‌ها و راه پشت کلبه | `Wraith.ts`، `Ghost.ts`، `ghostScript.ts` |
 | `src/game/items/` | کوله و چیزهایی که بازیکن برمی‌دارد | `Inventory.ts`، `Flashlight.ts`، `Amulet.ts` |
 | `src/game/player/` | خود بازیکن: حرکت، دو دست، کلیک روی چیزها | `PlayerController.ts`، `Hands.ts`، `Picker.ts` |
 | `src/game/weather/` | ساعت روز، باران، مه، آسمان | `DayCycle.js`، `Weather.ts` |

@@ -8,12 +8,8 @@ export interface UiEvents {
   resume: undefined;
   /** play the introductions again */
   replayIntro: undefined;
-  /** skip the introductions / the scenario playing */
+  /** skip the introductions / the film scene playing */
   skip: undefined;
-  /** play scenario 1 (its button) */
-  scenario: undefined;
-  /** offer scenario 1 again */
-  replayScenario: undefined;
   mute: boolean;
   volume: { key: string; value: number };
   /** hour of the day, 0..24 */

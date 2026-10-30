@@ -503,4 +503,9 @@ export class DeerHerd {
   update(dt, time, player) {
     for (const a of this.agents) a.update(dt, time, player);
   }
+
+  /** any deer within `r` of (x, z) gone into the mist at once (out of a film shot); they come back later */
+  shoo(x, z, r) {
+    for (const a of this.agents) if (a.state !== 'hidden' && Math.hypot(a.x - x, a.z - z) < r) a.hide();
+  }
 }

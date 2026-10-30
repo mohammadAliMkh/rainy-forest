@@ -10,7 +10,6 @@ import { Patrol } from '../vehicles/Patrol.js';
 import { Hornet } from '../vehicles/Hornet.js';
 import { Smoke } from './Fire.js';
 import { IntroDirector } from '../intro/IntroDirector.ts';
-import { GhostScenario } from '../scenario/GhostScenario.ts';
 import { Canopy } from './Canopy.js';
 import { Carport } from './Carport.js';
 
@@ -225,9 +224,6 @@ export class Camp {
     /** other film scenes that can take the camera (e.g. the errand's)
      * @type {{ filming: boolean, applyCamera: (camera: THREE.PerspectiveCamera, dt: number) => void, skip?: () => void }[]} */
     this.films = [];
-    // scenario 1: the sheet ghost (started from its button, see app/Session.ts)
-    this.scenario = new GhostScenario(this.gathering, terrain, this.events);
-    this.group.add(this.scenario.ghost.group);
 
     // ---- tarp roof over the seats ----
     this.canopy = new Canopy(T, terrain, collision, { cx: F.x, cz: F.z, ...CAMP.canopy });
@@ -263,13 +259,12 @@ export class Camp {
 
   addTo(scene) { scene.add(this.group); }
 
-  /** a film camera has the view (the introductions or a scenario) */
-  get cinematic() { return this.intro.active || this.scenario.filming || this.films.some((f) => f.filming); }
+  /** a film camera has the view (the introductions or a scene of the story) */
+  get cinematic() { return this.intro.active || this.films.some((f) => f.filming); }
 
   /** system "film camera": right after the player has placed the camera */
   applyCamera(camera, dt) {
     this.intro.applyCamera(camera, dt);
-    this.scenario.applyCamera(camera, dt);
     for (const f of this.films) f.applyCamera(camera, dt);
   }
 
@@ -281,7 +276,6 @@ export class Camp {
   update(dt, time, camera, env, windStrength) {
     // the welcome and the introductions (started by app/Session.ts on entering)
     this.intro.update(dt);
-    this.scenario.update(dt);
     this.gathering.update(dt, camera);
     // the introductions are a voice-over: the owner's lips stay still meanwhile
     this.gathering.byName('owner').h.voiceLevel = this.intro.active ? 0 : null;
@@ -295,11 +289,9 @@ export class Camp {
     const petted = Math.max(...this.gathering.people.map((p) => p.pet));
     this._dogExcite = damp(this._dogExcite ?? 0, Math.max(near, petted * 0.6), 1.5, dt);
     const lunaFocus = this.gathering.focus === 'luna';
-    // the ghost: she stays put and doesn't take her eyes off it
-    const ghost = this.scenario.ghostHead();
-    if (ghost) this.dog.update(dt, ghost, 1, true);
-    else if (this.dog.alertAt) this.dog.update(dt, this.dog.alertAt, 0, true);
-    else this.dog.update(dt, lunaFocus ? cam : look, lunaFocus ? 1 : this._dogExcite, this.intro.active || this.scenario.active);
+    // something out there in the dark: she stays put and doesn't take her eyes off it
+    if (this.dog.alertAt) this.dog.update(dt, this.dog.alertAt, 0, true);
+    else this.dog.update(dt, lunaFocus ? cam : look, lunaFocus ? 1 : this._dogExcite, this.intro.active);
     this.steam.material.uniforms.uLight.value = env ? env.ambientLevel * 0.9 + 0.1 : 1;
     this.steam.update(dt, time, windStrength);
     this.canopy.update(time);

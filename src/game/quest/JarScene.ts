@@ -18,8 +18,9 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // away and glides off the porch toward the woods, faster and fainter the
 // further it goes, until it is gone among the trees; as it fades the sky
 // goes back to the night's own colour (`sky.calm`), and the camera, turning
-// to follow it, is left looking into the dark woods. A dip to black, and
-// back to the player.
+// to follow it, is left looking into the dark woods. From there the next
+// scene (`then`) carries on in the same shot; skipped, or without one, a
+// dip to black and back to the player.
 // Its sound is a recording (`ghost_appear`), and the timings follow it: a
 // rising swell, a deep heavy part, a second swell (the shaking), a lull (it
 // turns away), a third swell (it goes).
@@ -58,6 +59,8 @@ const SCALE = 0.88;
 export class JarScene {
   /** the film camera has the view */
   filming = false;
+  /** the scene that carries on from the last frame (the camera keeps the view) */
+  then: (() => void) | null = null;
   private readonly wraith: Wraith;
   private readonly events: EventBus<GameEvents>;
   private readonly voices: () => VoiceService | null;
@@ -160,7 +163,10 @@ export class JarScene {
       if (t >= CALM.at) this._once('calm', () => this.sky.calm(CALM.seconds));
       P.wind = 1 + 1.6 * q + 0.8 * sstep(T.leave, T.leave + 2, t);
       w.update(dt);
-      if (t >= T.end) this.ending = 1e-6;
+      if (t >= T.end) {
+        if (this.then) { this._close(); this.then(); this.t = -1; return; }
+        this.ending = 1e-6;
+      }
     }
     if (!this.ending) return;
     // dip to black, back to the player (skipped: the sky is the night's again)
@@ -170,18 +176,26 @@ export class JarScene {
       this.fade = Math.min(1, this.ending / 0.4);
       this.events.emit(EV.INTRO_FADE, this.fade);
       if (this.ending >= 0.4) {
-        this.filming = false;
-        this.voice?.stop();
-        w.show(false);
-        w.group.scale.setScalar(1);
-        Object.assign(P, { base: null, lift: 0.25, wind: 1, opacity: 1 });
-        this.events.emit(EV.INTRO_CINEMATIC, false);
+        this._close();
+        // (skipped: the next scene starts behind the black)
+        if (this.then) this.then();
+        else this.events.emit(EV.INTRO_CINEMATIC, false);
       }
     } else {
       this.fade = Math.max(0, this.fade - dt / 0.5);
       this.events.emit(EV.INTRO_FADE, this.fade);
       if (this.fade <= 0) this.t = -1;
     }
+  }
+
+  // the ghost put away (the sound runs on into the next scene)
+  private _close(): void {
+    this.filming = false;
+    if (!this.then) this.voice?.stop();
+    const w = this.wraith;
+    w.show(false);
+    w.group.scale.setScalar(1);
+    Object.assign(w.pose, { base: null, lift: 0.25, wind: 1, opacity: 1 });
   }
 
   // one shot from along the porch: on the jar's mouth at first, then following

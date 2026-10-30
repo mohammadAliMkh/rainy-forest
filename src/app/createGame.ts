@@ -202,7 +202,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     },
     store: { ...store.mapShape(), path: terrain.storePath },
   });
-  const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement, errandDone: () => errand?.finished ?? true });
+  const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement });
   const questWorld = new THREE.Group(); // the jar's ghost flies in world coordinates
   scene.add(questWorld);
   // the player's own hands, and the bag (a flashlight in it from the start)
@@ -213,12 +213,13 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   ui.on('enter', () => ui.showBag(true));
   inventory.add('flashlight');
   errand = new PartyErrand({
-    camp, store, player, picker, events, terrain, collision, world: questWorld,
+    camp, store, player, picker, events, terrain, world: questWorld,
     voices: () => camp.voices, touch: () => session.touch.enabled, camera,
     night: { day, weather, lighting },
-    // «روح ترسناک» in the menu: read when the walk back begins
+    // «روح ترسناک» in the menu: read as night falls (heavy rain or not)
     scary: () => ui.settings.scaryGhost !== false,
     hands, inventory,
+    shoo: (x, z, r) => deer.shoo(x, z, r),
   });
   const theErrand = errand;
   const hud = new Hud({ ui, day });

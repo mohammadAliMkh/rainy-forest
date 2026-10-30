@@ -20,8 +20,6 @@ interface SessionParts {
   quality: QualityManager;
   minimap: Minimap;
   canvas: HTMLCanvasElement;
-  /** the errand is over (scenario 1 is offered on its own only after it) */
-  errandDone: () => boolean;
 }
 
 // screen.orientation.lock() exists on Android browsers but not in the DOM types
@@ -44,10 +42,8 @@ export class Session {
   private _waitHintAt = 0;
   /** how to move and look: shown once the opening film has finished */
   private _controlsHint: string | null = null;
-  private errandDone: () => boolean;
 
-  constructor({ ui, events, player, camp, sound, quality, minimap, canvas, errandDone }: SessionParts) {
-    this.errandDone = errandDone;
+  constructor({ ui, events, player, camp, sound, quality, minimap, canvas }: SessionParts) {
     this.ui = ui;
     this.player = player;
     this.camp = camp;
@@ -75,17 +71,7 @@ export class Session {
     events.on(EV.QUEST, (q) => ui.setQuest(q));
     events.on(EV.DIALOG, (d) => ui.showDialog(d));
     events.on(EV.BANNER, (b) => ui.showBanner(b));
-    ui.on('skip', () => { camp.intro.skip(); camp.scenario.skip(); for (const f of camp.films) f.skip?.(); });
-    // scenario 1: its button, and offering it again from the menu
-    ui.on('scenario', () => {
-      if (!this._scenarioReady()) return;
-      ui.showScenarioButton(false);
-      camp.scenario.start();
-    });
-    ui.on('replayScenario', () => {
-      camp.scenario.done = false; // the button comes back (now if near the fire, else on the way there)
-      this.closeMenu();
-    });
+    ui.on('skip', () => { camp.intro.skip(); for (const f of camp.films) f.skip?.(); });
 
     // automatic quality: adapt only while playing; the menu shows the level it picked
     quality.active = () => this.entered && !this.menuOpen() && !document.hidden;
@@ -172,12 +158,10 @@ export class Session {
 
   private _onKey(e: KeyboardEvent): void {
     if (!this.entered) return;
-    const { intro, scenario } = this.camp;
-    // during the introductions or a scenario Esc / Space / Enter skip it
+    // during the introductions or a film scene Esc / Space / Enter skip it
     if (this.camp.cinematic && !this.menuOpen() && ['Escape', 'Space', 'Enter'].includes(e.code)) {
       e.preventDefault();
-      intro.skip();
-      scenario.skip();
+      this.camp.intro.skip();
       for (const f of this.camp.films) f.skip?.();
       return;
     }
@@ -187,16 +171,8 @@ export class Session {
     else this.closeMenu();
   }
 
-  // scenario 1 can be offered: after the introductions, near the camp, not played yet
-  private _scenarioReady(): boolean {
-    const { camp, player } = this;
-    return this.entered && camp.intro.done && this.errandDone() && !camp.cinematic && !camp.scenario.done && !this.menuOpen()
-      && Math.hypot(player.x - FIRE.x, player.z - FIRE.z) < 13;
-  }
-
   /** system: the scenario button; a hint while the recordings are still loading at the fire */
   update(frame: FrameBase & { camera: { position: { x: number; z: number } } }): void {
-    this.ui.showScenarioButton(this._scenarioReady());
     if (!this.entered || this.camp.intro.done || this.sound.engine.filesLoaded || frame.time <= this._waitHintAt) return;
     const cam = frame.camera.position;
     if (Math.hypot(cam.x - FIRE.x, cam.z - FIRE.z) < 5.2) {

@@ -173,13 +173,6 @@ export class UI {
     this._dialogT = setTimeout(() => el.classList.remove('show'), d.seconds * 1000);
   }
 
-  /** the button that starts scenario 1 */
-  showScenarioButton(on) {
-    if (on === this._scenarioBtn) return;
-    this._scenarioBtn = on;
-    $('scenario-btn').classList.toggle('hidden', !on);
-  }
-
   setFade(a) {
     if (a === this._fade) return;
     this._fade = a;
@@ -231,9 +224,6 @@ export class UI {
     $('resume-btn').addEventListener('click', () => this.emit('resume'));
     $('close-btn').addEventListener('click', () => this.emit('resume'));
     $('replay-btn').addEventListener('click', () => this.emit('replayIntro'));
-    $('replay-scenario-btn').addEventListener('click', () => this.emit('replayScenario'));
-    $('scenario-btn').addEventListener('click', (e) => { e.stopPropagation(); this.emit('scenario'); });
-    $('scenario-btn').addEventListener('pointerdown', (e) => e.stopPropagation());
     // a click / tap on the dimmed background closes the menu too
     $('pause').addEventListener('click', (e) => { if (e.target === $('pause')) this.emit('resume'); });
     $('skip-btn').addEventListener('click', (e) => { e.stopPropagation(); this.emit('skip'); });
