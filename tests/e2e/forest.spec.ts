@@ -289,7 +289,7 @@ async function errandSetup(page: Page) {
     };
     // what made a sound, and the lightning
     (window as any).cues = []; f.events.on('scenario:cue', (c: { cue: string }) => (window as any).cues.push(c.cue));
-    (window as any).flashes = 0; f.events.on('weather:lightning', () => (window as any).flashes++);
+    (window as any).flashes = 0; f.events.on('weather:lightning', (l: any) => { if (l.strength > 1) (window as any).flashes++; }); // the walk's reveals (the weather's own distant flashes are fainter)
     f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); // past the opening flight
     (window as any).step(2);
   });
