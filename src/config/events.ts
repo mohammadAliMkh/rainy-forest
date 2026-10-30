@@ -26,6 +26,9 @@ export const EV = {
   DIALOG: 'quest:dialog',
   BANNER: 'quest:banner',
 
+  // the player's bag (src/game/items/Inventory.ts)
+  INVENTORY: 'items:inventory',
+
   // the weather (src/game/weather/Weather.ts)
   LIGHTNING: 'weather:lightning',
 
@@ -56,7 +59,7 @@ export interface GameEvents {
   /** a moment in a scenario that makes a sound (the ghost's tiptoe tune, its BOO, a scream...) */
   [EV.SCENARIO_CUE]:
     | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish' | 'pickup' | 'pay' | 'lid'; position: Vector3 }
-    | { cue: 'laughDeep' | 'glitch' | 'whisper' | 'heartbeat' | 'shriek' | 'bark'; position: Vector3 }
+    | { cue: 'laughDeep' | 'glitch' | 'whisper' | 'heartbeat' | 'shriek' | 'bark' | 'whirl'; position: Vector3 }
     | { cue: 'scream'; position: Vector3; who: string }
     /** a footstep somewhere else (the steps following you on the walk back) */
     | { cue: 'echoStep'; position: Vector3; surface: 'water' | 'mud' | 'leaves' | 'wood'; running: boolean };
@@ -67,6 +70,8 @@ export interface GameEvents {
   /** a message across the middle of the view that fades away after `seconds`: a big
    * title (the errand's name at its start and end) or a short note ("shopping done") */
   [EV.BANNER]: { text: string; kind: 'title' | 'note'; seconds: number };
+  /** what is in the player's bag and what is in their hand */
+  [EV.INVENTORY]: { items: { id: string; label: string; icon: string }[]; held: string | null };
   /** a soft, distant flash; the rumble arrives `delay` seconds later */
   [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };

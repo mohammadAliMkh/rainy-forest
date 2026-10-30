@@ -35,6 +35,9 @@ import { DeerHerd } from '../game/creatures/Deer.js';
 import { Wildlife } from '../game/creatures/Wildlife.js';
 import { CollisionWorld } from '../game/player/Collision.js';
 import { PlayerController } from '../game/player/PlayerController.ts';
+import { Hands } from '../game/player/Hands.ts';
+import { Inventory, type ItemId } from '../game/items/Inventory.ts';
+import { Wraith } from '../game/scenario/Wraith.ts';
 import { Soundscape } from '../game/sound/Soundscape.ts';
 import { Minimap } from '../ui/Minimap.js';
 import { Session } from './Session.ts';
@@ -156,7 +159,8 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const sound = new Soundscape(world, events);
   // the camp's introductions keep the ambience lowered across all of their lines
   camp.voices = {
-    play: (key: string, pos: THREE.Vector3) => sound.playVoice(key, pos, { duck: false, flat: true }),
+    play: (key: string, pos: THREE.Vector3, o?: { duck?: boolean; gain?: number; from?: number; length?: number }) =>
+      sound.playVoice(key, pos, { duck: o?.duck ?? false, flat: true, gain: o?.gain ?? 1, from: o?.from ?? 0, length: o?.length ?? 0 }),
     ready: () => !!sound.engine.filesLoaded,
   };
 
@@ -201,12 +205,20 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement, errandDone: () => errand?.finished ?? true });
   const questWorld = new THREE.Group(); // the jar's ghost flies in world coordinates
   scene.add(questWorld);
+  // the player's own hands, and the bag (a flashlight in it from the start)
+  const hands = new Hands({ scene, world: questWorld, ground: (x, z) => terrain.heightAt(x, z), model: (T as TextureSet).scenes?.fp_arms ?? null });
+  const inventory = new Inventory({ hands, events, scene });
+  events.on(EV.INVENTORY, (inv) => ui.setInventory(inv));
+  ui.on('equip', (id) => inventory.equip(id as ItemId | null));
+  ui.on('enter', () => ui.showBag(true));
+  inventory.add('flashlight');
   errand = new PartyErrand({
     camp, store, player, picker, events, terrain, collision, world: questWorld,
     voices: () => camp.voices, touch: () => session.touch.enabled, camera,
     night: { day, weather, lighting },
     // «روح ترسناک» in the menu: read when the walk back begins
     scary: () => ui.settings.scaryGhost !== false,
+    hands, inventory,
   });
   const theErrand = errand;
   const hud = new Hud({ ui, day });
@@ -253,6 +265,11 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
       (scene.fog as THREE.FogExp2).density *= 1 - 0.6 * up;
     }
   });
+  // the hands (and what they hold) follow the camera; shown while playing, not in film scenes
+  sys('hands', (f) => {
+    hands.update(f.dt, f.camera, session.entered && !camp.cinematic, player.speed / player.walkSpeed);
+    inventory.update(f.dt, f.camera, camp.cinematic);
+  });
   sys('culling', () => culling.update());
   sys('lighting', (f) => lighting.update(f));
   // 3. the world moves
@@ -263,6 +280,34 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('store', (f) => store.update(f.dt, f.camera, f.env));
   sys('errand', (f) => { if (session.entered) theErrand.update(f.dt); });
+  // ?lab=wraith: the ghost's true shape on its own, at night in front of the player,
+  // over and over: it comes (a small knot spinning up into the whirlwind, which gathers into
+  // the spectre), stays a while, goes the same way back, and after a moment comes again
+  if (new URLSearchParams(location.search).get('lab') === 'wraith') {
+    const wraith = new Wraith(terrain);
+    questWorld.add(wraith.group);
+    let started = false, labT = 0;
+    sys('lab', (f) => {
+      if (!session.entered) return;
+      if (camp.intro.active) { camp.intro.skip(); return; }
+      if (!started) {
+        started = true;
+        day.cycleSeconds = 0;
+        day.setHour(23);
+        // in the dark of the woods on the trail, away from the fire's light
+        player.teleport(-3, 22, Math.atan2(-(FIRE.x + 3), -(FIRE.z - 22)));
+        player.pitch = 0.12;
+        const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+        Object.assign(wraith.pose, { x: player.x + fx * 4.5, z: player.z + fz * 4.5, heading: Math.atan2(-fx, -fz) });
+        wraith.appear();
+      }
+      labT += f.dt;
+      if (!wraith.busy && wraith.group.visible && labT > 10) wraith.vanish(() => { labT = -1.5; });
+      if (!wraith.busy && !wraith.group.visible && labT >= 0) { labT = 0; wraith.appear(); }
+      wraith.update(f.dt);
+    });
+    if (debug) (window as unknown as { wraith: Wraith }).wraith = wraith;
+  }
   sys('picker', () => picker.update());
   sys('rain', (f) => rain.update(f.dt, f.time, f.camera, f.env));
   sys('mist', (f) => { mist.setIndoor(store.playerInside); mist.update(f.dt, f.time, f.camera, f.env); });
@@ -286,7 +331,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     // for tests and the browser console (?debug)
     window.forest = {
       game, events, frame: (dt?: number) => game.frame(dt), THREE, frustum: culling.frustum, scene, camera, renderer, gpu, gov: quality.gov, quality,
-      player, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, store, errand: theErrand, picker, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
+      player, hands, inventory, day, weather, sky, sound, world, deer, wildlife, fire, cabin, camp, store, errand: theErrand, picker, forest, vegetation, rain, mist, puddles, terrain, lighting, session,
       applyQuality: (name: Parameters<QualityManager['apply']>[0]) => quality.apply(name), FIRE,
     };
   }

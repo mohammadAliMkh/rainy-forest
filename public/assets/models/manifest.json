@@ -245,6 +245,13 @@
       "scene": true,
       "parts": [],
       "kb": 1129
+    },
+    "fp_arms": {
+      "file": "assets/models/fp_arms.glb",
+      "source": "the owner's forearms and hands for the first-person view (pipeline/blender_fp_arms.py)",
+      "scene": true,
+      "parts": [],
+      "kb": 838
     }
   }
 }

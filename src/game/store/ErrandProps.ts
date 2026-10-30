@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GoodsParts } from './StoreGoods.ts';
-import { F, ERRAND, COUNTER, SHOPKEEPER } from './storeLayout.ts';
+import { F, Z1, ERRAND, COUNTER, SHOPKEEPER } from './storeLayout.ts';
 import { place, type Geo } from './storeGeometry.ts';
 
 // The shop's part in the errand (game/quest): the four things to buy, each
@@ -55,6 +55,7 @@ export class ErrandProps {
     {
       const j = this.jar;
       j.position.set(ERRAND.jar.x, F, ERRAND.jar.z);
+      j.scale.setScalar(ERRAND.jar.scale);
       const R = 0.17, HJ = 0.46;
       const body = new THREE.Mesh(
         new THREE.LatheGeometry([[0, 0], [R * 0.92, 0], [R, 0.03], [R, HJ * 0.8], [R * 0.82, HJ * 0.92], [R * 0.62, HJ * 0.95], [R * 0.62, HJ]].map(([r, y]) => new THREE.Vector2(r, y)), 24),
@@ -120,6 +121,20 @@ export class ErrandProps {
   /** where the jar's mouth is (world) - the ghost comes out there */
   jarMouthWorld(target = new THREE.Vector3()): THREE.Vector3 { return this.jar.localToWorld(target.set(0, 0.46, 0)); }
 
+  /**
+   * the jar opened, as a film scene on the porch: where the ghost stands up
+   * (on the boards just in front of the jar) and where the camera sees it from
+   * (further along the porch, past the door, at eye height) - world
+   */
+  jarStage(): { stand: THREE.Vector3; view: THREE.Vector3 } {
+    const g = this.jar.parent!;
+    g.updateWorldMatrix(true, false);
+    return {
+      stand: g.localToWorld(new THREE.Vector3(ERRAND.jar.x, F, ERRAND.jar.z + 0.62)),
+      view: g.localToWorld(new THREE.Vector3(-2.3, F + 1.45, Z1 + 1.55)),
+    };
+  }
+
   setBlink(m: THREE.Mesh, on: boolean): void {
     if (on) this.blinking.add(m);
     else { this.blinking.delete(m); this._glow(m, 0); }
@@ -128,7 +143,7 @@ export class ErrandProps {
   /** the marker over the shopkeeper / the jar, or nowhere */
   setBeacon(where: 'keeper' | 'jar' | null): void {
     this.beaconAt = where === 'keeper' ? new THREE.Vector3(SHOPKEEPER.x - 0.05, F + 2.1, SHOPKEEPER.z)
-      : where === 'jar' ? new THREE.Vector3(ERRAND.jar.x, F + 0.85, ERRAND.jar.z) : null;
+      : where === 'jar' ? new THREE.Vector3(ERRAND.jar.x, F + 0.46 * ERRAND.jar.scale + 0.4, ERRAND.jar.z) : null;
     this.beacon.visible = !!this.beaconAt;
   }
 

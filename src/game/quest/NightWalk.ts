@@ -8,9 +8,11 @@ import { GHOST_IN } from '../scenario/ghostScript.ts';
 
 // The haunted walk back from Farajpour's (when «روح ترسناک» is on).
 //
-// Nightfall: as you step out of the shop night comes down in a few seconds
-// with heavy rain, and the lantern burns low; after the twist at the very
-// end the hour, the weather and the speed of the day come back slowly.
+// Nightfall: the errand's own time of day. Once Amir has asked, the sun goes
+// down while you walk to the shop; as you step out of it night comes down
+// in a few seconds (on the haunted walk with heavy rain and the lantern
+// burning low); after the end the hour, the weather and the speed of the
+// day come back slowly.
 //
 // NightWalk: the scares on the way back, each fired once by how far along
 // the way from the shop to the fire you are (so it works at any pace), and
@@ -33,6 +35,7 @@ interface DogLike { alertAt: THREE.Vector3 | null; readonly headWorld: THREE.Vec
 interface TerrainLike { heightAt(x: number, z: number): number; pathDistance(x: number, z: number): number }
 interface CollisionLike { isBlocked(x: number, z: number, radius?: number): boolean }
 
+const DUSK_HOUR = 18.3;
 const NIGHT_HOUR = 22.5;
 const LANTERN_LOW = 2.5;
 /** shortest way round the clock from a to b (hours, -12..12) */
@@ -40,12 +43,16 @@ const hoursTo = (a: number, b: number) => ((b - a + 36) % 24) - 12;
 const smooth = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 
 export class Nightfall {
-  /** night is down (or coming down / lifting) */
+  /** the errand's own time of day is in force (dusk, night, or lifting) */
   active = false;
+  /** it is night (or night is coming down) */
+  night = false;
   private readonly day: DayLike;
   private readonly weather: WeatherLike;
   private readonly lighting: LightingLike;
-  private saved: { hour: number; cycle: number; mode: WeatherMode; kind: WeatherKind; lantern: number } | null = null;
+  /** how it was before the errand took over the time of day */
+  private saved: { hour: number; cycle: number; lantern: number } | null = null;
+  private savedWeather: { mode: WeatherMode; kind: WeatherKind } | null = null;
   private h0 = 0;
   private dh = 0;
   private t = -1;
@@ -58,28 +65,47 @@ export class Nightfall {
     this.lighting = lighting;
   }
 
-  /** night and heavy rain, in ~6 s */
-  fall(): void {
-    if (this.active) return;
-    const { day, weather, lighting } = this;
-    this.saved = { hour: day.hour, cycle: day.cycleSeconds, mode: weather.mode, kind: weather.kind, lantern: lighting.lanternMax };
-    day.cycleSeconds = 0;
-    weather.setMode('rain');
-    weather.setKind('heavy', 1200);
-    lighting.lanternMax = LANTERN_LOW;
-    this._go(NIGHT_HOUR, 6);
+  private _take(): void {
+    if (this.saved) return;
+    const { day, lighting } = this;
+    this.saved = { hour: day.hour, cycle: day.cycleSeconds, lantern: lighting.lanternMax };
+    day.cycleSeconds = 0; // the errand runs the clock now
     this.active = true;
     this.lifting = false;
   }
 
-  /** back to how it was, the hour over ~10 s */
+  /** the sun goes down while you walk to the shop (~12 s) */
+  dusk(): void {
+    this._take();
+    this._go(DUSK_HOUR, 12);
+  }
+
+  /** night on the way back (~6 s); `haunted`: in heavy rain, the lantern burning low */
+  fall(haunted: boolean): void {
+    if (this.night) return;
+    this._take();
+    if (haunted) {
+      const { weather, lighting } = this;
+      this.savedWeather = { mode: weather.mode, kind: weather.kind };
+      weather.setMode('rain');
+      weather.setKind('heavy', 1200);
+      lighting.lanternMax = LANTERN_LOW;
+    }
+    this._go(NIGHT_HOUR, 6);
+    this.night = true;
+  }
+
+  /** back to how it was before the errand, the hour over ~10 s */
   lift(): void {
     if (!this.active || this.lifting || !this.saved) return;
-    const s = this.saved;
-    this.lighting.lanternMax = s.lantern;
-    this.weather.setMode(s.mode);
-    if (s.mode !== 'dry') this.weather.setKind(s.kind);
-    this._go(s.hour, 10);
+    this.lighting.lanternMax = this.saved.lantern;
+    const w = this.savedWeather;
+    if (w) {
+      this.weather.setMode(w.mode);
+      if (w.mode !== 'dry') this.weather.setKind(w.kind);
+      this.savedWeather = null;
+    }
+    this._go(this.saved.hour, 10);
     this.lifting = true;
   }
 
@@ -100,7 +126,7 @@ export class Nightfall {
       if (this.lifting) {
         this.day.cycleSeconds = this.saved!.cycle;
         this.saved = null;
-        this.active = this.lifting = false;
+        this.active = this.night = this.lifting = false;
       }
     }
   }

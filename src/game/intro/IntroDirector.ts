@@ -28,6 +28,8 @@ const GUITAR = { d: 2.4, up: -0.08, lookDown: 0.35, fov: 42 };
 // view, so taking over is seamless): how far from the fire, how much closer by
 // the end of the line, how high the camera and what it looks at
 const GROUP = { d: 4.9, push: 0.5, eye: 1.68, lookUp: 0.8, fov: 70 };
+/** how loud Amin's guitar is under the introductions (it must not cover the voice) */
+const GUITAR_UNDER = 0.4;
 /** the last line, over the group shot */
 const GROUP_KEY = 'scenario_intro';
 
@@ -42,7 +44,9 @@ const _m = new THREE.Matrix4();
 
 /** what the introductions need to play the recordings (set on the camp by app/createGame.ts) */
 export interface VoiceService {
-  play(key: string, position: THREE.Vector3): VoiceHandle | null;
+  /** `duck`: lower the ambience while it plays; `gain`: louder / quieter than the narration;
+   * `from` / `length`: only that part of the recording (seconds) */
+  play(key: string, position: THREE.Vector3, opts?: { duck?: boolean; gain?: number; from?: number; length?: number }): VoiceHandle | null;
   /** the recordings have loaded (the introductions wait for them) */
   ready(): boolean;
 }
@@ -149,6 +153,9 @@ export class IntroDirector {
       this.fly = null;
       s.played++;
       g.focus = step.focus;
+      // Amin plays softly on and on under the introductions (not under the welcome's flight)
+      g.guitar = step.key === 'welcome' ? 'off' : 'on';
+      g.guitarLevel = GUITAR_UNDER;
       this.camp.events.emit(EV.INTRO_CAPTION, step.key === GROUP_KEY ? null : this._name(step.focus));
       this.camp.events.emit(EV.INTRO_SUBTITLE, step.text || null);
       return;
@@ -167,6 +174,8 @@ export class IntroDirector {
     this.seq = null;
     this.w = 0;
     g.focus = null;
+    g.guitar = 'auto';
+    g.guitarLevel = 1;
     this.camp.events.emit(EV.INTRO_CAPTION, null);
     this.camp.events.emit(EV.INTRO_SUBTITLE, null);
     this.camp.events.emit(EV.INTRO_DUCK, false);
