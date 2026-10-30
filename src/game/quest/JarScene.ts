@@ -12,10 +12,13 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // out of the jar's mouth, grows into a whirlwind that settles onto the
 // boards in front of the jar, and gathers itself into the ghost, which turns
 // and glares (a little smaller than out in the open, under the porch roof).
+// Then the recording swells a second time: the ground shakes (the camera
+// only), the ghost rises a little with its robe streaming, and the sky and
+// all the light turn red (`redden`, which stays after the scene).
 // Its sound is a recording (`ghost_appear`): its first seconds - a rising
-// swell, then a deep heavy part - fit the scene, so the timings follow it.
-// (What follows - the shaking, the red sky, the ghost leaving for the woods -
-// comes next; for now the scene ends with a dip to black.)
+// swell, a deep heavy part, then a second swell - fit the scene, so the
+// timings follow it. (What follows - the ghost leaving for the woods - comes
+// next; for now the scene ends with a dip to black.)
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -29,10 +32,17 @@ const T = {
   full: 3.2, // ...a full whirlwind
   gather: 3.5, // it gathers into the ghost (the deep part of the sound)...
   formed: 6.0, // ...which turns and glares
-  end: 9.8,
+  glared: 9.8,
+  quake: 10.0, // the second swell: the shaking starts and the sky turns red...
+  peak: 12.0, // ...at its strongest...
+  calm: 14.5, // ...until the swell passes
+  still: 17.0,
+  end: 17.4,
 };
 /** the part of the recording that is played: from, how long */
-const SOUND = { from: 1.0, length: 9.6 };
+const SOUND = { from: 1.0, length: 17.5 };
+/** the shaking at its strongest: metres, radians */
+const SHAKE = { move: 0.05, turn: 0.014 };
 /** a little smaller than its full size, under the porch roof */
 const SCALE = 0.88;
 
@@ -42,6 +52,7 @@ export class JarScene {
   private readonly wraith: Wraith;
   private readonly events: EventBus<GameEvents>;
   private readonly voices: () => VoiceService | null;
+  private readonly redden: () => void;
   private t = -1;
   private ending = 0;
   private fade = 0;
@@ -58,10 +69,17 @@ export class JarScene {
   private readonly tLook = new THREE.Vector3();
   private readonly head = new THREE.Vector3();
 
-  constructor({ wraith, events, voices }: { wraith: Wraith; events: EventBus<GameEvents>; voices: () => VoiceService | null }) {
+  /** `redden`: the sky and the light turn red (and stay so) */
+  constructor({ wraith, events, voices, redden }: { wraith: Wraith; events: EventBus<GameEvents>; voices: () => VoiceService | null; redden: () => void }) {
     this.wraith = wraith;
     this.events = events;
     this.voices = voices;
+    this.redden = redden;
+  }
+
+  /** how hard the ground shakes now (0..1) */
+  get shaking(): number {
+    return this.filming ? sstep(T.quake, T.peak, this.t) * (1 - sstep(T.calm, T.still, this.t)) : 0;
   }
 
   get active(): boolean { return this.t >= 0; }
@@ -105,11 +123,17 @@ export class JarScene {
       P.form = sstep(T.gather, T.formed, t);
       // it turns to us (the camera) as it takes shape, and glares
       P.heading = Math.atan2(this.view.x - P.x, this.view.z - P.z);
+      // the second swell: the sky turns red; it rises a little, its robe streaming
+      if (t >= T.quake) this._once('red', this.redden);
+      const q = this.shaking;
+      P.lift = 0.25 + 0.18 * sstep(T.quake, T.peak, t);
+      P.wind = 1 + 1.6 * q;
       w.update(dt);
       if (t >= T.end) this.ending = 1e-6;
     }
     if (!this.ending) return;
-    // dip to black, back to the player
+    // dip to black, back to the player (skipped: the sky turns red all the same)
+    this._once('red', this.redden);
     this.ending += dt;
     if (this.filming) {
       this.fade = Math.min(1, this.ending / 0.4);
@@ -119,7 +143,7 @@ export class JarScene {
         this.voice?.stop();
         w.show(false);
         w.group.scale.setScalar(1);
-        P.base = null;
+        Object.assign(P, { base: null, lift: 0.25, wind: 1 });
         this.events.emit(EV.INTRO_CINEMATIC, false);
       }
     } else {
@@ -130,11 +154,12 @@ export class JarScene {
   }
 
   // one shot from along the porch: on the jar's mouth at first, then following
-  // the whirlwind up, and drawing in a little on the ghost's face as it glares
+  // the whirlwind up, and drawing in a little on the ghost's face as it glares;
+  // the shaking on top (not smoothed away)
   applyCamera(camera: THREE.PerspectiveCamera, dt: number): void {
     if (!this.filming) return;
     const t = this.t, w = this.wraith;
-    const push = sstep(T.formed - 1, T.end, t);
+    const push = sstep(T.formed - 1, T.glared, t);
     this.tPos.copy(this.view).lerp(this.stand, 0.18 * push);
     const centre = w.group.position;
     w.headWorld(this.head);
@@ -148,6 +173,16 @@ export class JarScene {
     this.quat.slerp(_q, k);
     camera.position.copy(this.pos);
     camera.quaternion.copy(this.quat);
+    const q = this.shaking;
+    if (q > 0) {
+      // a few uneven tremors on top of each other: a rumble and a slower sway
+      const n = (a: number, b: number, c: number) => Math.sin(t * a) * 0.5 + Math.sin(t * b + 1.7) * 0.3 + Math.sin(t * c + 4.1) * 0.2;
+      camera.position.x += SHAKE.move * q * n(31, 47, 7.3);
+      camera.position.y += SHAKE.move * q * n(37, 53, 5.9);
+      camera.position.z += SHAKE.move * q * n(29, 43, 6.7);
+      camera.rotateX(SHAKE.turn * q * n(23, 41, 4.3));
+      camera.rotateZ(SHAKE.turn * q * n(19, 35, 3.7));
+    }
     if (Math.abs(camera.fov - 55) > 0.01) { camera.fov = 55; camera.updateProjectionMatrix(); }
   }
 }

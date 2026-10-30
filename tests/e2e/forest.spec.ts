@@ -368,8 +368,16 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { rising, formed: w.pose.form === 1, byTheJar: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) < 1 };
   });
   expect(jar).toEqual({ rising: { cinematic: true, shown: true, atMouth: true, small: true }, formed: true, byTheJar: true });
-  await page.evaluate(() => (window as any).step(3.5));
+  // then the second swell: the ground shakes (the camera) and the sky turns red, and stays red after the scene
+  const quake = await page.evaluate(() => {
+    const f = (window as any).forest, s = f.errand.jarScene, calm = { shaking: s.shaking, blood: f.day.blood };
+    (window as any).step(5);
+    return { calm, shaking: s.shaking > 0.9, blood: f.day.blood > 0.95 };
+  });
+  expect(quake).toEqual({ calm: { shaking: 0, blood: 0 }, shaking: true, blood: true });
+  await page.evaluate(() => (window as any).step(5.5));
   expect(await state()).toBe('deliver');
+  expect(await page.evaluate(() => (window as any).forest.day.blood)).toBe(1);
   // night has fallen, in heavy rain
   expect(await page.evaluate(() => { const f = (window as any).forest; return { night: f.day.hour > 21, rain: f.weather.kind, haunted: f.errand.haunted }; }))
     .toEqual({ night: true, rain: 'heavy', haunted: true });
@@ -407,8 +415,8 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(twist).toEqual({ filming: true, cinematic: true, visible: true, nearFire: true });
   expect(await page.textContent('#banner')).toBe('...یا شاید هم نه 👻');
   // then the view is the player's again and the night lifts
-  const after = await page.evaluate(() => { const f = (window as any).forest; (window as any).step(16); return { cinematic: f.camp.cinematic, hour: f.day.hour, night: f.errand.nightfall.active, lantern: f.lighting.lanternMax }; });
-  expect(after).toMatchObject({ cinematic: false, night: false, lantern: 5.5 });
+  const after = await page.evaluate(() => { const f = (window as any).forest; (window as any).step(16); return { cinematic: f.camp.cinematic, hour: f.day.hour, night: f.errand.nightfall.active, lantern: f.lighting.lanternMax, blood: f.day.blood }; });
+  expect(after).toMatchObject({ cinematic: false, night: false, lantern: 5.5, blood: 0 });
   expect(Math.abs(after.hour - hourBefore)).toBeLessThan(0.3);
   expect(errors).toEqual([]);
 });

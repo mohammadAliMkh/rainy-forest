@@ -11,8 +11,9 @@ import { GHOST_IN } from '../scenario/ghostScript.ts';
 // Nightfall: the errand's own time of day. Once Amir has asked, the sun goes
 // down while you walk to the shop; as you step out of it night comes down
 // in a few seconds (on the haunted walk with heavy rain and the lantern
-// burning low); after the end the hour, the weather and the speed of the
-// day come back slowly.
+// burning low); as the ghost comes out of the jar the sky turns red
+// (`redden`); after the end the hour, the weather, the colour of the sky and
+// the speed of the day come back slowly.
 //
 // NightWalk: the scares on the way back, each fired once by how far along
 // the way from the shop to the fire you are (so it works at any pace), and
@@ -28,7 +29,7 @@ import { GHOST_IN } from '../scenario/ghostScript.ts';
 // It moves the errand's jar ghost (one ghost out at a time).
 
 interface PlayerLike { x: number; z: number; y: number; yaw: number }
-interface DayLike { hour: number; cycleSeconds: number }
+interface DayLike { hour: number; cycleSeconds: number; blood: number }
 interface WeatherLike { mode: WeatherMode; kind: WeatherKind; setMode(mode: WeatherMode): void; setKind(kind: WeatherKind, seconds?: number): void }
 interface LightingLike { lanternMax: number; readonly flashLevel: number }
 interface DogLike { alertAt: THREE.Vector3 | null; readonly headWorld: THREE.Vector3 }
@@ -58,6 +59,11 @@ export class Nightfall {
   private t = -1;
   private len = 1;
   private lifting = false;
+  // the red sky: from, to, how far along (-1 = still), over how long
+  private r0 = 0;
+  private r1 = 0;
+  private rt = -1;
+  private rLen = 1;
 
   constructor({ day, weather, lighting }: { day: DayLike; weather: WeatherLike; lighting: LightingLike }) {
     this.day = day;
@@ -107,6 +113,19 @@ export class Nightfall {
     }
     this._go(this.saved.hour, 10);
     this.lifting = true;
+    if (this.day.blood > 0) this._blood(0, 10);
+  }
+
+  /** the sky turns red (the ghost is out), over `seconds` */
+  redden(seconds = 3.5): void {
+    this._blood(1, seconds);
+  }
+
+  private _blood(to: number, seconds: number): void {
+    this.r0 = this.day.blood;
+    this.r1 = to;
+    this.rt = 0;
+    this.rLen = seconds;
   }
 
   private _go(hour: number, seconds: number): void {
@@ -117,6 +136,11 @@ export class Nightfall {
   }
 
   update(dt: number): void {
+    if (this.rt >= 0) {
+      this.rt += dt;
+      this.day.blood = this.r0 + (this.r1 - this.r0) * smooth(this.rt / this.rLen);
+      if (this.rt >= this.rLen) this.rt = -1;
+    }
     if (this.t < 0) return;
     this.t += dt;
     const k = smooth(this.t / this.len);

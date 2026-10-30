@@ -29,7 +29,8 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, DELIVER_AT, KEE
 //   ghost; you take it, and it goes in your bag -> step outside: he calls
 //   after you to help yourself to pickles from the jar by the door -> lift
 //   its lid: a film scene (JarScene.ts) - a whirlwind spins up out of the
-//   jar and gathers into the ghost's true shape -> take the shopping back to Amir: scenario 1 plays, and once
+//   jar and gathers into the ghost's true shape, the ground shakes and the
+//   sky turns red -> take the shopping back to Amir: scenario 1 plays, and once
 //   everyone has fled into the trees you are back in control while they
 //   come back to their seats.
 // With «روح ترسناک» on (read as you step out of the shop) night falls on
@@ -105,10 +106,10 @@ export class PartyErrand {
     world.add(this.jarGhost.group);
     this.wraith = new Wraith(terrain);
     world.add(this.wraith.group);
-    this.jarScene = new JarScene({ wraith: this.wraith, events, voices });
-    camp.films.push(this.jarScene);
     this.scary = scary;
     this.nightfall = new Nightfall(night);
+    this.jarScene = new JarScene({ wraith: this.wraith, events, voices, redden: () => this.nightfall.redden() });
+    camp.films.push(this.jarScene);
     const shop = store.mapShape();
     this.nightWalk = new NightWalk({
       ghost: this.jarGhost, events, player, terrain, collision, lighting: night.lighting,
