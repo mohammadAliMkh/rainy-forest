@@ -47,6 +47,21 @@ type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keep
 interface PlayerLike { x: number; z: number; y: number; yaw: number; pitch: number }
 type Night = ConstructorParameters<typeof Nightfall>[0];
 
+/** a copy of `o` (without `leave`), about 20 cm across, centred: for the hand */
+function inHand(o: THREE.Object3D, leave?: THREE.Object3D): THREE.Object3D {
+  const c = o.clone();
+  if (leave) c.children[o.children.indexOf(leave)]?.removeFromParent();
+  c.position.set(0, 0, 0); c.quaternion.identity(); c.scale.setScalar(1); c.visible = true;
+  c.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(c), size = box.getSize(new THREE.Vector3());
+  const k = 0.2 / Math.max(size.x, size.y, size.z);
+  c.scale.setScalar(k);
+  c.position.copy(box.getCenter(new THREE.Vector3())).multiplyScalar(-k);
+  const g = new THREE.Group();
+  g.add(c);
+  return g;
+}
+
 export class PartyErrand {
   step: Step = 'wait';
   private readonly camp: Camp;
@@ -128,6 +143,9 @@ export class PartyErrand {
     this.twist = new TwistScene({ ghost: this.jarGhost, terrain, events, shared: camp.shared, fire: FIRE, trail: terrain.pathLine });
     camp.films.push(this.twist);
     const props = store.errand;
+    // in the bag: copies of the goods (and the jar, without its lid), small enough for the hand
+    for (const key of ERRAND_ITEMS) inventory.define(key, () => inHand(props.items[key]));
+    inventory.define('pickles', () => inHand(props.jar, props.lid));
     // the goods: click one to put it in the basket
     for (const key of ERRAND_ITEMS) {
       picker.add({
@@ -186,8 +204,8 @@ export class PartyErrand {
     this.store.errand.setBlink(m, false);
     // your hand takes it off the shelf (the other hand if that one is busy)
     const free = !this.hands.right.step ? 'right' : !this.hands.left.step ? 'left' : null;
-    if (free) this.hands.take(m, free, { reach: 0.45 });
-    else m.visible = false;
+    if (free) this.hands.take(m, free, { reach: 0.45, onDone: () => this.inventory.add(key) });
+    else { m.visible = false; this.inventory.add(key); }
     this.got.add(key);
     this._cue('pickup', m.getWorldPosition(new THREE.Vector3()));
     if (ERRAND_ITEMS.every((k) => this.got.has(k))) {
@@ -291,6 +309,7 @@ export class PartyErrand {
         // the scene is over: ...and the pickles go in the basket after all
         if (!this.jarScene.filming && this.t > 0.5) {
           this.got.add('pickles');
+          this.inventory.add('pickles');
           this._go('deliver');
         }
         break;

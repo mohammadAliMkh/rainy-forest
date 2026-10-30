@@ -11,12 +11,14 @@ import { makeAmulet } from './Amulet.ts';
 // player's right hand (`equip`), choosing it again puts it away. A
 // flashlight is in it from the start: held, it shines a beam where the
 // player looks (its light is always in the scene, dark while put away, so
-// taking it out never stalls the game).
+// taking it out never stalls the game). The shopping for the party goes in
+// it too, the pickles last; their models in the hand are copies of the
+// ones in the shop (`define`).
 
-export type ItemId = 'flashlight' | 'amulet';
+export type ItemId = 'flashlight' | 'amulet' | 'chips' | 'puffs' | 'yogurt' | 'drink' | 'pickles';
 
-/** what each thing is called on screen, its icon, and its model in the hand */
-export const ITEMS: Record<ItemId, { label: string; icon: string; make: () => THREE.Object3D }> = {
+/** what each thing is called on screen, its icon, and its model in the hand (null: given by `define`) */
+export const ITEMS: Record<ItemId, { label: string; icon: string; make: (() => THREE.Object3D) | null }> = {
   flashlight: { label: 'چراغ‌قوه', icon: '🔦', make: makeFlashlight },
   amulet: {
     label: 'صلیب سنگی', icon: '☩',
@@ -31,6 +33,11 @@ export const ITEMS: Record<ItemId, { label: string; icon: string; make: () => TH
       return g;
     },
   },
+  chips: { label: 'چیپس', icon: '🍟', make: null },
+  puffs: { label: 'پفک', icon: '🧀', make: null },
+  yogurt: { label: 'ماست', icon: '🥛', make: null },
+  drink: { label: 'نوشیدنی', icon: '🥤', make: null },
+  pickles: { label: 'خیارشور', icon: '🥒', make: null },
 };
 
 const BEAM = { intensity: 26, distance: 34, angle: 0.4, penumbra: 0.55, decay: 1.25 };
@@ -43,6 +50,7 @@ export class Inventory {
   private readonly hands: Hands;
   private readonly events: EventBus<GameEvents>;
   private readonly models = new Map<ItemId, THREE.Object3D>();
+  private readonly makers = new Map<ItemId, () => THREE.Object3D>();
   private readonly _v = new THREE.Vector3();
   private readonly _d = new THREE.Vector3();
 
@@ -56,6 +64,9 @@ export class Inventory {
 
   has(id: ItemId): boolean { return this.items.includes(id); }
 
+  /** how `id` is made for the hand (for things whose model lives elsewhere) */
+  define(id: ItemId, make: () => THREE.Object3D): void { this.makers.set(id, make); }
+
   /** it goes in the bag */
   add(id: ItemId): void {
     if (this.has(id)) return;
@@ -66,12 +77,13 @@ export class Inventory {
   /** take `id` out into the right hand (null, or the one already held: put it away) */
   equip(id: ItemId | null): void {
     if (id && (!this.has(id) || id === this.held)) id = null;
-    this.held = id;
     let model: THREE.Object3D | null = null;
-    if (id) {
-      model = this.models.get(id) ?? ITEMS[id].make();
+    const make = id ? this.makers.get(id) ?? ITEMS[id].make : null;
+    if (id && make) {
+      model = this.models.get(id) ?? make();
       this.models.set(id, model);
-    }
+    } else id = null;
+    this.held = id;
     this.hands.hold(model, 'right');
     this._announce();
   }

@@ -385,6 +385,8 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   await page.evaluate(() => (window as any).step(6));
   expect(await state()).toBe('deliver');
   expect(await page.evaluate(() => (window as any).forest.day.blood)).toBe(0);
+  // the shopping is in the bag, the pickles too
+  expect(await page.evaluate(() => (window as any).forest.inventory.items)).toEqual(expect.arrayContaining(['chips', 'puffs', 'yogurt', 'drink', 'pickles']));
   // night has fallen, in heavy rain
   expect(await page.evaluate(() => { const f = (window as any).forest; return { night: f.day.hour > 21, rain: f.weather.kind, haunted: f.errand.haunted }; }))
     .toEqual({ night: true, rain: 'heavy', haunted: true });
