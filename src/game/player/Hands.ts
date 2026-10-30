@@ -47,18 +47,18 @@ const SHOULDER = { left: new THREE.Vector3(-0.19, -0.3, 0.12), right: new THREE.
 const euler = (x: number, y: number, z: number) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, 'YXZ'));
 /** the camera-space poses, for the right hand (the left one is the mirror image) */
 const POSE = {
-  /** resting low at the corner of the view, seen from the side (thumb up), fingers relaxed */
-  rest: { pos: new THREE.Vector3(0.21, -0.27, -0.42), quat: euler(0.15, 0.35, 1.25), grip: 0.3 },
+  /** resting low at the corner of the view, palm turned in toward the other hand, thumb on top, fingers relaxed */
+  rest: { pos: new THREE.Vector3(0.21, -0.27, -0.42), quat: euler(0.15, 0.35, -1.25), grip: 0.3 },
   /** holding something up in front, ready to use it (turned a little inward, so it is seen from the side) */
-  hold: { pos: new THREE.Vector3(0.19, -0.2, -0.4), quat: euler(0.16, 0.3, 1.35), grip: 1 },
+  hold: { pos: new THREE.Vector3(0.19, -0.2, -0.4), quat: euler(0.16, 0.3, -1.35), grip: 1 },
   /** out of view, down by the side */
-  away: { pos: new THREE.Vector3(0.24, -0.62, -0.22), quat: euler(0.6, 0.1, 0.4), grip: 0.5 },
+  away: { pos: new THREE.Vector3(0.24, -0.62, -0.22), quat: euler(0.6, 0.1, -0.4), grip: 0.5 },
   /** palm out, pushing */
   push: { pos: new THREE.Vector3(0.13, -0.12, -0.5), quat: euler(-1.25, 0.1, 0.1), grip: 0 },
   /** drawn back over the shoulder to throw */
-  windup: { pos: new THREE.Vector3(0.26, -0.06, -0.12), quat: euler(-0.5, 0.2, 1.3), grip: 1 },
+  windup: { pos: new THREE.Vector3(0.26, -0.06, -0.12), quat: euler(-0.5, 0.2, -1.3), grip: 1 },
   /** the arm thrown forward */
-  release: { pos: new THREE.Vector3(0.1, -0.1, -0.62), quat: euler(0.3, 0.05, 1.3), grip: 0.1 },
+  release: { pos: new THREE.Vector3(0.1, -0.1, -0.62), quat: euler(0.3, 0.05, -1.3), grip: 0.1 },
 };
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -336,7 +336,7 @@ export class Hands {
     h.held = item;
     if (item) {
       h.grip.add(item);
-      item.position.set(0, 0.005, -0.045); // sticking out ahead of the fist
+      item.position.set(0, 0.004, -0.09); // held by its back end, sticking out ahead of the fist
       item.quaternion.copy(GRIP_TURN);
       item.visible = true;
     }
@@ -525,4 +525,4 @@ export class Hands {
 }
 
 /** how a held item sits in the closed hand: pointing along the fingers, upright */
-const GRIP_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -1.35));
+const GRIP_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 1.35));
