@@ -280,7 +280,8 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('store', (f) => store.update(f.dt, f.camera, f.env));
   sys('errand', (f) => { if (session.entered) theErrand.update(f.dt); });
   // ?lab=wraith: the ghost's true shape on its own, at night in front of the player,
-  // over and over: whirlwind (4 s) -> gathering into the spectre (2.5 s) -> the spectre (5 s)
+  // over and over: a small knot spinning up out of the ground into the whirlwind (3 s), the
+  // whirlwind (1.5 s), gathering into the spectre (2.5 s), the spectre (5 s), back (1 s)
   if (new URLSearchParams(location.search).get('lab') === 'wraith') {
     const wraith = new Wraith(terrain);
     questWorld.add(wraith.group);
@@ -300,7 +301,9 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
         wraith.show(true);
       }
       labT = (labT + f.dt) % 13;
-      wraith.pose.form = labT < 4 ? 0 : labT < 6.5 ? (labT - 4) / 2.5 : labT < 11.5 ? 1 : 1 - (labT - 11.5) / 1.5;
+      wraith.pose.grow = Math.min(1, labT / 3);
+      wraith.pose.form = labT < 4.5 ? 0 : labT < 7 ? (labT - 4.5) / 2.5 : labT < 12 ? 1 : 0;
+      wraith.pose.opacity = labT < 12 ? 1 : 1 - (labT - 12);
       wraith.update(f.dt);
     });
     if (debug) (window as unknown as { wraith: Wraith }).wraith = wraith;

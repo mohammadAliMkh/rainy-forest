@@ -15,7 +15,7 @@ import * as THREE from 'three';
 
 const NU = 64, NV = 52;
 const H = 2.15; // top of the hood above the ground point
-const RH = 0.19; // hood radius
+const RH = 0.2; // hood radius
 const HOOD = 0.17; // share of the surface that is the hood
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
@@ -29,6 +29,8 @@ export interface WraithPose {
   lift: number;
   /** 0 = whirlwind .. 1 = the spectre */
   form: number;
+  /** the whirlwind: 0 = a small knot spinning low down .. 1 = full height */
+  grow: number;
   /** 0..1 arms held out */
   arms: number;
   opacity: number;
@@ -41,17 +43,30 @@ function robe(u: number, v: number, t: number, arms: number, wind: number, out: 
   const th = u * Math.PI * 2;
   const s = Math.sin(th), c = Math.cos(th);
   let r: number, y: number, dz = 0, dx = 0;
+  // the face: a hollow in the front of the hood, from the brow down to the chin
+  const front = sstep(0.72, 0.93, c);
   if (v <= HOOD) {
-    // the hood: a rounded dome, a little pointed, drawn forward over the face
-    const phi = (v / HOOD) * Math.PI * 0.55;
-    r = RH * Math.sin(phi) * 1.15;
-    y = H - RH * (1 - Math.cos(phi)) * 1.25 + (1 - v / HOOD) * 0.03;
-    dz = 0.035 * Math.max(0, c) * (v / HOOD);
+    // the hood: a cloak thrown over the head - a tall, slightly pointed cowl
+    // whose brim comes forward round a deep opening
+    const q = v / HOOD, phi = q * Math.PI * 0.5;
+    r = RH * Math.sin(phi);
+    y = H - RH * (1 - Math.cos(phi)) * 1.6 + (1 - q) * (1 - q) * 0.07;
+    dz = 0.1 * Math.pow(Math.max(0, c), 1.5) * sstep(0.25, 0.8, q);
+    // the opening: the cloth there is drawn far back, leaving the brim round it
+    const hollow = front * sstep(0.42, 0.62, q);
+    r *= 1 - 0.85 * hollow;
+    dz *= 1 - hollow;
   } else {
     const k = (v - HOOD) / (1 - HOOD); // 0 at the neck, 1 at the end of the trailing wisps
-    y = lerp(H - RH * 1.4, -0.6, k);
-    // slender: the neck, narrow shoulders, a slim body, then the gown flaring toward the hem
-    r = lerp(0.09, 0.18, sstep(0, 0.07, k)) - 0.025 * sstep(0.1, 0.3, k) + 0.2 * Math.pow(sstep(0.3, 0.85, k), 1.3);
+    y = lerp(H - RH * 1.6, -0.6, k);
+    // the cloak falling from the hood onto the shoulders (no neck), a slim body,
+    // then the gown flaring toward the hem
+    r = lerp(RH, 0.22, sstep(0, 0.08, k)) - 0.04 * sstep(0.1, 0.3, k) + 0.2 * Math.pow(sstep(0.3, 0.85, k), 1.3);
+    // the hollow goes on down to the chin, then the cloak closes under it
+    const chin = front * (1 - sstep(0.015, 0.05, k));
+    r *= 1 - 0.85 * chin;
+    // the hood's brim runs on down the front edges of the cloak
+    dz = 0.1 * Math.pow(Math.max(0, c), 1.5) * (1 - chin) * (1 - sstep(0.02, 0.1, k));
     // tapering again at the very end, into the trailing wisps
     r *= 1 - 0.45 * sstep(0.78, 1, k);
     // the arms held out and a little down, the wide sleeves hanging from them to the hips
@@ -64,7 +79,7 @@ function robe(u: number, v: number, t: number, arms: number, wind: number, out: 
     // the gown streams back (-z) and down, rippling, in long ragged tongues
     const lower = sstep(0.35, 1, k);
     const tongue = 0.5 + 0.5 * Math.sin(th * 5 + 1.3 * Math.sin(th * 3));
-    dz = -Math.pow(lower, 1.5) * (0.8 + 0.4 * tongue) * wind;
+    dz += -Math.pow(lower, 1.5) * (0.8 + 0.4 * tongue) * wind;
     y -= lower * lower * 0.3 * tongue;
     const ripple = Math.sin(th * 6 + t * 2.1 - k * 7) * 0.05 + Math.sin(th * 3 - t * 1.4 + k * 4) * 0.04;
     r *= 1 + ripple * (0.3 + lower) * wind;
@@ -80,13 +95,17 @@ function robe(u: number, v: number, t: number, arms: number, wind: number, out: 
   return (1 - sstep(0.5, 1, k) * 0.92) * (1 - Math.pow(Math.abs(s), 6) * sstep(0.22, 0.5, k) * 0.7);
 }
 
-/** the whirlwind: a twisting funnel, narrow at the ground, wide high up, swaying */
-function funnel(u: number, v: number, t: number, out: THREE.Vector3): number {
+/**
+ * the whirlwind: a twisting funnel, narrow at the bottom, wide high up, swaying.
+ * `grow` 0..1: it starts as a small knot spinning low down and rises into its full height
+ */
+function funnel(u: number, v: number, t: number, grow: number, out: THREE.Vector3): number {
   const h = 1 - v; // 1 at the top
-  const th = u * Math.PI * 2 + h * 5.5 + t * 6.5;
-  const r = lerp(0.07, 1.0, Math.pow(h, 1.6)) * (1 + 0.16 * Math.sin(u * Math.PI * 6 + t * 5 + v * 9));
-  const cx = Math.sin(t * 1.7 + v * 3.2) * 0.12 * h, cz = Math.cos(t * 1.3 + v * 2.6) * 0.1 * h;
-  out.set(Math.sin(th) * r + cx, h * 2.5 - 0.05, Math.cos(th) * r + cz);
+  const g = Math.max(0.04, grow);
+  const th = u * Math.PI * 2 + h * 5.5 + t * (6.5 + 4 * (1 - g));
+  const r = lerp(0.05, 1.0, Math.pow(h, 1.6)) * (0.18 + 0.82 * g) * (1 + 0.16 * Math.sin(u * Math.PI * 6 + t * 5 + v * 9));
+  const cx = Math.sin(t * 1.7 + v * 3.2) * 0.12 * h * g, cz = Math.cos(t * 1.3 + v * 2.6) * 0.1 * h * g;
+  out.set(Math.sin(th) * r + cx, h * 2.5 * Math.pow(g, 0.85), Math.cos(th) * r + cz);
   return 0.55 + 0.45 * (1 - h * 0.5);
 }
 
@@ -130,7 +149,7 @@ const FRAG = /* glsl */ `
 
 export class Wraith {
   readonly group = new THREE.Group();
-  readonly pose: WraithPose = { x: 0, z: 0, heading: 0, lift: 0.25, form: 1, arms: 1, opacity: 1, wind: 1 };
+  readonly pose: WraithPose = { x: 0, z: 0, heading: 0, lift: 0.25, form: 1, grow: 1, arms: 1, opacity: 1, wind: 1 };
   private readonly body: THREE.Mesh;
   private readonly mat: THREE.ShaderMaterial;
   private readonly solid: Float32Array;
@@ -173,9 +192,9 @@ export class Wraith {
     this.group.add(this.body);
 
     // nothing but darkness inside the hood
-    this.face = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0x010203, fog: false, transparent: true }));
-    this.face.scale.set(0.105, 0.14, 0.05);
-    this.face.position.set(0, H - RH * 1.05, RH * 0.92);
+    this.face = new THREE.Mesh(new THREE.CircleGeometry(1, 28), new THREE.MeshBasicMaterial({ color: 0x000000, fog: false, transparent: true }));
+    this.face.scale.set(0.12, 0.16, 1);
+    this.face.position.set(0, H - RH * 1.25, RH * 0.55);
     this.face.renderOrder = 2;
     this.group.add(this.face);
     // two faint red sparks deep in it
@@ -190,8 +209,8 @@ export class Wraith {
     this.eyeMat = new THREE.SpriteMaterial({ map: glow, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true });
     for (const sx of [-1, 1]) {
       const e = new THREE.Sprite(this.eyeMat);
-      e.position.set(sx * 0.04, H - RH * 1.0, RH * 1.18);
-      e.scale.setScalar(0.06);
+      e.position.set(sx * 0.045, H - RH * 1.05, RH * 0.6);
+      e.scale.setScalar(0.075);
       e.renderOrder = 4;
       this.eyes.push(e);
       this.group.add(e);
@@ -241,7 +260,7 @@ export class Wraith {
       const v = j / NV;
       for (let i = 0; i <= NU; i++) {
         const u = (i % NU) / NU, k = j * (NU + 1) + i;
-        const sa = e < 1 ? funnel(u, v, t, A) : 0;
+        const sa = e < 1 ? funnel(u, v, t, P.grow, A) : 0;
         const sb = e > 0 ? robe(u, v, t, P.arms, P.wind, B) : 0;
         if (e <= 0) pos.setXYZ(k, A.x, A.y, A.z);
         else if (e >= 1) pos.setXYZ(k, B.x, B.y, B.z);
@@ -268,13 +287,14 @@ export class Wraith {
       const a = sd[i * 3] * Math.PI * 2, h = sd[i * 3 + 1], sp = 0.5 + sd[i * 3 + 2];
       // in the funnel: whirling round at its radius, rising
       const hy = (h + t * 0.25 * sp) % 1;
-      const fr = lerp(0.07, 1.05, Math.pow(hy, 1.6)), fa = a + t * 6 * sp + hy * 5.5;
+      const gr = Math.max(0.04, P.grow);
+      const fr = lerp(0.05, 1.05, Math.pow(hy, 1.6)) * (0.18 + 0.82 * gr), fa = a + t * 6 * sp + hy * 5.5;
       // round the spectre: drifting up and back along the robe, slowly
       const ry = ((h + t * 0.06 * sp) % 1);
       const rr = 0.25 + 0.35 * (1 - ry), ra = a + t * 0.4 * sp;
       mp.setXYZ(i,
         lerp(Math.sin(fa) * fr, Math.sin(ra) * rr, e),
-        lerp(hy * 2.5, -0.3 + ry * 2.3, e),
+        lerp(hy * 2.5 * Math.pow(gr, 0.85), -0.3 + ry * 2.3, e),
         lerp(Math.cos(fa) * fr, Math.cos(ra) * rr - (1 - ry) * 0.5, e));
     }
     mp.needsUpdate = true;
