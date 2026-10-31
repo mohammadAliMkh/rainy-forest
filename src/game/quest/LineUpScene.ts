@@ -16,9 +16,10 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // hands half up, breathing hard - the sky still red. The camera draws back
 // and widens to have them and it in the shot, then slowly closes in on it
 // between their shoulders. The ghost's recording (handed on from the scene
-// before) plays its last swell under it. (What follows comes next; for now
-// the scene ends with a dip to black, everyone back in their seats and the
-// sky turning back.)
+// before) plays its last swell under it. From there the next scene (`then`)
+// carries on in the same shot, with them still in the line; skipped, or
+// without one, a dip to black, everyone back in their seats, the sky turning
+// back.
 
 interface DogLike { alertAt: THREE.Vector3 | null }
 
@@ -95,6 +96,12 @@ export class LineUpScene {
   }
 
   get active(): boolean { return this.t >= 0; }
+
+  /** the ghost's recording, still playing, for the next scene to carry on with (and stop) */
+  takeVoice(): VoiceHandle | null { const v = this.voice; this.voice = null; return v; }
+
+  /** the friends standing in the line (by name), for the next scene to carry on with (and finish) */
+  takeActs(): Map<string, LineUp> { const a = new Map(this.acts); this.acts.clear(); return a; }
 
   /**
    * from where `camera` is now (the end of the creeping scene; `shot`: the

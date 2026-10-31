@@ -215,7 +215,7 @@ async function errandSetup(page: Page) {
   });
 }
 
-test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire, the ghost creeping up on them, they line up facing it', async ({ page }) => {
+test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire, the ghost creeping up on them, they line up facing it, it becomes four', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
@@ -352,13 +352,29 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     let k = 0;
     for (; k < 100 && !people.every((p: any) => p.act?.lined); k++) (window as any).step(0.05);
     const lined = { quick: k * 0.05 < 4.5, all: people.every((p: any) => p.act?.lined), ghost: w.group.visible, red: f.day.blood > 0.95 };
-    (window as any).step(6);
-    return { rising, lined, after: { step: e.step, cinematic: f.camp.cinematic, ghost: w.group.visible, calm: f.day.blood < 0.05, seated: people.every((p: any) => !p.act) } };
+    return { rising, lined };
   });
-  expect(line).toEqual({
-    rising: { scene: true, up: true },
-    lined: { quick: true, all: true, ghost: true, red: true },
-    after: { step: 'next', cinematic: false, ghost: false, calm: true, seated: true },
+  expect(line).toEqual({ rising: { scene: true, up: true }, lined: { quick: true, all: true, ghost: true, red: true } });
+  // and on: it trembles and becomes four, each opposite one of them, who still stand in the line staring at their own;
+  // then back to the player, all in their seats again, the ghosts gone
+  const split = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, W = e.wraiths, people = f.camp.gathering.people;
+    (window as any).step(6);
+    const trembling = { scene: e.splitScene.active, one: W.filter((w: any) => w.group.visible).length };
+    (window as any).step(3);
+    let apart = true;
+    for (let i = 0; i < W.length; i++) for (let j = i + 1; j < W.length; j++) if (Math.hypot(W[i].pose.x - W[j].pose.x, W[i].pose.z - W[j].pose.z) < 1) apart = false;
+    const four = {
+      shown: W.filter((w: any) => w.group.visible).length, apart, lined: people.every((p: any) => p.act?.lined),
+      ownGhost: new Set(people.map((p: any) => p.act?.target)).size, red: f.day.blood > 0.95,
+    };
+    (window as any).step(7);
+    return { trembling, four, after: { step: e.step, cinematic: f.camp.cinematic, ghosts: W.filter((w: any) => w.group.visible).length, calm: f.day.blood < 0.05, seated: people.every((p: any) => !p.act) } };
+  });
+  expect(split).toEqual({
+    trembling: { scene: true, one: 1 },
+    four: { shown: 4, apart: true, lined: true, ownGhost: 4, red: true },
+    after: { step: 'next', cinematic: false, ghosts: 0, calm: true, seated: true },
   });
   expect(errors).toEqual([]);
 });

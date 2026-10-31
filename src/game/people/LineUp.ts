@@ -34,8 +34,8 @@ export interface LineUpRoute {
 
 export class LineUp {
   phase: Phase = 'turn';
-  /** what they stare at (world; the scene keeps it up to date) */
-  readonly target: THREE.Vector3;
+  /** what they stare at (world; the scene keeps it up to date, or gives them another) */
+  target: THREE.Vector3;
   private readonly h: Rig;
   private readonly seat: SeatPose;
   private readonly terrain: { heightAt(x: number, z: number): number };
@@ -51,6 +51,7 @@ export class LineUp {
   private gait = 0;
   private seg = 0; private along = 0;
   private headYaw = 0; private headPitch = 0;
+  private flinchT = -1;
   private readonly hand = [new THREE.Vector3(), new THREE.Vector3()];
   private handsSet = false;
 
@@ -74,8 +75,13 @@ export class LineUp {
   }
 
   get done(): boolean { return this.phase === 'done'; }
+  /** their place in the line (x, z) */
+  get spot(): THREE.Vector2 { return this.path[this.path.length - 1]; }
   /** in their place in the line, facing it */
   get lined(): boolean { return this.phase === 'face'; }
+
+  /** in the line, a start: half a step back from it, the hands flying up */
+  flinch(): void { if (this.phase === 'face') this.flinchT = 0; }
 
   /** at once back on the seat (the scene is over or cut short) */
   finish(): void { this.phase = 'done'; this._restore(); }
@@ -111,9 +117,18 @@ export class LineUp {
       this.gait += dt * 2 * Math.PI * HURRY.steps;
       if (this.seg >= this.path.length - 1) { this.phase = 'face'; this.t = 0; }
     } else {
-      // in the line: turning to face it, standing their ground
+      // in the line: turning to face it, standing their ground (a start: half a step back)
       this.walk = damp(this.walk, 0, 6, dt);
       this.heading = lerpAngle(this.heading, toTarget, 1 - Math.exp(-4 * dt));
+      if (this.flinchT >= 0) {
+        const k0 = ease(this.flinchT / 0.3);
+        this.flinchT += dt;
+        const k = ease(this.flinchT / 0.3) - k0;
+        this.x -= Math.sin(toTarget) * 0.3 * k;
+        this.z -= Math.cos(toTarget) * 0.3 * k;
+        jump = Math.sin(clamp(this.flinchT / 0.3, 0, 1) * Math.PI) * 0.04;
+        if (this.flinchT > 1.6) this.flinchT = -1;
+      }
     }
     if (this.guitarDrop) {
       const gt = this.h.guitar?.group as THREE.Object3D | undefined;
@@ -192,6 +207,8 @@ export class LineUp {
     h.root.updateMatrixWorld(true);
     // hands: off the guitar / out of the lap with the start, swinging as they walk, half up in front in the line
     const ready = this.phase === 'face' ? ease(this.t / 0.8) : 0;
+    // the start: the hands up toward the face, then down again
+    const shock = this.flinchT >= 0 ? Math.min(1, this.flinchT / 0.15) * (1 - ease((this.flinchT - 0.6) / 1.0)) : 0;
     for (let i = 0; i < 2; i++) {
       const A = h.arms[i];
       const out = right.clone().multiplyScalar(i === 0 ? 1 : -1);
@@ -202,7 +219,8 @@ export class LineUp {
       const swing = sh.clone().addScaledVector(UP, -reach * 0.85).addScaledVector(fwd, 0.26 * Math.sin(this.gait + (i === 0 ? Math.PI : 0)) * this.walk + 0.08).addScaledVector(out, 0.1);
       const guard = sh.clone().addScaledVector(UP, -reach * 0.62).addScaledVector(fwd, 0.26).addScaledVector(out, 0.12);
       const sat = rest.lerp(startled, this.tense * (1 - stand));
-      const tg = sat.lerp(swing, stand).lerp(guard, ready);
+      const shield = sh.clone().addScaledVector(UP, -reach * 0.15).addScaledVector(fwd, 0.32).addScaledVector(out, -0.02);
+      const tg = sat.lerp(swing, stand).lerp(guard, ready).lerp(shield, shock);
       if (!this.handsSet) this.hand[i].copy(tg);
       this.hand[i].lerp(tg, 1 - Math.exp(-16 * dt));
       const pole = out.clone().multiplyScalar(0.7).addScaledVector(fwd, -0.4).addScaledVector(UP, -0.5).normalize();

@@ -15,6 +15,7 @@ import { JarScene } from './JarScene.ts';
 import { SkyShot } from './SkyShot.ts';
 import { CreepScene } from './CreepScene.ts';
 import { LineUpScene } from './LineUpScene.ts';
+import { SplitScene } from './SplitScene.ts';
 import { Wraith } from '../scenario/Wraith.ts';
 import { GHOST_IN, CREEP_STOP, LINE_UP } from '../scenario/ghostScript.ts';
 import { makeAmulet } from '../items/Amulet.ts';
@@ -38,7 +39,8 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, KEEPER_GIVES_AT
 //   four friends at the fire (SkyShot.ts) -> and on: the ghost creeps up on
 //   them from behind the cabin, the sky turning red again (CreepScene.ts) ->
 //   they see it, get up and line up across the fire facing it (LineUpScene.ts)
-//   -> (the rest of the story comes next; at its very end you take the shopping
+//   -> it trembles and tears into four, one opposite each of them
+//   (SplitScene.ts) -> (the rest of the story comes next; at its very end you take the shopping
 //   to Amir).
 // Night falls as you step out of the shop; with «روح ترسناک» on, in heavy rain.
 // What to do now is announced as QUEST (the goal line and the basket),
@@ -78,6 +80,8 @@ export class PartyErrand {
   readonly amirScene: AmirScene;
   /** the ghost's true shape: out of the pickle jar */
   readonly wraith: Wraith;
+  /** the ghost and the three it splits off at the fire */
+  readonly wraiths: Wraith[];
   /** the jar opened: the whirlwind and the ghost (a film scene) */
   readonly jarScene: JarScene;
   /** the sky rises from the porch and comes down on the friends at the fire (a film scene) */
@@ -86,6 +90,8 @@ export class PartyErrand {
   readonly creepScene: CreepScene;
   /** the friends see it and line up facing it (a film scene) */
   readonly lineUpScene: LineUpScene;
+  /** it trembles and becomes four (a film scene) */
+  readonly splitScene: SplitScene;
   /** night (and heavy rain) from leaving the shop */
   readonly nightfall: Nightfall;
   /** paying: Farajpour talks to you and gives you the amulet */
@@ -124,7 +130,8 @@ export class PartyErrand {
     this.amirScene = new AmirScene({ gathering: camp.gathering, terrain, events, voices });
     camp.films.push(this.amirScene);
     this.wraith = new Wraith(terrain);
-    world.add(this.wraith.group);
+    this.wraiths = [this.wraith, new Wraith(terrain), new Wraith(terrain), new Wraith(terrain)];
+    for (const w of this.wraiths) world.add(w.group);
     this.scary = scary;
     this.nightfall = new Nightfall(night);
     this.jarScene = new JarScene({ wraith: this.wraith, events, voices, sky: this.nightfall, ground: (x, z) => terrain.heightAt(x, z) });
@@ -147,6 +154,11 @@ export class PartyErrand {
       dog: () => camp.dog ?? null, fire: FIRE, routes: LINE_UP,
     });
     camp.films.push(this.lineUpScene);
+    // ...and it becomes four, one opposite each of them
+    const order = Object.keys(LINE_UP).sort((a, b) => LINE_UP[a].spot[0] - LINE_UP[b].spot[0]);
+    this.splitScene = new SplitScene({ wraiths: this.wraiths, events, voices, sky: this.nightfall, guitar, dog: () => camp.dog ?? null, order });
+    camp.films.push(this.splitScene);
+    this.lineUpScene.then = (skipped) => this.splitScene.start(this.camera as THREE.PerspectiveCamera, this.lineUpScene.takeActs(), this.lineUpScene.takeVoice(), skipped);
     this.creepScene.then = (skipped) => this.lineUpScene.start(this.camera as THREE.PerspectiveCamera, this.skyShot.shotPos(), this.creepScene.takeVoice(), skipped);
     // (the pickles go in the bag after all)
     this.jarScene.then = (skipped) => {
@@ -270,6 +282,7 @@ export class PartyErrand {
     this.skyShot.update(dt);
     this.creepScene.update(dt);
     this.lineUpScene.update(dt);
+    this.splitScene.update(dt);
     this.nightfall.update(dt);
     const camp = this.camp, store = this.store;
     const amir = camp.gathering.byName('amir');
@@ -329,7 +342,7 @@ export class PartyErrand {
         break;
       case 'fire':
         // the ghost at the fire: the rest of the story comes next
-        if (!this.skyShot.active && !this.creepScene.active && !this.lineUpScene.active) this._go('next');
+        if (!this.skyShot.active && !this.creepScene.active && !this.lineUpScene.active && !this.splitScene.active) this._go('next');
         break;
     }
   }
