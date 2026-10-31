@@ -19,7 +19,7 @@ export class UI {
       showFps: false,
       subtitles: false, // subtitles for the introductions (off unless the visitor wants them)
       minimap: true,
-      scaryGhost: true, // the haunted walk back and the scary ghost in «سناریوی روح سرگردان»
+      scaryGhost: true, // heavy rain on the errand's night
       weather: 'auto', // the rain comes and goes by itself
     };
     try {

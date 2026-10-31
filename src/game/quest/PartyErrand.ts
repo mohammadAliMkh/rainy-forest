@@ -9,7 +9,7 @@ import type { Picker } from '../player/Picker.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
 import { FIRE } from '../../config/config.js';
 import { AmirScene, VOICE_GAIN } from './AmirScene.ts';
-import { Nightfall } from './NightWalk.ts';
+import { Nightfall } from './Nightfall.ts';
 import { KeeperScene } from './KeeperScene.ts';
 import { JarScene } from './JarScene.ts';
 import { SkyShot } from './SkyShot.ts';

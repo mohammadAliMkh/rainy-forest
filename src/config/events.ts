@@ -61,7 +61,7 @@ export interface GameEvents {
     | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish' | 'pickup' | 'pay' | 'lid'; position: Vector3 }
     | { cue: 'laughDeep' | 'glitch' | 'whisper' | 'heartbeat' | 'shriek' | 'bark' | 'whirl'; position: Vector3 }
     | { cue: 'scream'; position: Vector3; who: string }
-    /** a footstep somewhere else (the steps following you on the walk back) */
+    /** a footstep somewhere else (steps that echo yours) */
     | { cue: 'echoStep'; position: Vector3; surface: 'water' | 'mud' | 'leaves' | 'wood'; running: boolean };
   /** the errand's current goal and the basket (null: no errand on screen) */
   [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null } | null;
