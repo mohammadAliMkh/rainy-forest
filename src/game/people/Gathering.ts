@@ -6,7 +6,6 @@ import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
 import type { Dog } from '../creatures/Dog.js';
 import type { Flight } from './Flight.ts';
-import type { StandTalk } from './StandTalk.ts';
 
 // The friends sitting around the fire: who talks, who listens, sips of tea,
 // laughter, glances at the dog and a greeting when the player walks up.
@@ -16,6 +15,9 @@ const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _t = new THREE.Vector3
 
 type Spec = ConstructorParameters<typeof Human>[0];
 type Shared = ConstructorParameters<typeof Human>[1];
+
+/** someone at the fire doing what a scene wants instead of sitting (`look`: the camera) */
+export interface SeatAct { update(dt: number, look: THREE.Vector3): void; readonly done: boolean }
 
 /** where someone sits (built by the camp) */
 export interface Seat {
@@ -55,8 +57,8 @@ class Seated {
   strumY = 0; strumHand = 0; fretX = 0;
   /** running from something (a scenario sets it; the gathering then leaves them alone) */
   flight: Flight | null = null;
-  /** up on their feet talking to the player (a scene sets it; the gathering then leaves them alone) */
-  act: StandTalk | null = null;
+  /** up on their feet in a scene (talking to the player, facing the ghost...: the scene sets it; the gathering then leaves them alone) */
+  act: SeatAct | null = null;
 
   constructor(spec: Spec, seat: Seat, shared: Shared, rand: () => number) {
     this.h = new Human(spec, shared);

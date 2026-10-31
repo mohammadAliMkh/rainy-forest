@@ -31,6 +31,37 @@ type Euler3 = [number, number, number];
 const RUN_SPEED = 4.1, WALK_SPEED = 1.35;
 const HOP_H = 0.42;
 
+/** a guitar going down against the stump (in its new parent's frame), and how far along (0..1) */
+export interface GuitarDrop { from: THREE.Vector3; fromQ: THREE.Quaternion; to: THREE.Vector3; toQ: THREE.Quaternion; t: number }
+
+/** someone's guitar put down in a hurry: stood up against the front of the stump, neck leaning back */
+export function putGuitarDown(h: Human, gt: THREE.Object3D, seat: SeatPose, terrain: { heightAt(x: number, z: number): number }): GuitarDrop {
+  h.root.parent!.attach(gt);
+  const fwd = new THREE.Vector3(Math.sin(seat.facing), 0, Math.cos(seat.facing));
+  const a = 0.3;
+  const X = UP.clone().multiplyScalar(Math.cos(a)).addScaledVector(fwd, -Math.sin(a)); // toward the headstock
+  const Z = fwd.clone().multiplyScalar(Math.cos(a)).addScaledVector(UP, Math.sin(a)); // out of the top
+  const Y = new THREE.Vector3().crossVectors(Z, X);
+  const toQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+  const bx = seat.x + fwd.x * 0.5, bz = seat.z + fwd.z * 0.5;
+  const to = new THREE.Vector3(bx, terrain.heightAt(bx, bz) + 0.01, bz).addScaledVector(X, 0.32);
+  // into the parent's frame (the gathering's group)
+  const parent = gt.parent!;
+  parent.updateWorldMatrix(true, false);
+  const inv = parent.matrixWorld.clone().invert();
+  const pq = parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+  return { from: gt.position.clone(), fromQ: gt.quaternion.clone(), to: to.applyMatrix4(inv), toQ: pq.multiply(toQ), t: 0 };
+}
+
+/** on with the guitar's fall; false once it is down */
+export function stepGuitarDrop(d: GuitarDrop, gt: THREE.Object3D, dt: number): boolean {
+  d.t = Math.min(1, d.t + dt / 0.35);
+  const k = d.t * d.t;
+  gt.position.lerpVectors(d.from, d.to, k);
+  gt.quaternion.slerpQuaternions(d.fromQ, d.toQ, k);
+  return d.t < 1;
+}
+
 const easeInOut = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
 const lerpAngle = (a: number, b: number, t: number) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
 
@@ -47,7 +78,7 @@ export class Flight {
   private readonly standH: number;
   private readonly guitarLocal: { parent: THREE.Object3D; pos: THREE.Vector3; quat: THREE.Quaternion } | null;
   /** the guitar being put down against the stump */
-  private guitarDrop: { from: THREE.Vector3; fromQ: THREE.Quaternion; to: THREE.Vector3; toQ: THREE.Quaternion; t: number } | null = null;
+  private guitarDrop: GuitarDrop | null = null;
   private t = 0; // seconds in this phase
   private wait: number;
   private time = 0;
@@ -141,7 +172,7 @@ export class Flight {
         if (this.t >= 0.45) {
           this.phase = 'up'; this.t = 0;
           const gt = this.h.guitar?.group as THREE.Object3D | undefined;
-          if (gt) this._putGuitarDown(gt);
+          if (gt) this.guitarDrop = putGuitarDown(this.h, gt, this.seat, this.terrain);
         }
         break;
       }
@@ -209,34 +240,9 @@ export class Flight {
     h.talk = 0;
   }
 
-  // dropped in a hurry: stood up against the front of the stump, neck leaning back
-  private _putGuitarDown(gt: THREE.Object3D): void {
-    this.h.root.parent!.attach(gt);
-    const s = this.seat;
-    const fwd = new THREE.Vector3(Math.sin(s.facing), 0, Math.cos(s.facing));
-    const a = 0.3;
-    const X = UP.clone().multiplyScalar(Math.cos(a)).addScaledVector(fwd, -Math.sin(a)); // toward the headstock
-    const Z = fwd.clone().multiplyScalar(Math.cos(a)).addScaledVector(UP, Math.sin(a)); // out of the top
-    const Y = new THREE.Vector3().crossVectors(Z, X);
-    const toQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
-    const bx = s.x + fwd.x * 0.5, bz = s.z + fwd.z * 0.5;
-    const to = new THREE.Vector3(bx, this.terrain.heightAt(bx, bz) + 0.01, bz).addScaledVector(X, 0.32);
-    // into the parent's frame (the gathering's group)
-    const parent = gt.parent!;
-    parent.updateWorldMatrix(true, false);
-    const inv = parent.matrixWorld.clone().invert();
-    const pq = parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-    this.guitarDrop = { from: gt.position.clone(), fromQ: gt.quaternion.clone(), to: to.applyMatrix4(inv), toQ: pq.multiply(toQ), t: 0 };
-  }
-
   private _guitarFall(dt: number): void {
     const d = this.guitarDrop, gt = this.h.guitar?.group as THREE.Object3D | undefined;
-    if (!d || !gt) return;
-    d.t = Math.min(1, d.t + dt / 0.35);
-    const k = d.t * d.t;
-    gt.position.lerpVectors(d.from, d.to, k);
-    gt.quaternion.slerpQuaternions(d.fromQ, d.toQ, k);
-    if (d.t >= 1) this.guitarDrop = null;
+    if (d && gt && !stepGuitarDrop(d, gt, dt)) this.guitarDrop = null;
   }
 
   // move `step` metres along the path

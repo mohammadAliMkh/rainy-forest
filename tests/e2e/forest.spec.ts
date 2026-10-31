@@ -215,7 +215,7 @@ async function errandSetup(page: Page) {
   });
 }
 
-test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire, the ghost creeping up on them', async ({ page }) => {
+test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire, the ghost creeping up on them, they line up facing it', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
@@ -323,24 +323,37 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { high, atFire, seated, step: f.errand.step, cinematic: f.camp.cinematic };
   });
   expect(sky).toEqual({ high: true, atFire: true, seated: true, step: 'fire', cinematic: true });
-  // and on in the same shot: two red eyes at the cabin's corner as the sky turns red again;
-  // it creeps up behind them (still in their seats), Luna staring at it; then back to the player
+  // and on in the same shot: two red eyes at the cabin's corner as the sky turns red again, Amin playing;
+  // it creeps up behind them (still in their seats), its recording playing, Luna staring at it; the guitar stops
   const creep = await page.evaluate(() => {
     const f = (window as any).forest, w = f.errand.wraith;
     (window as any).step(6);
-    const eyes = { shown: w.group.visible, dark: w.pose.dim > 0.9, reddening: f.day.blood > 0.2 && f.day.blood < 1 };
+    const eyes = { shown: w.group.visible, dark: w.pose.dim > 0.9, reddening: f.day.blood > 0.2 && f.day.blood < 1, guitar: f.camp.gathering.guitar };
     (window as any).step(14);
     const behind = {
       near: Math.hypot(w.pose.x - 0.4, w.pose.z + 17.9) < 0.2, red: f.day.blood > 0.95,
-      luna: !f.camp.dog || !!f.camp.dog.alertAt, seated: f.camp.gathering.people.every((p: any) => !p.flight),
+      luna: !f.camp.dog || !!f.camp.dog.alertAt, seated: f.camp.gathering.people.every((p: any) => !p.act), guitar: f.camp.gathering.guitar,
     };
-    (window as any).step(4);
-    return { eyes, behind, after: { step: f.errand.step, cinematic: f.camp.cinematic, ghost: w.group.visible, calm: f.day.blood < 0.05 } };
+    return { eyes, behind };
   });
   expect(creep).toEqual({
-    eyes: { shown: true, dark: true, reddening: true },
-    behind: { near: true, red: true, luna: true, seated: true },
-    after: { step: 'next', cinematic: false, ghost: false, calm: true },
+    eyes: { shown: true, dark: true, reddening: true, guitar: 'on' },
+    behind: { near: true, red: true, luna: true, seated: true, guitar: 'off' },
+  });
+  // and on: they see it, get up and line up across the fire facing it, the sky still red; then back to the player, all in their seats again
+  const line = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, w = e.wraith, people = f.camp.gathering.people;
+    (window as any).step(5.5);
+    const rising = { scene: e.lineUpScene.active, up: people.some((p: any) => p.act) };
+    (window as any).step(6);
+    const lined = { all: people.every((p: any) => p.act?.lined), ghost: w.group.visible, red: f.day.blood > 0.95 };
+    (window as any).step(6);
+    return { rising, lined, after: { step: e.step, cinematic: f.camp.cinematic, ghost: w.group.visible, calm: f.day.blood < 0.05, seated: people.every((p: any) => !p.act) } };
+  });
+  expect(line).toEqual({
+    rising: { scene: true, up: true },
+    lined: { all: true, ghost: true, red: true },
+    after: { step: 'next', cinematic: false, ghost: false, calm: true, seated: true },
   });
   expect(errors).toEqual([]);
 });

@@ -3,21 +3,25 @@ import { EV } from '../../config/events.ts';
 import type { GameEvents } from '../../config/events.ts';
 import type { EventBus } from '../../engine/events.ts';
 import type { Wraith } from '../scenario/Wraith.ts';
+import type { VoiceService } from '../intro/IntroDirector.ts';
+import type { VoiceHandle } from '../sound/Soundscape.ts';
 
 // After the sky shot, in the same shot: the four friends at the fire, who
-// know nothing. The camera slowly turns from them and draws in on the
+// know nothing, Amin playing his guitar. The camera slowly turns from them and draws in on the
 // cabin's front corner behind them, while the sky starts turning red; two
 // red eyes open there in the dark, peering round the corner, and the rest
 // of the ghost glows out of the dark round them, half hidden by the wall. It
 // slips out from behind the wall, and the camera draws back to show the
 // friends and it behind them; it creeps up on them, stopping and starting,
-// its arms rising, staring at us all the while, a heartbeat quickening and a
-// whisper circling round us, until it stands right behind them, its robe
-// streaming wildly, the camera drawing in on it, and Luna, who has been
-// staring at it since the eyes opened, barks. (What follows comes next; for
-// now the scene ends with a dip to black and the sky turns back.)
-// No recording yet: the heartbeat, the whisper and Luna's barks are the
-// synthesized cues (or their recordings, `ghost_whisper` / `luna_bark`).
+// its arms rising, staring at us all the while, until it stands right behind
+// them, its robe streaming wildly, the camera drawing in on it, and Luna, who
+// has been staring at it since the eyes opened, barks - and the guitar stops.
+// From there the next scene (`then`) carries on in the same shot; skipped,
+// or without one, a dip to black, the sky turning back, and the player.
+// Its sound: Amin's guitar all along, and over it from the moment the eyes
+// open the ghost's recording (`ghost_appear`, the same as at the jar: its
+// rising swell on the eyes, its deep part as it glows out of the dark, its
+// second swell as it comes up behind them); Luna's barks (`luna_bark`).
 
 interface DogLike { alertAt: THREE.Vector3 | null; readonly headWorld: THREE.Vector3 }
 
@@ -54,16 +58,20 @@ const SCALE = 0.95;
  * how much of it shows past the wall's edge (m); how far out it slips (m); its eyes above the ground (m)
  */
 const HIDE = { back: 2.2, show: 0.06, out: 1.5, eyes: 2.0 };
-const WHISPER = 17.0;
 const BARKS = [21.0, 21.4, 22.1, 22.5];
-/** heartbeats: the gap between them, from the eyes opening to the end (s) */
-const BEAT = { slow: 1.25, fast: 0.6 };
+/** the part of the ghost's recording played from the eyes on: from, how long (s); how far in front of the camera it sounds (m) */
+const SOUND = { from: 1.0, length: 28.8, near: 2.5 };
 
 export class CreepScene {
   /** the film camera has the view */
   filming = false;
+  /** the scene that carries on from the last frame (`skipped`: straight on behind the black) */
+  then: ((skipped: boolean) => void) | null = null;
   private readonly wraith: Wraith;
   private readonly events: EventBus<GameEvents>;
+  private readonly voices: () => VoiceService | null;
+  private readonly guitar: (mode: 'auto' | 'on' | 'off') => void;
+  private voice: VoiceHandle | null = null;
   private readonly sky: { redden(seconds?: number): void; calm(seconds?: number): void };
   private readonly ground: (x: number, z: number) => number;
   /** the cabin: what hides it until it peeks out */
@@ -76,7 +84,6 @@ export class CreepScene {
   private t = -1;
   private ending = 0;
   private fade = 0;
-  private nextBeat = 0;
   private readonly cue = new Set<string>();
   private readonly shot = new THREE.Vector3();
   private readonly peek = new THREE.Vector3();
@@ -95,16 +102,20 @@ export class CreepScene {
    * `corner`: the cabin's front corner it peeks round (the side away from the
    * camera, toward `cabin`, its middle, hides it; `occluder`: the cabin's
    * model, whose logs stick out past the corner); `stop`: where it stops,
-   * behind the friends; `sky`: turns the sky red and back (all world x / z)
+   * behind the friends; `sky`: turns the sky red and back (all world x / z);
+   * `guitar`: Amin playing on, stopping, or as he likes
    */
-  constructor({ wraith, events, sky, ground, fire, corner, cabin, occluder, stop, dog }: {
-    wraith: Wraith; events: EventBus<GameEvents>; sky: { redden(seconds?: number): void; calm(seconds?: number): void };
+  constructor({ wraith, events, voices, guitar, sky, ground, fire, corner, cabin, occluder, stop, dog }: {
+    wraith: Wraith; events: EventBus<GameEvents>; voices: () => VoiceService | null; guitar: (mode: 'auto' | 'on' | 'off') => void;
+    sky: { redden(seconds?: number): void; calm(seconds?: number): void };
     ground: (x: number, z: number) => number; fire: { x: number; z: number }; corner: { x: number; z: number };
     cabin: { x: number; z: number }; occluder: THREE.Object3D; stop: { x: number; z: number }; dog: () => DogLike | null;
   }) {
     occluder.traverse((o) => { if ((o as THREE.Mesh).isMesh) this.walls.push(o as THREE.Mesh); });
     this.wraith = wraith;
     this.events = events;
+    this.voices = voices;
+    this.guitar = guitar;
     this.sky = sky;
     this.ground = ground;
     this.dog = dog;
@@ -122,7 +133,8 @@ export class CreepScene {
    */
   start(camera: THREE.Camera, shot: THREE.Vector3, skipped = false): void {
     if (this.active) return;
-    this.t = 0; this.cue.clear(); this.nextBeat = T.eyes;
+    if (skipped && this.then) { this.then(true); return; }
+    this.t = 0; this.cue.clear(); this.voice = null;
     this.ending = skipped ? 1e-6 : 0;
     this.fade = skipped ? 1 : 0;
     this.snap = skipped;
@@ -140,10 +152,14 @@ export class CreepScene {
     this.peek.addScaledVector(side, this._edge(shot, this.peek, side) - HIDE.show);
     this.out.copy(this.peek).addScaledVector(side, -HIDE.out);
     this.filming = true;
+    this.guitar('on');
     this.events.emit(EV.INTRO_CINEMATIC, true);
   }
 
   skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }
+
+  /** the ghost's recording, still playing, for the next scene to carry on with (and stop) */
+  takeVoice(): VoiceHandle | null { const v = this.voice; this.voice = null; return v; }
 
   /** how far from `at`, along `side` (into the cabin), its eyes stop being seen from `from` */
   private _edge(from: THREE.Vector3, at: THREE.Vector3, side: THREE.Vector3): number {
@@ -162,7 +178,7 @@ export class CreepScene {
 
   private _once(name: string, fn: () => void): void { if (!this.cue.has(name)) { this.cue.add(name); fn(); } }
 
-  private _emit(cue: 'heartbeat' | 'whisper' | 'bark', at: THREE.Vector3): void {
+  private _emit(cue: 'bark', at: THREE.Vector3): void {
     this.events.emit(EV.SCENARIO_CUE, { cue, position: at.clone() });
   }
 
@@ -187,6 +203,9 @@ export class CreepScene {
           w.group.scale.setScalar(SCALE);
           Object.assign(P, { form: 1, grow: 1, base: null, lift: 0.1, opacity: 0, dim: 1 });
           w.show(true);
+          // its sound, a little in front of us toward it
+          const at = new THREE.Vector3().subVectors(this.peek, this.shot).setY(0).setLength(SOUND.near).add(this.shot);
+          this.voice = this.voices()?.play('ghost_appear', at, { gain: 1, from: SOUND.from, length: SOUND.length }) ?? null;
         });
         // the eyes in the dark, then the rest of it round them
         P.opacity = sstep(T.eyes, T.eyes + 1.5, t);
@@ -199,20 +218,19 @@ export class CreepScene {
         P.heading = Math.atan2(this.shot.x - P.x, this.shot.z - P.z);
         P.arms = 0.15 + 0.85 * sstep(T.creep, T.there, t);
         P.wind = 0.7 + 1.0 * sstep(T.there, T.there + 1.5, t);
-        // Luna feels it before anyone, and at the end barks at it
+        // Luna feels it before anyone, and at the end barks at it: the guitar stops
         const dog = this.dog();
         if (dog && t >= T.eyes + 0.8) {
           dog.alertAt = w.headWorld(this.alert);
           for (const b of BARKS) if (t0 < b && t >= b) this._emit('bark', dog.headWorld);
         }
-        // a heartbeat, quicker and quicker; a whisper round us as it comes
-        if (t >= this.nextBeat) {
-          this._emit('heartbeat', this.shot);
-          this.nextBeat += lerp(BEAT.slow, BEAT.fast, sstep(T.eyes, T.there, t));
-        }
-        if (t >= WHISPER) this._once('whisper', () => this._emit('whisper', this.shot));
+        if (t >= BARKS[0]) this._once('hush', () => this.guitar('off'));
       }
-      if (t >= T.end) this.ending = 1e-6;
+      if (t >= T.end) {
+        // on in the same shot (the ghost, the red sky, Luna's stare and the silence stay)
+        if (this.then) { this.filming = false; this.t = -1; this.then(false); return; }
+        this.ending = 1e-6;
+      }
     }
     if (w.group.visible) w.update(dt);
     if (!this.ending) return;
@@ -223,6 +241,7 @@ export class CreepScene {
       this.events.emit(EV.INTRO_FADE, this.fade);
       if (this.ending >= 0.5) {
         this._close();
+        if (this.then) { this.t = -1; this.then(true); return; }
         this.events.emit(EV.INTRO_CINEMATIC, false);
       }
     } else {
@@ -234,6 +253,8 @@ export class CreepScene {
 
   private _close(): void {
     this.filming = false;
+    this.voice?.stop();
+    this.guitar('auto');
     this.sky.calm(1);
     const w = this.wraith;
     w.show(false);

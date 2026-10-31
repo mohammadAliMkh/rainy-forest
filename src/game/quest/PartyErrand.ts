@@ -14,8 +14,9 @@ import { KeeperScene } from './KeeperScene.ts';
 import { JarScene } from './JarScene.ts';
 import { SkyShot } from './SkyShot.ts';
 import { CreepScene } from './CreepScene.ts';
+import { LineUpScene } from './LineUpScene.ts';
 import { Wraith } from '../scenario/Wraith.ts';
-import { GHOST_IN, CREEP_STOP } from '../scenario/ghostScript.ts';
+import { GHOST_IN, CREEP_STOP, LINE_UP } from '../scenario/ghostScript.ts';
 import { makeAmulet } from '../items/Amulet.ts';
 import type { Inventory } from '../items/Inventory.ts';
 import type { Hands } from '../player/Hands.ts';
@@ -36,7 +37,8 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, KEEPER_GIVES_AT
 //   in the same shot the camera rises into the sky and comes down on the
 //   four friends at the fire (SkyShot.ts) -> and on: the ghost creeps up on
 //   them from behind the cabin, the sky turning red again (CreepScene.ts) ->
-//   (the rest of the story comes next; at its very end you take the shopping
+//   they see it, get up and line up across the fire facing it (LineUpScene.ts)
+//   -> (the rest of the story comes next; at its very end you take the shopping
 //   to Amir).
 // Night falls as you step out of the shop; with «روح ترسناک» on, in heavy rain.
 // What to do now is announced as QUEST (the goal line and the basket),
@@ -82,6 +84,8 @@ export class PartyErrand {
   readonly skyShot: SkyShot;
   /** the ghost creeps up on the friends from behind the cabin (a film scene) */
   readonly creepScene: CreepScene;
+  /** the friends see it and line up facing it (a film scene) */
+  readonly lineUpScene: LineUpScene;
   /** night (and heavy rain) from leaving the shop */
   readonly nightfall: Nightfall;
   /** paying: Farajpour talks to you and gives you the amulet */
@@ -130,12 +134,20 @@ export class PartyErrand {
     this.skyShot = new SkyShot({ events, ground: (x, z) => terrain.heightAt(x, z), fire: FIRE, lair: { x: lx, z: lz }, shoo });
     camp.films.push(this.skyShot);
     // ...and on, in the same shot: the ghost comes out from behind the cabin
+    const guitar = (mode: 'auto' | 'on' | 'off') => { camp.gathering.guitar = mode; };
     this.creepScene = new CreepScene({
-      wraith: this.wraith, events, sky: this.nightfall, ground: (x, z) => terrain.heightAt(x, z), fire: FIRE,
+      wraith: this.wraith, events, voices, guitar, sky: this.nightfall, ground: (x, z) => terrain.heightAt(x, z), fire: FIRE,
       corner: { x: CABIN.x - CABIN.width / 2, z: CABIN.z + CABIN.depth / 2 }, cabin: CABIN, occluder: cabin, stop: CREEP_STOP,
       dog: () => camp.dog ?? null,
     });
     camp.films.push(this.creepScene);
+    // ...and they see it
+    this.lineUpScene = new LineUpScene({
+      wraith: this.wraith, events, gathering: camp.gathering, terrain, sky: this.nightfall, guitar,
+      dog: () => camp.dog ?? null, fire: FIRE, routes: LINE_UP,
+    });
+    camp.films.push(this.lineUpScene);
+    this.creepScene.then = (skipped) => this.lineUpScene.start(this.camera as THREE.PerspectiveCamera, this.skyShot.shotPos(), this.creepScene.takeVoice(), skipped);
     // (the pickles go in the bag after all)
     this.jarScene.then = (skipped) => {
       this.got.add('pickles');
@@ -257,6 +269,7 @@ export class PartyErrand {
     this.jarScene.update(dt);
     this.skyShot.update(dt);
     this.creepScene.update(dt);
+    this.lineUpScene.update(dt);
     this.nightfall.update(dt);
     const camp = this.camp, store = this.store;
     const amir = camp.gathering.byName('amir');
@@ -316,7 +329,7 @@ export class PartyErrand {
         break;
       case 'fire':
         // the ghost at the fire: the rest of the story comes next
-        if (!this.skyShot.active && !this.creepScene.active) this._go('next');
+        if (!this.skyShot.active && !this.creepScene.active && !this.lineUpScene.active) this._go('next');
         break;
     }
   }
