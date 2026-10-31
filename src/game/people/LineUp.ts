@@ -42,7 +42,8 @@ export class LineUp {
   private readonly path: THREE.Vector2[];
   private readonly stare: number;
   private readonly seatedLegs: Euler3[][];
-  private readonly standH: number;
+  /** the pelvis above the ground standing straight */
+  readonly standH: number;
   private readonly guitarLocal: { parent: THREE.Object3D; pos: THREE.Vector3; quat: THREE.Quaternion } | null;
   private guitarDrop: GuitarDrop | null = null;
   private t = 0; private time = 0;
@@ -79,6 +80,10 @@ export class LineUp {
   get spot(): THREE.Vector2 { return this.path[this.path.length - 1]; }
   /** in their place in the line, facing it */
   get lined(): boolean { return this.phase === 'face'; }
+  /** where they stand now (x, z) and which way they face */
+  get where(): { x: number; z: number; heading: number } { return { x: this.x, z: this.z, heading: this.heading }; }
+  /** where their hands are now (world; right, left) */
+  get hands(): readonly THREE.Vector3[] { return this.hand; }
 
   /** at once in their place in the line, facing what they stare at (when what comes before is skipped over) */
   standInLine(): void {

@@ -203,7 +203,7 @@ export class Forest {
         const matrix = makeMatrix(x, y, z, rand() * Math.PI * 2, scale, tilt, (rand() - 0.5) * 0.06, 0.9 + rand() * 0.2);
         buckets[ti].push({ matrix, x, y, z, scale });
         collision.addCircle(x, z, tpl.radius * scale + 0.08, 'tree');
-        this.trees.push({ x, z, height: tpl.height * scale, kind: tpl.kind });
+        this.trees.push({ x, z, height: tpl.height * scale, kind: tpl.kind, radius: tpl.radius * scale });
       }
     }
 

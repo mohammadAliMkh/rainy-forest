@@ -108,6 +108,17 @@ export class LineUpScene {
     P.heading = Math.atan2(this.middle.x - P.x, this.middle.z - P.z);
     w.update(0);
     w.headWorld(this.head);
+    const acts = this.standing();
+    _v.set(shot.x - this.fire.x, 0, shot.z - this.fire.z).normalize();
+    camera.position.copy(shot).addScaledVector(_v, BACK.by).addScaledVector(UP, BACK.up);
+    camera.lookAt(this.tLook.copy(this.head).lerp(this.middle, 0.45 * 0.4));
+    camera.fov = FOV.close;
+    camera.updateProjectionMatrix();
+    return acts;
+  }
+
+  /** the friends at once standing in their places in the line, staring at the ghost (by name; each is the gathering's act for them) */
+  standing(): Map<string, LineUp> {
     const acts = new Map<string, LineUp>();
     for (const [key, r] of Object.entries(this.routes)) {
       const p = this.gathering.byName(key);
@@ -118,11 +129,6 @@ export class LineUpScene {
       acts.set(key, act);
       p.act = act;
     }
-    _v.set(shot.x - this.fire.x, 0, shot.z - this.fire.z).normalize();
-    camera.position.copy(shot).addScaledVector(_v, BACK.by).addScaledVector(UP, BACK.up);
-    camera.lookAt(this.tLook.copy(this.head).lerp(this.middle, 0.45 * 0.4));
-    camera.fov = FOV.close;
-    camera.updateProjectionMatrix();
     return acts;
   }
 

@@ -18,8 +18,9 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // slowly closes in. Its sound: the tail of the ghost's recording that played
 // before; from the split the same recording's swell that shook the ground at
 // the jar underneath, and over it the laughter of its tearing (`ghost_split`).
-// (What follows comes next; for now the scene ends with a dip to black,
-// everyone back in their seats and the sky turning back.)
+// What follows carries on from its last frame (`then`, ChaseScene.ts); without
+// it the scene ends with a dip to black, everyone back in their seats and the
+// sky turning back.
 
 interface DogLike { alertAt: THREE.Vector3 | null }
 
@@ -109,6 +110,9 @@ export class SplitScene {
   /** the four ghosts' places once apart, left to right (world, on the ground; for the next scene) */
   placesNow(): THREE.Vector3[] { return this.places; }
 
+  /** the recordings still playing (the laughter, the swell under it), for the next scene to carry on with (and stop) */
+  takeVoices(): VoiceHandle[] { const v = [this.voice, this.under].filter((x): x is VoiceHandle => !!x); this.voice = this.under = null; return v; }
+
   /** the friends in the line, for the next scene to carry on with (and finish) */
   takeActs(): Map<string, LineUp> { const a = this.acts; this.acts = new Map(); return a; }
 
@@ -130,6 +134,46 @@ export class SplitScene {
     this.pos.copy(camera.position);
     this.quat.copy(camera.quaternion);
     this.fov0 = this.fov = camera.fov;
+    this._plan();
+    // all of them watch the one until it tears (the others' heads are where it is)
+    this.wraiths[0].headWorld(this.heads[0]);
+    for (const h of this.heads) h.copy(this.heads[0]);
+    for (const a of this.acts.values()) a.target = this.heads[0];
+    this.filming = true;
+    this.events.emit(EV.INTRO_CINEMATIC, true);
+  }
+
+  /**
+   * everything at once as this scene leaves it (the four ghosts each opposite
+   * one of the friends, the friends staring each at their own, the camera's
+   * last frame); `acts`: the friends standing in the line, for the next scene
+   * to take: to start it straight away, while developing
+   */
+  setEnd(camera: THREE.PerspectiveCamera, acts: Map<string, LineUp>): void {
+    this.acts = acts;
+    this.cam0.copy(camera.position);
+    this._plan();
+    const W = this.wraiths, one = W[0];
+    one.group.scale.setScalar(SCALE);
+    for (let i = 0; i < W.length; i++) {
+      const w = W[i], P = w.pose;
+      if (i > 0) { w.group.scale.setScalar(SCALE); Object.assign(P, { ...one.pose }); w.show(true); }
+      P.x = this.places[i].x; P.z = this.places[i].z;
+      const a = acts.get(this.order[i]);
+      if (a) P.heading = Math.atan2(a.spot.x - P.x, a.spot.y - P.z);
+      Object.assign(P, { wind: 1.7, arms: 0.55, lift: 0.1, opacity: 1 });
+      w.update(0);
+      w.headWorld(this.heads[i]);
+      if (a) a.target = this.heads[i];
+    }
+    camera.position.copy(this.back).lerp(this.middle.clone().setY(this.back.y), 0.08);
+    camera.lookAt(this.look.setY(this.heads[0].y - 0.35));
+    camera.fov = CAM.close;
+    camera.updateProjectionMatrix();
+  }
+
+  // where the four will be, and where the camera draws back to
+  private _plan(): void {
     const one = this.wraiths[0].pose;
     this.from.set(one.x, 0, one.z);
     this.heading0 = one.heading;
@@ -163,12 +207,6 @@ export class SplitScene {
     for (const p of this.places) this.middle.add(p);
     this.middle.multiplyScalar(1 / this.places.length);
     this.look.lerp(this.middle, 0.6);
-    // all of them watch the one until it tears (the others' heads are where it is)
-    this.wraiths[0].headWorld(this.heads[0]);
-    for (const h of this.heads) h.copy(this.heads[0]);
-    for (const a of this.acts.values()) a.target = this.heads[0];
-    this.filming = true;
-    this.events.emit(EV.INTRO_CINEMATIC, true);
   }
 
   skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }

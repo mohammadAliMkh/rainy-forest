@@ -44,7 +44,7 @@
   - پایان صحنه را با `afterT` بعد از `voice.done` بشمار، **نه** با `voice.elapsed()` (آن در طول فایل سقف می‌خورد).
 - **صدای ضبط‌شده:** `voices.play(key, pos, {duck, gain, from, length})`.
   - فایل‌ها `.voice` هستند (mp3ِ تغییرنام‌داده، تا IDM آن‌ها را نگیرد) در `public/audio/` و در `manifest.json` ثبت می‌شوند.
-- **سناریوی روح:** `src/game/quest/` (PartyErrand، errandScript، JarScene، KeeperScene، AmirScene، NightWalk).
+- **سناریوی روح:** `src/game/quest/` (PartyErrand، errandScript، JarScene، KeeperScene، AmirScene، SplitScene، ChaseScene).
   - شکل واقعی روح: `src/game/scenario/Wraith.ts` با `appear()` و `vanish()`.
   - `?lab=wraith` روح را تنها نشان می‌دهد.
 - GLTFLoader نقطه را از اسم گره‌ها حذف می‌کند (`wrist.R` ← `wristR`).
