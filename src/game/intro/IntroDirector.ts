@@ -130,11 +130,16 @@ export class IntroDirector {
     this.cutPhase = 'in';
   }
 
-  skip(): void {
-    if (!this.seq || this.seq.skipping) return;
+  /** `now`: over at once, without the dip to black (when something else takes the screen straight away) */
+  skip(now = false): void {
+    if (!this.seq || (this.seq.skipping && !now)) return;
     this.seq.skipping = true;
     this.seq.voice?.stop();
-    this._cut(() => this._finish());
+    if (!now) { this._cut(() => this._finish()); return; }
+    this.pending = null;
+    this.cutPhase = null;
+    this.fade = 0;
+    this._finish();
   }
 
   // dip to black, run `fn` while the screen is black, come back

@@ -303,7 +303,8 @@ export class PartyErrand {
       this.creepScene.start(cam, shot);
     } else {
       this.creepScene.setEnd(cam, shot);
-      if (stage === 7) this.lineUpScene.start(cam, shot, null);
+      // (the ghost's recording where it would be by then: its last swell)
+      if (stage === 7) this.lineUpScene.start(cam, shot, this.voices()?.play('ghost_appear', shot, { gain: 1, from: 18.5, length: 11.3 }) ?? null);
       else this.splitScene.start(cam, this.lineUpScene.setEnd(cam, shot), null);
     }
   }

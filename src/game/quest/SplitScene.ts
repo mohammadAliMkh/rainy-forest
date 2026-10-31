@@ -16,9 +16,10 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // until it tears, then each their own - and flinch back half a step, hands
 // up, as it tears. The camera draws back and widens to have all eight, then
 // slowly closes in. Its sound: the tail of the ghost's recording that played
-// before, then from the split the recording of its tearing (`ghost_split`). (What follows comes next; for now the scene ends
-// with a dip to black, everyone back in their seats and the sky turning
-// back.)
+// before; from the split the same recording's swell that shook the ground at
+// the jar underneath, and over it the laughter of its tearing (`ghost_split`).
+// (What follows comes next; for now the scene ends with a dip to black,
+// everyone back in their seats and the sky turning back.)
 
 interface DogLike { alertAt: THREE.Vector3 | null }
 
@@ -44,6 +45,8 @@ const SHIVER = { move: 0.12, turn: 0.3 };
 const SHAKE = { move: 0.11, turn: 0.035, fade: 2.6 };
 /** the part of the tearing's recording played from the split: from, how long (s) */
 const SOUND = { from: 0, length: 6.3 };
+/** underneath it from the split: the ghost's own recording, its swell that shook the ground at the jar: from, how long (s), how loud */
+const UNDER = { from: 11.0, length: 8.0, gain: 0.8 };
 /** a little under their full size (their hoods clear of the shelter's eaves over the fire) */
 const SCALE = 0.92;
 /** the camera: how far back and up it draws (m), its field of view at its widest and at the end */
@@ -65,6 +68,7 @@ export class SplitScene {
   private acts = new Map<string, LineUp>();
   private voice: VoiceHandle | null = null;
   private tail: VoiceHandle | null = null;
+  private under: VoiceHandle | null = null;
   private t = -1;
   private ending = 0;
   private fade = 0;
@@ -186,9 +190,12 @@ export class SplitScene {
       const shiver = sstep(T.tremble, T.split, t) ** 1.6 * (1 - sstep(T.split + 0.4, T.apart + 0.8, t));
       if (t >= T.split) {
         this._once('split', () => {
-          // the sound of its tearing (what was still playing stops)
+          // the sound of its tearing: its own recording underneath (the quake swell, in place
+          // of what was still playing), the laughter over it
           this.tail?.stop(); this.tail = null;
-          this.voice = this.voices()?.play('ghost_split', this.heads[0].clone(), { gain: 1.1, from: SOUND.from, length: SOUND.length }) ?? null;
+          const at = this.heads[0].clone();
+          this.under = this.voices()?.play('ghost_appear', at, { gain: UNDER.gain, from: UNDER.from, length: UNDER.length }) ?? null;
+          this.voice = this.voices()?.play('ghost_split', at, { gain: 1.1, from: SOUND.from, length: SOUND.length }) ?? null;
           const one = W[0];
           for (let i = 1; i < W.length; i++) {
             W[i].group.scale.setScalar(one.group.scale.x);
@@ -252,6 +259,7 @@ export class SplitScene {
   private _close(): void {
     this.filming = false;
     this.tail?.stop(); this.tail = null;
+    this.under?.stop(); this.under = null;
     this.voice?.stop(); this.voice = null;
     for (const a of this.acts.values()) a.finish();
     this.acts.clear();

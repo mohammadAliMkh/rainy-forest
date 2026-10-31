@@ -290,8 +290,8 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     let jumped = false;
     sys('stage', () => {
       if (!session.entered || jumped) return;
-      if (camp.intro.active) { camp.intro.skip(); return; }
       jumped = true;
+      camp.intro.skip(true); // no welcome, no dip to black: straight into the scene
       theErrand.jumpTo(stage);
     });
   }
