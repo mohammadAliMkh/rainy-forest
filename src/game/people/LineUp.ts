@@ -80,6 +80,18 @@ export class LineUp {
   /** in their place in the line, facing it */
   get lined(): boolean { return this.phase === 'face'; }
 
+  /** at once in their place in the line, facing what they stare at (when what comes before is skipped over) */
+  standInLine(): void {
+    const gt = this.h.guitar?.group as THREE.Object3D | undefined;
+    if (gt) stepGuitarDrop(putGuitarDown(this.h, gt, this.seat, this.terrain), gt, 1);
+    const s = this.spot;
+    this.x = s.x; this.z = s.y;
+    this.heading = Math.atan2(this.target.x - s.x, this.target.z - s.y);
+    this.stand = 1; this.walk = 0; this.tense = 1;
+    this.seg = this.path.length - 1;
+    this.phase = 'face'; this.t = 1;
+  }
+
   /** in the line, a start: half a step back from it, the hands flying up */
   flinch(): void { if (this.phase === 'face') this.flinchT = 0; }
 

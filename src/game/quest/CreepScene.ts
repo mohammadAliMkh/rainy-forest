@@ -160,6 +160,28 @@ export class CreepScene {
 
   skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }
 
+  /**
+   * everything at once as this scene leaves it (the ghost behind the friends,
+   * the sky red, the guitar silent, the camera's last frame): to start the
+   * next scene straight away, while developing
+   */
+  setEnd(camera: THREE.PerspectiveCamera, shot: THREE.Vector3): void {
+    this.shot.copy(shot);
+    const w = this.wraith, s = this.stop;
+    w.group.scale.setScalar(SCALE);
+    Object.assign(w.pose, { x: s.x, z: s.z, heading: Math.atan2(shot.x - s.x, shot.z - s.z), form: 1, grow: 1, base: null, lift: 0.1, arms: 1, wind: 1.7, opacity: 1, dim: 0 });
+    w.show(true);
+    w.update(0);
+    this.sky.redden(0.1);
+    this.guitar('off');
+    const dog = this.dog();
+    if (dog) dog.alertAt = w.headWorld(this.alert);
+    camera.position.copy(shot).lerp(this.mid.set(s.x, this.ground(s.x, s.z) + 1.6, s.z), 0.12);
+    camera.lookAt(w.headWorld(this.head));
+    camera.fov = FOV.close;
+    camera.updateProjectionMatrix();
+  }
+
   /** the ghost's recording, still playing, for the next scene to carry on with (and stop) */
   takeVoice(): VoiceHandle | null { const v = this.voice; this.voice = null; return v; }
 

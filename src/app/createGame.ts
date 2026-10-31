@@ -282,6 +282,19 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('store', (f) => store.update(f.dt, f.camera, f.env));
   sys('errand', (f) => { if (session.entered) theErrand.update(f.dt); });
+  // ?stage=N (while developing): straight into stage N of the ghost's story
+  // once in (see PartyErrand.jumpTo and STATUS.md), to try a new stage
+  // without playing through everything before it
+  const stage = Number(new URLSearchParams(location.search).get('stage'));
+  if (import.meta.env.DEV && stage > 0) {
+    let jumped = false;
+    sys('stage', () => {
+      if (!session.entered || jumped) return;
+      if (camp.intro.active) { camp.intro.skip(); return; }
+      jumped = true;
+      theErrand.jumpTo(stage);
+    });
+  }
   // ?lab=wraith: the ghost's true shape on its own, at night in front of the player,
   // over and over: it comes (a small knot spinning up into the whirlwind, which gathers into
   // the spectre), stays a while, goes the same way back, and after a moment comes again

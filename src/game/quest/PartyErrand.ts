@@ -272,6 +272,42 @@ export class PartyErrand {
     this._go('ghost');
   }
 
+  /**
+   * while developing (?stage=N): straight into stage N of the ghost's story
+   * (2 the jar, 5 the sky shot, 6 it creeps up, 7 the line-up, 8 it splits;
+   * see STATUS.md), as if all before had happened: the shopping and the
+   * amulet in the bag, night fallen, and what the scene before left
+   */
+  jumpTo(stage: number): void {
+    for (const k of ERRAND_ITEMS) if (!this.got.has(k)) { this.got.add(k); this.inventory.add(k); this.store.errand.items[k].visible = false; }
+    if (!this.hasAmulet) { this.hasAmulet = true; this.inventory.add('amulet'); }
+    this.store.errand.cash.visible = true;
+    this.haunted = this.scary();
+    this.nightfall.dusk();
+    this.nightfall.fall(this.haunted, 0.1);
+    if (stage <= 4) { this._go('pickles'); this._openJar(); return; }
+    this.got.add('pickles');
+    this.inventory.add('pickles');
+    this._go('fire');
+    const cam = this.camera as THREE.PerspectiveCamera, shot = this.skyShot.shotPos();
+    cam.fov = 55;
+    cam.updateProjectionMatrix();
+    if (stage === 5) {
+      const st = this.store.errand.jarStage();
+      cam.position.copy(st.view);
+      cam.lookAt(st.woods);
+      this.skyShot.start(cam);
+    } else if (stage === 6) {
+      cam.position.copy(shot);
+      cam.lookAt(FIRE.x, shot.y - 0.65, FIRE.z);
+      this.creepScene.start(cam, shot);
+    } else {
+      this.creepScene.setEnd(cam, shot);
+      if (stage === 7) this.lineUpScene.start(cam, shot, null);
+      else this.splitScene.start(cam, this.lineUpScene.setEnd(cam, shot), null);
+    }
+  }
+
   /** system "errand": follows the player through the steps */
   update(dt: number): void {
     this.t += dt;

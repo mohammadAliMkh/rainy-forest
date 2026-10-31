@@ -97,6 +97,35 @@ export class LineUpScene {
 
   get active(): boolean { return this.t >= 0; }
 
+  /**
+   * everything at once as this scene leaves it (the friends standing in the
+   * line, the ghost turned to them, the camera's last frame), from where the
+   * scene before left things; returns the friends' acts for the next scene:
+   * to start it straight away, while developing
+   */
+  setEnd(camera: THREE.PerspectiveCamera, shot: THREE.Vector3): Map<string, LineUp> {
+    const w = this.wraith, P = w.pose;
+    P.heading = Math.atan2(this.middle.x - P.x, this.middle.z - P.z);
+    w.update(0);
+    w.headWorld(this.head);
+    const acts = new Map<string, LineUp>();
+    for (const [key, r] of Object.entries(this.routes)) {
+      const p = this.gathering.byName(key);
+      if (!p) continue;
+      const s = p.seat;
+      const act = new LineUp(p.h, { x: s.x, y: s.y, z: s.z, facing: s.facing, lean: p.baseLean }, r, this.terrain, this.head);
+      act.standInLine();
+      acts.set(key, act);
+      p.act = act;
+    }
+    _v.set(shot.x - this.fire.x, 0, shot.z - this.fire.z).normalize();
+    camera.position.copy(shot).addScaledVector(_v, BACK.by).addScaledVector(UP, BACK.up);
+    camera.lookAt(this.tLook.copy(this.head).lerp(this.middle, 0.45 * 0.4));
+    camera.fov = FOV.close;
+    camera.updateProjectionMatrix();
+    return acts;
+  }
+
   /** the ghost's recording, still playing, for the next scene to carry on with (and stop) */
   takeVoice(): VoiceHandle | null { const v = this.voice; this.voice = null; return v; }
 

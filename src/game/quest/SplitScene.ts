@@ -10,13 +10,13 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // After the friends have lined up facing the ghost, in the same shot: it
 // hangs there behind the fire, then begins to tremble - a shiver at first,
 // harder and harder, its robe thrashing - until it tears apart: four ghosts
-// slide out of it, sideways and toward the friends, flickering, the ground
-// shaking (the camera only), and each stops opposite one of them, staring
-// at them. The friends flinch back half a step, hands up, and each stares at
-// their own ghost. The camera draws back and widens to have all eight, then
-// slowly closes in. Its sound is the ghost's recording: the tail of what
-// played before, then from the split its second swell (the one that shook
-// the ground at the jar). (What follows comes next; for now the scene ends
+// slide out of it, sideways and toward the friends, flickering, the whole
+// place shaking as in an earthquake (the camera), and each stops opposite one
+// of them, staring at them. The friends watch it all along - the one ghost
+// until it tears, then each their own - and flinch back half a step, hands
+// up, as it tears. The camera draws back and widens to have all eight, then
+// slowly closes in. Its sound: the tail of the ghost's recording that played
+// before, then from the split the recording of its tearing (`ghost_split`). (What follows comes next; for now the scene ends
 // with a dip to black, everyone back in their seats and the sky turning
 // back.)
 
@@ -39,11 +39,11 @@ const T = {
 /** the ghosts' places: how much nearer the friends than the one was; how far beside each friend (to the right) the camera sees its ghost (m) */
 const SPREAD = { nearer: 0.6, side: 0.45 };
 /** its trembling at its hardest: metres, radians */
-const SHIVER = { move: 0.09, turn: 0.25 };
-/** the ground shaking at the split (the camera only): metres, radians */
-const SHAKE = { move: 0.04, turn: 0.012 };
-/** the part of the recording played from the split: from, how long (s) */
-const SOUND = { from: 11.0, length: 8.0 };
+const SHIVER = { move: 0.12, turn: 0.3 };
+/** the earthquake as it tears (the camera): metres, radians at its strongest; how long it takes to die away (s) */
+const SHAKE = { move: 0.11, turn: 0.035, fade: 2.6 };
+/** the part of the tearing's recording played from the split: from, how long (s) */
+const SOUND = { from: 0, length: 6.3 };
 /** a little under their full size (their hoods clear of the shelter's eaves over the fire) */
 const SCALE = 0.92;
 /** the camera: how far back and up it draws (m), its field of view at its widest and at the end */
@@ -150,8 +150,7 @@ export class SplitScene {
         this.places[i].set(eye.x + d.x * u, 0, eye.y + d.y * u);
       });
       this.look.set(c.x, 0, c.y);
-      // each of them stares at their own
-      this.order.forEach((k, i) => { const a = this.acts.get(k); if (a) a.target = this.heads[i]; });
+
     } else {
       for (const p of this.places) p.copy(this.from);
       this.look.copy(this.from);
@@ -160,7 +159,10 @@ export class SplitScene {
     for (const p of this.places) this.middle.add(p);
     this.middle.multiplyScalar(1 / this.places.length);
     this.look.lerp(this.middle, 0.6);
-    for (let i = 0; i < this.wraiths.length; i++) this.wraiths[i].headWorld(this.heads[i]);
+    // all of them watch the one until it tears (the others' heads are where it is)
+    this.wraiths[0].headWorld(this.heads[0]);
+    for (const h of this.heads) h.copy(this.heads[0]);
+    for (const a of this.acts.values()) a.target = this.heads[0];
     this.filming = true;
     this.events.emit(EV.INTRO_CINEMATIC, true);
   }
@@ -169,8 +171,11 @@ export class SplitScene {
 
   private _once(name: string, fn: () => void): void { if (!this.cue.has(name)) { this.cue.add(name); fn(); } }
 
-  /** how hard the ground shakes now (0..1) */
-  private get shaking(): number { return sstep(T.split - 0.1, T.split + 0.3, this.t) * (1 - sstep(T.split + 0.6, T.apart + 0.4, this.t)); }
+  /** how hard the earthquake shakes now (0..1): a rumble as it trembles, all at once as it tears, dying away */
+  private get shaking(): number {
+    const t = this.t;
+    return Math.max(0.12 * sstep(T.split - 1.5, T.split, t), sstep(T.split - 0.05, T.split + 0.15, t)) * (1 - sstep(T.split + 0.6, T.split + SHAKE.fade, t));
+  }
 
   update(dt: number): void {
     if (!this.active) return;
@@ -181,16 +186,18 @@ export class SplitScene {
       const shiver = sstep(T.tremble, T.split, t) ** 1.6 * (1 - sstep(T.split + 0.4, T.apart + 0.8, t));
       if (t >= T.split) {
         this._once('split', () => {
-          // its sound: the swell that shook the ground at the jar (what was still playing stops)
+          // the sound of its tearing (what was still playing stops)
           this.tail?.stop(); this.tail = null;
-          this.voice = this.voices()?.play('ghost_appear', this.heads[0].clone(), { gain: 1.1, from: SOUND.from, length: SOUND.length }) ?? null;
+          this.voice = this.voices()?.play('ghost_split', this.heads[0].clone(), { gain: 1.1, from: SOUND.from, length: SOUND.length }) ?? null;
           const one = W[0];
           for (let i = 1; i < W.length; i++) {
             W[i].group.scale.setScalar(one.group.scale.x);
             Object.assign(W[i].pose, { ...one.pose });
             W[i].show(true);
           }
+          // they flinch, and from now on each watches their own
           for (const a of this.acts.values()) a.flinch();
+          this.order.forEach((k, i) => { const a = this.acts.get(k); if (a) a.target = this.heads[i]; });
         });
       }
       const apart = sstep(T.split, T.apart, t);
@@ -283,6 +290,7 @@ export class SplitScene {
       const n = (a: number, b: number, c: number) => Math.sin(t * a) * 0.5 + Math.sin(t * b + 1.7) * 0.3 + Math.sin(t * c + 4.1) * 0.2;
       camera.position.x += SHAKE.move * q * n(31, 47, 7.3);
       camera.position.y += SHAKE.move * q * n(37, 53, 5.9);
+      camera.position.z += SHAKE.move * q * n(29, 43, 6.7);
       camera.rotateX(SHAKE.turn * q * n(23, 41, 4.3));
       camera.rotateZ(SHAKE.turn * q * n(19, 35, 3.7));
     }

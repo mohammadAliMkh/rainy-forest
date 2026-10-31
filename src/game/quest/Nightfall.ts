@@ -61,8 +61,8 @@ export class Nightfall {
     this._go(DUSK_HOUR, 12);
   }
 
-  /** night on the way back (~6 s); `haunted`: in heavy rain, the lantern burning low */
-  fall(haunted: boolean): void {
+  /** night on the way back (over `seconds`); `haunted`: in heavy rain, the lantern burning low */
+  fall(haunted: boolean, seconds = 6): void {
     if (this.night) return;
     this._take();
     if (haunted) {
@@ -72,7 +72,7 @@ export class Nightfall {
       weather.setKind('heavy', 1200);
       lighting.lanternMax = LANTERN_LOW;
     }
-    this._go(NIGHT_HOUR, 6);
+    this._go(NIGHT_HOUR, seconds);
     this.night = true;
   }
 
