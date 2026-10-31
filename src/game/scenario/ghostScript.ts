@@ -6,3 +6,5 @@
 export const GHOST_IN: [number, number][] = [[1.4, -25.3], [-2.0, -25.0], [-2.0, -18.6], [-0.8, -18.0], [0.4, -17.3]];
 /** index of the front corner in GHOST_IN (where it peeks) */
 export const CORNER = 2;
+/** where it stops when it creeps up on the friends at the fire: behind Amin and the owner */
+export const CREEP_STOP = { x: 0.4, z: -17.9 };

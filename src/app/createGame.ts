@@ -220,6 +220,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     scary: () => ui.settings.scaryGhost !== false,
     hands, inventory,
     shoo: (x, z, r) => deer.shoo(x, z, r),
+    cabin: cabin.group,
   });
   const theErrand = errand;
   const hud = new Hud({ ui, day });

@@ -215,7 +215,7 @@ async function errandSetup(page: Page) {
   });
 }
 
-test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire', async ({ page }) => {
+test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire, the ghost creeping up on them', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
@@ -322,7 +322,26 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     (window as any).step(4);
     return { high, atFire, seated, step: f.errand.step, cinematic: f.camp.cinematic };
   });
-  expect(sky).toEqual({ high: true, atFire: true, seated: true, step: 'next', cinematic: false });
+  expect(sky).toEqual({ high: true, atFire: true, seated: true, step: 'fire', cinematic: true });
+  // and on in the same shot: two red eyes at the cabin's corner as the sky turns red again;
+  // it creeps up behind them (still in their seats), Luna staring at it; then back to the player
+  const creep = await page.evaluate(() => {
+    const f = (window as any).forest, w = f.errand.wraith;
+    (window as any).step(6);
+    const eyes = { shown: w.group.visible, dark: w.pose.dim > 0.9, reddening: f.day.blood > 0.2 && f.day.blood < 1 };
+    (window as any).step(14);
+    const behind = {
+      near: Math.hypot(w.pose.x - 0.4, w.pose.z + 17.9) < 0.2, red: f.day.blood > 0.95,
+      luna: !f.camp.dog || !!f.camp.dog.alertAt, seated: f.camp.gathering.people.every((p: any) => !p.flight),
+    };
+    (window as any).step(4);
+    return { eyes, behind, after: { step: f.errand.step, cinematic: f.camp.cinematic, ghost: w.group.visible, calm: f.day.blood < 0.05 } };
+  });
+  expect(creep).toEqual({
+    eyes: { shown: true, dark: true, reddening: true },
+    behind: { near: true, red: true, luna: true, seated: true },
+    after: { step: 'next', cinematic: false, ghost: false, calm: true },
+  });
   expect(errors).toEqual([]);
 });
 

@@ -59,8 +59,8 @@ const SCALE = 0.88;
 export class JarScene {
   /** the film camera has the view */
   filming = false;
-  /** the scene that carries on from the last frame (the camera keeps the view) */
-  then: (() => void) | null = null;
+  /** the scene that carries on from the last frame (the camera keeps the view; `skipped`: behind the black) */
+  then: ((skipped: boolean) => void) | null = null;
   private readonly wraith: Wraith;
   private readonly events: EventBus<GameEvents>;
   private readonly voices: () => VoiceService | null;
@@ -164,7 +164,7 @@ export class JarScene {
       P.wind = 1 + 1.6 * q + 0.8 * sstep(T.leave, T.leave + 2, t);
       w.update(dt);
       if (t >= T.end) {
-        if (this.then) { this._close(); this.then(); this.t = -1; return; }
+        if (this.then) { this._close(); this.then(false); this.t = -1; return; }
         this.ending = 1e-6;
       }
     }
@@ -178,7 +178,7 @@ export class JarScene {
       if (this.ending >= 0.4) {
         this._close();
         // (skipped: the next scene starts behind the black)
-        if (this.then) this.then();
+        if (this.then) this.then(true);
         else this.events.emit(EV.INTRO_CINEMATIC, false);
       }
     } else {

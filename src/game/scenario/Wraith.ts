@@ -41,6 +41,8 @@ export interface WraithPose {
   opacity: number;
   /** how wildly the cloth streams (1 = normal) */
   wind: number;
+  /** 0..1 the body lost in the dark: at 1 only the two eyes burn */
+  dim: number;
 }
 
 /** the spectre: hood, shoulders, sleeves held out, the robe streaming back */
@@ -184,7 +186,7 @@ const FRAG = /* glsl */ `
 
 export class Wraith {
   readonly group = new THREE.Group();
-  readonly pose: WraithPose = { x: 0, z: 0, heading: 0, lift: 0.25, base: null, form: 1, grow: 1, arms: 1, opacity: 1, wind: 1 };
+  readonly pose: WraithPose = { x: 0, z: 0, heading: 0, lift: 0.25, base: null, form: 1, grow: 1, arms: 1, opacity: 1, wind: 1, dim: 0 };
   private readonly body: THREE.Mesh;
   private readonly mat: THREE.ShaderMaterial;
   private readonly solid: Float32Array;
@@ -339,12 +341,13 @@ export class Wraith {
     (this.body.geometry.attributes.aSolid as THREE.BufferAttribute).needsUpdate = true;
     this.body.geometry.computeVertexNormals();
     this.mat.uniforms.uTime.value = t;
-    this.mat.uniforms.uOpacity.value = P.opacity;
+    const body = P.opacity * (1 - P.dim);
+    this.mat.uniforms.uOpacity.value = body;
     this.mat.uniforms.uSwirl.value = (1 - e) * 9;
     // the dark face and its sparks only once it has a face
     const faced = sstep(0.7, 1, f) * P.opacity;
-    this.face.visible = faced > 0.02;
-    (this.face.material as THREE.MeshBasicMaterial).opacity = faced;
+    this.face.visible = faced * (1 - P.dim) > 0.02;
+    (this.face.material as THREE.MeshBasicMaterial).opacity = faced * (1 - P.dim);
     for (const s of this.eyes) {
       s.visible = faced > 0.02;
       (s.material as THREE.SpriteMaterial).opacity = faced * (0.8 + 0.2 * Math.sin(t * 2.3));
@@ -367,6 +370,6 @@ export class Wraith {
         lerp(Math.cos(fa) * fr, Math.cos(ra) * rr - (1 - ry) * 0.5, e));
     }
     mp.needsUpdate = true;
-    (this.motes.material as THREE.PointsMaterial).opacity = P.opacity * lerp(0.9, 0.55, e);
+    (this.motes.material as THREE.PointsMaterial).opacity = body * lerp(0.9, 0.55, e);
   }
 }

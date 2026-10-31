@@ -8,8 +8,9 @@ import type { EventBus } from '../../engine/events.ts';
 // into the night sky, tilting up toward it; then it flies over the trees
 // toward the camp, looking down ahead, and comes down to a low shot of the
 // four friends around the fire, who know nothing - with the cabin behind
-// them, where the ghost will come from (`lair`). (What follows comes next;
-// for now the scene ends with a dip to black.)
+// them, where the ghost will come from (`lair`). From there the next scene
+// (`then`) carries on in the same shot; skipped, the next scene is skipped
+// too; without one, a dip to black and back to the player.
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -32,6 +33,8 @@ const SHOT = { back: 5.2, eye: 1.55 };
 export class SkyShot {
   /** the film camera has the view */
   filming = false;
+  /** the scene that carries on from the last frame (`skipped`: straight on behind the black) */
+  then: ((skipped: boolean) => void) | null = null;
   private readonly events: EventBus<GameEvents>;
   private readonly ground: (x: number, z: number) => number;
   private readonly shoo: (x: number, z: number, r: number) => void;
@@ -75,10 +78,12 @@ export class SkyShot {
     return target.set(x, this.ground(x, z) + SHOT.eye, z);
   }
 
-  /** from where `camera` is now (the end of the jar scene) */
-  start(camera: THREE.Camera): void {
+  /** from where `camera` is now (the end of the jar scene); `skipped`: that was skipped - on behind the black */
+  start(camera: THREE.Camera, skipped = false): void {
     if (this.active) return;
-    this.t = 0; this.ending = 0;
+    if (skipped && this.then) { this.then(true); return; }
+    this.t = 0; this.ending = skipped ? 1e-6 : 0;
+    this.fade = skipped ? 1 : 0;
     this.pos.copy(camera.position);
     this.quat.copy(camera.quaternion);
     this.start0.copy(camera.position);
@@ -105,15 +110,20 @@ export class SkyShot {
   update(dt: number): void {
     if (!this.active) return;
     this.t += dt;
-    if (!this.ending && this.t >= T.end) this.ending = 1e-6;
+    if (!this.ending && this.t >= T.end) {
+      // on in the same shot
+      if (this.then) { this.filming = false; this.t = -1; this.then(false); return; }
+      this.ending = 1e-6;
+    }
     if (!this.ending) return;
-    // dip to black, back to the player
+    // dip to black, back to the player (skipped: the next scene skipped too)
     this.ending += dt;
     if (this.filming) {
-      this.fade = Math.min(1, this.ending / 0.5);
+      this.fade = Math.max(this.fade, Math.min(1, this.ending / 0.5));
       this.events.emit(EV.INTRO_FADE, this.fade);
       if (this.ending >= 0.5) {
         this.filming = false;
+        if (this.then) { this.t = -1; this.then(true); return; }
         this.events.emit(EV.INTRO_CINEMATIC, false);
       }
     } else {
