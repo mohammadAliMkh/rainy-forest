@@ -17,8 +17,8 @@ export const CREEP_STOP = { x: 0.4, z: -17.9 };
  * their seat before getting up
  */
 export const LINE_UP: Record<string, { spot: [number, number]; via?: [number, number][]; notice: number; stare: number }> = {
-  owner: { spot: [1.45, -12.0], via: [[0.0, -13.6]], notice: 0.2, stare: 1.2 },
-  amin: { spot: [0.15, -11.75], via: [[-0.75, -13.9]], notice: 0.45, stare: 1.9 },
-  alireza: { spot: [2.25, -12.2], via: [[1.95, -12.9]], notice: 0.9, stare: 2.0 },
-  amir: { spot: [3.05, -12.35], via: [[3.45, -13.5]], notice: 0.6, stare: 1.4 },
+  owner: { spot: [1.45, -12.0], via: [[0.0, -13.6]], notice: 0.1, stare: 0.45 },
+  amin: { spot: [0.15, -11.75], via: [[-0.75, -13.9]], notice: 0.2, stare: 0.75 },
+  alireza: { spot: [2.25, -12.2], via: [[1.95, -12.9]], notice: 0.35, stare: 0.6 },
+  amir: { spot: [3.05, -12.35], via: [[3.45, -13.5]], notice: 0.25, stare: 0.5 },
 };

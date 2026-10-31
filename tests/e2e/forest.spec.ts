@@ -316,7 +316,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     const f = (window as any).forest, s = f.errand.skyShot, ground = f.terrain.heightAt(f.camera.position.x, f.camera.position.z);
     (window as any).step(4);
     const high = f.camera.position.y - ground > 25;
-    (window as any).step(10.5);
+    (window as any).step(4.1);
     const shot = s.shotPos(), atFire = f.camera.position.distanceTo(shot) < 0.5;
     const seated = f.camp.gathering.people.every((p: any) => !p.flight);
     (window as any).step(4);
@@ -327,32 +327,37 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   // it creeps up behind them (still in their seats), its recording playing, Luna staring at it; the guitar stops
   const creep = await page.evaluate(() => {
     const f = (window as any).forest, w = f.errand.wraith;
-    (window as any).step(6);
+    (window as any).cues = [];
+    (window as any).step(5);
     const eyes = { shown: w.group.visible, dark: w.pose.dim > 0.9, reddening: f.day.blood > 0.2 && f.day.blood < 1, guitar: f.camp.gathering.guitar };
     (window as any).step(14);
+    const cues = (window as any).cues;
     const behind = {
       near: Math.hypot(w.pose.x - 0.4, w.pose.z + 17.9) < 0.2, red: f.day.blood > 0.95,
       luna: !f.camp.dog || !!f.camp.dog.alertAt, seated: f.camp.gathering.people.every((p: any) => !p.act), guitar: f.camp.gathering.guitar,
     };
-    return { eyes, behind };
+    return { eyes, behind, cues };
   });
   expect(creep).toEqual({
     eyes: { shown: true, dark: true, reddening: true, guitar: 'on' },
     behind: { near: true, red: true, luna: true, seated: true, guitar: 'off' },
+    cues: [], // only the guitar and the ghost's recording: nothing synthesized (no barking)
   });
   // and on: they see it, get up and line up across the fire facing it, the sky still red; then back to the player, all in their seats again
   const line = await page.evaluate(() => {
     const f = (window as any).forest, e = f.errand, w = e.wraith, people = f.camp.gathering.people;
-    (window as any).step(5.5);
+    (window as any).step(2);
     const rising = { scene: e.lineUpScene.active, up: people.some((p: any) => p.act) };
-    (window as any).step(6);
-    const lined = { all: people.every((p: any) => p.act?.lined), ghost: w.group.visible, red: f.day.blood > 0.95 };
+    // quickly: all of them in the line within a few seconds
+    let k = 0;
+    for (; k < 100 && !people.every((p: any) => p.act?.lined); k++) (window as any).step(0.05);
+    const lined = { quick: k * 0.05 < 4.5, all: people.every((p: any) => p.act?.lined), ghost: w.group.visible, red: f.day.blood > 0.95 };
     (window as any).step(6);
     return { rising, lined, after: { step: e.step, cinematic: f.camp.cinematic, ghost: w.group.visible, calm: f.day.blood < 0.05, seated: people.every((p: any) => !p.act) } };
   });
   expect(line).toEqual({
     rising: { scene: true, up: true },
-    lined: { all: true, ghost: true, red: true },
+    lined: { quick: true, all: true, ghost: true, red: true },
     after: { step: 'next', cinematic: false, ghost: false, calm: true, seated: true },
   });
   expect(errors).toEqual([]);

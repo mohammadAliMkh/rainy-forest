@@ -20,10 +20,9 @@ const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.
 
 /** the scene's moments (seconds) */
 const T = {
-  rise: 4.5, // up into the sky...
-  over: 11.0, // ...over the trees to the camp...
-  down: 15.5, // ...and down to the friends
-  end: 18.5,
+  rise: 2.8, // up into the sky...
+  down: 9.0, // ...over the trees to the camp and down to the friends
+  end: 10.5,
 };
 /** how high it goes (metres above where it starts), how high it flies over */
 const HIGH = { rise: 38, over: 30 };
@@ -144,10 +143,10 @@ export class SkyShot {
     const sky = _v.copy(this.start0).addScaledVector(this.ahead, 20).addScaledVector(UP, HIGH.rise + 30);
     this.tLook.copy(this.start0).addScaledVector(this.ahead, 20).lerp(sky, sstep(0.3, T.rise, t));
     const camp = _v.set(this.fire.x, this.fire.y + 0.9, this.fire.z);
-    this.tLook.lerp(camp, sstep(T.rise - 0.3, T.rise + 2.8, t));
+    this.tLook.lerp(camp, sstep(T.rise - 0.3, T.rise + 2.0, t));
     _m.lookAt(this.tPos, this.tLook, UP);
     _q.setFromRotationMatrix(_m);
-    const k = 1 - Math.exp(-4 * dt);
+    const k = 1 - Math.exp(-5 * dt);
     this.pos.copy(this.tPos);
     this.quat.slerp(_q, k);
     camera.position.copy(this.pos);

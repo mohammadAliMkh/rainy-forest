@@ -14,16 +14,17 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // slips out from behind the wall, and the camera draws back to show the
 // friends and it behind them; it creeps up on them, stopping and starting,
 // its arms rising, staring at us all the while, until it stands right behind
-// them, its robe streaming wildly, the camera drawing in on it, and Luna, who
-// has been staring at it since the eyes opened, barks - and the guitar stops.
+// them, its robe streaming wildly, the camera drawing in on it - and the
+// guitar stops (Luna has been staring at it, silent, since the eyes opened).
 // From there the next scene (`then`) carries on in the same shot; skipped,
 // or without one, a dip to black, the sky turning back, and the player.
 // Its sound: Amin's guitar all along, and over it from the moment the eyes
 // open the ghost's recording (`ghost_appear`, the same as at the jar: its
 // rising swell on the eyes, its deep part as it glows out of the dark, its
-// second swell as it comes up behind them); Luna's barks (`luna_bark`).
+// second swell as it comes up behind them). Nothing else: no barking, no
+// synthesized sounds.
 
-interface DogLike { alertAt: THREE.Vector3 | null; readonly headWorld: THREE.Vector3 }
+interface DogLike { alertAt: THREE.Vector3 | null }
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -58,7 +59,8 @@ const SCALE = 0.95;
  * how much of it shows past the wall's edge (m); how far out it slips (m); its eyes above the ground (m)
  */
 const HIDE = { back: 2.2, show: 0.06, out: 1.5, eyes: 2.0 };
-const BARKS = [21.0, 21.4, 22.1, 22.5];
+/** the guitar stops (s) */
+const HUSH = 21.0;
 /** the part of the ghost's recording played from the eyes on: from, how long (s); how far in front of the camera it sounds (m) */
 const SOUND = { from: 1.0, length: 28.8, near: 2.5 };
 
@@ -178,10 +180,6 @@ export class CreepScene {
 
   private _once(name: string, fn: () => void): void { if (!this.cue.has(name)) { this.cue.add(name); fn(); } }
 
-  private _emit(cue: 'bark', at: THREE.Vector3): void {
-    this.events.emit(EV.SCENARIO_CUE, { cue, position: at.clone() });
-  }
-
   /** how far along from where it came out to where it stops (0..1) */
   private _creep(t: number): number {
     for (let i = 1; i < CREEP.length; i++) {
@@ -193,7 +191,6 @@ export class CreepScene {
 
   update(dt: number): void {
     if (!this.active) return;
-    const t0 = this.t;
     this.t += dt;
     const t = this.t, w = this.wraith, P = w.pose;
     if (!this.ending) {
@@ -218,13 +215,10 @@ export class CreepScene {
         P.heading = Math.atan2(this.shot.x - P.x, this.shot.z - P.z);
         P.arms = 0.15 + 0.85 * sstep(T.creep, T.there, t);
         P.wind = 0.7 + 1.0 * sstep(T.there, T.there + 1.5, t);
-        // Luna feels it before anyone, and at the end barks at it: the guitar stops
+        // Luna feels it before anyone and stares at it; at the end the guitar stops
         const dog = this.dog();
-        if (dog && t >= T.eyes + 0.8) {
-          dog.alertAt = w.headWorld(this.alert);
-          for (const b of BARKS) if (t0 < b && t >= b) this._emit('bark', dog.headWorld);
-        }
-        if (t >= BARKS[0]) this._once('hush', () => this.guitar('off'));
+        if (dog && t >= T.eyes + 0.8) dog.alertAt = w.headWorld(this.alert);
+        if (t >= HUSH) this._once('hush', () => this.guitar('off'));
       }
       if (t >= T.end) {
         // on in the same shot (the ghost, the red sky, Luna's stare and the silence stay)

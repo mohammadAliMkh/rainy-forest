@@ -5,8 +5,8 @@ import { putGuitarDown, stepGuitarDrop } from './Flight.ts';
 import type { SeatPose, GuitarDrop } from './Flight.ts';
 
 // Someone at the fire who has seen the ghost: still in their seat they turn
-// their head to it with a start, staring, frozen for a moment; then they get
-// up (a guitar is put down against the stump), walk round to their place in
+// their head to it with a start, staring, frozen for a moment; then they jump
+// up (a guitar is put down against the stump), hurry round to their place in
 // the line, glancing back at it, and stand there facing it - upright,
 // breathing hard, hands half up in front of them, ready. Drives the same rig
 // the gathering uses; while it runs the gathering leaves that person alone
@@ -17,7 +17,8 @@ type Rig = Human & { voiceLevel: number | null };
 type Euler3 = [number, number, number];
 type Phase = 'turn' | 'up' | 'walk' | 'face' | 'done';
 
-const WALK_SPEED = 1.25;
+/** hurrying (m/s), strides a second, getting up (s) */
+const HURRY = { speed: 2.5, steps: 1.45, up: 0.45 };
 
 const ease = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
 const lerpAngle = (a: number, b: number, t: number) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
@@ -94,18 +95,20 @@ export class LineUp {
         if (gt) this.guitarDrop = putGuitarDown(this.h, gt, this.seat, this.terrain);
       }
     } else if (this.phase === 'up') {
-      // on their feet, turning toward the way they go
-      const k = ease(this.t / 0.8);
+      // up on their feet, turning toward the way they go
+      const k = ease(this.t / HURRY.up);
       this.stand = k;
       this.x = this.seat.x + (this.path[0].x - this.seat.x) * k;
       this.z = this.seat.z + (this.path[0].y - this.seat.z) * k;
       const d = this.path[1].clone().sub(this.path[0]);
       this.heading = lerpAngle(this.seat.facing, Math.atan2(d.x, d.y), k);
-      if (this.t >= 0.8) { this.phase = 'walk'; this.t = 0; this.seg = 0; this.along = 0; }
+      if (this.t >= HURRY.up) { this.phase = 'walk'; this.t = 0; this.seg = 0; this.along = 0; }
     } else if (this.phase === 'walk') {
-      this._advance(WALK_SPEED * Math.min(1, 0.5 + this.t) * dt);
-      this.walk = damp(this.walk, 1, 6, dt);
-      this.gait += dt * 2 * Math.PI * 0.95;
+      // quick from the first step, slowing for the last metre
+      const left = this._left();
+      this._advance(HURRY.speed * Math.min(1, 0.6 + this.t * 2) * Math.min(1, 0.35 + left) * dt);
+      this.walk = damp(this.walk, 1, 10, dt);
+      this.gait += dt * 2 * Math.PI * HURRY.steps;
       if (this.seg >= this.path.length - 1) { this.phase = 'face'; this.t = 0; }
     } else {
       // in the line: turning to face it, standing their ground
@@ -123,6 +126,13 @@ export class LineUp {
     this.h.talk = 0;
   }
 
+  /** how far they still have to go (m) */
+  private _left(): number {
+    let d = -this.along;
+    for (let i = this.seg; i < this.path.length - 1; i++) d += this.path[i].distanceTo(this.path[i + 1]);
+    return Math.max(0, d);
+  }
+
   // move `step` metres along the path
   private _advance(step: number): void {
     while (step > 0 && this.seg < this.path.length - 1) {
@@ -135,7 +145,7 @@ export class LineUp {
     const k = this.seg >= this.path.length - 1 ? 1 : this.along / Math.max(1e-3, a.distanceTo(b));
     this.x = a.x + (b.x - a.x) * k;
     this.z = a.y + (b.y - a.y) * k;
-    this.heading = lerpAngle(this.heading, Math.atan2(b.x - a.x, b.y - a.y), 0.2);
+    this.heading = lerpAngle(this.heading, Math.atan2(b.x - a.x, b.y - a.y), 0.3);
   }
 
   private _legs(): void {
@@ -143,11 +153,11 @@ export class LineUp {
     this.h.legs.forEach((L, i) => {
       const ph = this.gait + (i === 0 ? 0 : Math.PI);
       const swing = Math.max(0, Math.cos(ph)) ** 1.5;
-      // walking stride, or standing with the knees a little bent, ready
+      // a long hurried stride, or standing with the knees a little bent, ready
       const target: Euler3[] = [
-        [-0.36 * walk * Math.sin(ph) - 0.08 * (1 - walk), 0, 0],
-        [(0.05 + 0.55 * swing) * walk + 0.16 * (1 - walk), 0, 0],
-        [-0.06 * (1 - walk), 0, 0],
+        [-0.55 * walk * Math.sin(ph) - 0.08 * (1 - walk), 0, 0],
+        [(0.1 + 0.85 * swing) * walk + 0.16 * (1 - walk), 0, 0],
+        [-0.1 * walk * Math.sin(ph) - 0.06 * (1 - walk), 0, 0],
       ];
       [L.hip, L.knee, L.ankle].forEach((j, k) => {
         const s = this.seatedLegs[i][k], tg = target[k];
@@ -162,13 +172,13 @@ export class LineUp {
     const fwd = new THREE.Vector3(Math.sin(this.heading), 0, Math.cos(this.heading));
     const right = new THREE.Vector3(-fwd.z, 0, fwd.x); // the character's right
     const ground = this.terrain.heightAt(this.x, this.z);
-    const bob = 0.02 * this.walk * Math.abs(Math.cos(this.gait));
+    const bob = 0.035 * this.walk * Math.abs(Math.cos(this.gait)) - 0.02 * this.walk;
     const standY = ground + this.standH - 0.04 * (1 - this.walk) + bob;
     h.root.position.set(this.x, this.seat.y + (standY - this.seat.y) * stand + jump, this.z);
     h.root.rotation.y = this.heading;
     // seated: drawn back from it; standing: upright, chest heaving
     const breath = Math.sin(this.time * 4.2) * 0.015 * stand;
-    const lean = this.seat.lean * (1 - stand) - 0.1 * this.tense * (1 - stand) + stand * (0.04 + 0.04 * this.walk) + breath;
+    const lean = this.seat.lean * (1 - stand) - 0.1 * this.tense * (1 - stand) + stand * (0.04 + 0.1 * this.walk) + breath;
     h.spine.rotation.set(lean, 0, Math.sin(this.gait) * 0.04 * this.walk, 'YXZ');
     // eyes on it all the time (over the shoulder while walking)
     h.root.updateMatrixWorld(true);
@@ -189,12 +199,12 @@ export class LineUp {
       const reach = (A.upperLen + A.foreLen) * h.root.scale.x;
       const rest = sh.clone().addScaledVector(UP, -reach * 0.6).addScaledVector(fwd, 0.25).addScaledVector(out, -0.05);
       const startled = sh.clone().addScaledVector(UP, -reach * 0.45).addScaledVector(fwd, 0.3).addScaledVector(out, 0.05);
-      const swing = sh.clone().addScaledVector(UP, -reach * 0.9).addScaledVector(fwd, 0.16 * Math.sin(this.gait + (i === 0 ? Math.PI : 0)) * this.walk + 0.05).addScaledVector(out, 0.08);
+      const swing = sh.clone().addScaledVector(UP, -reach * 0.85).addScaledVector(fwd, 0.26 * Math.sin(this.gait + (i === 0 ? Math.PI : 0)) * this.walk + 0.08).addScaledVector(out, 0.1);
       const guard = sh.clone().addScaledVector(UP, -reach * 0.62).addScaledVector(fwd, 0.26).addScaledVector(out, 0.12);
       const sat = rest.lerp(startled, this.tense * (1 - stand));
       const tg = sat.lerp(swing, stand).lerp(guard, ready);
       if (!this.handsSet) this.hand[i].copy(tg);
-      this.hand[i].lerp(tg, 1 - Math.exp(-10 * dt));
+      this.hand[i].lerp(tg, 1 - Math.exp(-16 * dt));
       const pole = out.clone().multiplyScalar(0.7).addScaledVector(fwd, -0.4).addScaledVector(UP, -0.5).normalize();
       const thumb = UP.clone().addScaledVector(fwd, 0.5 * ready).normalize();
       const fingers = UP.clone().negate().lerp(fwd, 0.4 + 0.5 * ready).normalize();

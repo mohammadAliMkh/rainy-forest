@@ -10,8 +10,8 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 
 // After the ghost has crept up behind the friends, in the same shot: Luna
 // has barked, the guitar has stopped. One by one they turn round in their
-// seats and see it, with a start, and stare, frozen; then they get up (Amin
-// puts his guitar down against his stump) and go round the fire, glancing
+// seats and see it, with a start, and stare, frozen; then they jump up (Amin
+// puts his guitar down against his stump) and hurry round the fire, glancing
 // back at it, to stand side by side across the fire from it, facing it,
 // hands half up, breathing hard - the sky still red. The camera draws back
 // and widens to have them and it in the shot, then slowly closes in on it
@@ -31,10 +31,10 @@ const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** the scene's moments (seconds) */
 const T = {
-  widen: 1.2, // as the first gets up the camera draws back and widens...
-  wide: 4.5, // ...to the whole line and it
+  widen: 0.5, // as the first gets up the camera draws back and widens...
+  wide: 2.6, // ...to the whole line and it
   hold: 3.5, // once all of them stand in the line, this long on them (closing in on it)
-  most: 16, // and at the very latest the scene ends here
+  most: 12, // and at the very latest the scene ends here
 };
 /** the camera's field of view: as the scene before left it, wide, at the end */
 const FOV = { wide: 50, close: 42 };
