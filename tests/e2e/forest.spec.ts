@@ -39,7 +39,7 @@ test('entering: the start screen closes at once, the opening flight, the scene i
   expect(stats.flying).toBe(true);
   expect(stats.mapDuring).toBe(false);
   expect(stats.meshes).toBeGreaterThan(400);
-  expect(stats.lights).toBe(8); // (with the flashlight's beam, dark until it is taken out)
+  expect(stats.lights).toBe(9); // (with the flashlight's beam and the ghosts' glow, dark until they are needed)
   expect(stats.map).toBe(true);
   expect(errors).toEqual([]);
 });
