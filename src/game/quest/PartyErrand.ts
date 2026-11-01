@@ -47,7 +47,7 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, RESCUE, rescueGoal, savedN
 //   own, and each is caught somewhere out there (ChaseScene.ts); you are back on the porch -> save
 //   the four: the goal line counts them, the box lists them, each one blinks on the map; close to
 //   a ghost, the stone cross in hand, it's a fight (CrossFight.ts): win and its friend stands
-//   free; lose, or run out of the minute there is for all four, and it starts again from the
+//   free; lose, or run out of the time there is for all four (the sky red all the while), and it starts again from the
 //   moment they ran for it -> the last one free: they all come back to the fire and sit down
 //   (ReturnScene.ts) -> (the rest of the story comes next: you take the shopping to Amir).
 // Night falls as you step out of the shop; with «روح ترسناک» on, in heavy rain.
@@ -57,6 +57,8 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, RESCUE, rescueGoal, savedN
 
 /** the last ghost gone: how long before they all come back (s) */
 const AFTER_LAST = 1.7;
+/** the last ghost gone: how long the sky takes to clear (s) */
+const SKY_CLEARS = 2.5;
 
 type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keeper' | 'leave' | 'pickles' | 'ghost' | 'fire' | 'rescue' | 'saved';
 
@@ -180,7 +182,7 @@ export class PartyErrand {
     camp.films.push(this.splitScene);
     // ...and they run for it, each with a ghost after them
     this.chaseScene = new ChaseScene({
-      wraiths: this.wraiths, events, voices, sky: this.nightfall, guitar, dog: () => camp.dog ?? null,
+      wraiths: this.wraiths, events, voices, guitar, dog: () => camp.dog ?? null,
       gathering: camp.gathering, terrain, standing: () => this.lineUpScene.standing(), order, routes: CHASE, shots: CHASE_SHOTS,
     });
     camp.films.push(this.chaseScene);
@@ -269,6 +271,9 @@ export class PartyErrand {
     this.step = step;
     if (step === 'rescue') this.fight.begin();
     else this.fight.end();
+    // the sky stays red as long as there are ghosts out there
+    if (step === 'rescue') this.nightfall.redden(1);
+    else if (step === 'saved') this.nightfall.calm(SKY_CLEARS);
     this.t = 0;
     this._announce();
   }

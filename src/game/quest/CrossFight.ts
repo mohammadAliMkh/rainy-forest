@@ -19,7 +19,7 @@ import { RESCUE, FIGHT_TEXT } from './errandScript.ts';
 // with the bar empty, the cross held or not, a clock runs while you are near it,
 // the nearer the faster: run out of that and the ghost comes for you - you drop
 // to the ground, dead, game over. And above it all the time runs: all four saved
-// in a minute, or that's game over as well. Either way it all starts again from
+// in time, or that's game over as well. Either way it all starts again from
 // the moment the ghosts went for the friends.
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -32,7 +32,7 @@ const sstep = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t *
  * with the bar empty (s); how near its glow lights up its friend (m), how
  * brightly; how long there is to save all four (s)
  */
-const FIGHT = { range: 7.5, leave: 10, fill: 0.03, idle: 0.5, drain: 0.06, empty: 8, glowAt: 16, glow: 3, time: 60 };
+const FIGHT = { range: 7.5, leave: 10, fill: 0.03, idle: 0.5, drain: 0.06, empty: 8, glowAt: 16, glow: 3, time: 90 };
 /**
  * its rushes, [from as far as it turns on you, from as near as `near` metres]: how long between them (s);
  * how much each takes off the bar; how long it takes to reach you, to get back (s); how hard it shakes you.

@@ -85,7 +85,6 @@ export class ChaseScene {
   private readonly wraiths: Wraith[];
   private readonly events: EventBus<GameEvents>;
   private readonly voices: () => VoiceService | null;
-  private readonly sky: { calm(seconds?: number): void };
   private readonly guitar: (mode: 'auto' | 'on' | 'off') => void;
   private readonly dog: () => DogLike | null;
   private readonly gathering: Gathering;
@@ -115,16 +114,15 @@ export class ChaseScene {
   private readonly tLook = new THREE.Vector3();
 
   /** `order`: the friends left to right in the line (as the four ghosts are); `standing`: the friends at once in the line (when what came before was skipped) */
-  constructor({ wraiths, events, voices, sky, guitar, dog, gathering, terrain, standing, order, routes, shots }: {
+  constructor({ wraiths, events, voices, guitar, dog, gathering, terrain, standing, order, routes, shots }: {
     wraiths: Wraith[]; events: EventBus<GameEvents>; voices: () => VoiceService | null;
-    sky: { calm(seconds?: number): void }; guitar: (mode: 'auto' | 'on' | 'off') => void; dog: () => DogLike | null;
+    guitar: (mode: 'auto' | 'on' | 'off') => void; dog: () => DogLike | null;
     gathering: Gathering; terrain: { heightAt(x: number, z: number): number }; standing: () => Map<string, LineUp>;
     order: string[]; routes: Record<string, Route>; shots: [string, number][];
   }) {
     this.wraiths = wraiths;
     this.events = events;
     this.voices = voices;
-    this.sky = sky;
     this.guitar = guitar;
     this.dog = dog;
     this.gathering = gathering;
@@ -180,7 +178,6 @@ export class ChaseScene {
     this._settle();
     this.caught = true;
     this.guitar('off');
-    this.sky.calm(1);
   }
 
   skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }
@@ -273,7 +270,7 @@ export class ChaseScene {
     });
   }
 
-  // at once as it ends: everyone caught, every ghost over them; the sky turning back
+  // at once as it ends: everyone caught, every ghost over them
   private _settle(): void {
     for (const [key, c] of this.chases) {
       c.caughtNow();
@@ -347,7 +344,6 @@ export class ChaseScene {
         this.held = [];
         this._settle();
         this.caught = true;
-        this.sky.calm(1);
         this.events.emit(EV.INTRO_CINEMATIC, false);
       }
     } else {

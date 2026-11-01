@@ -449,14 +449,14 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     const away = people.every((p: any) => Math.hypot(p.h.root.position.x - f.FIRE.x, p.h.root.position.z - f.FIRE.z) > 6);
     return {
       trembling, four, run,
-      after: { step: e.step, cinematic: f.camp.cinematic, ghosts: W.filter((w: any) => w.group.visible).length, calm: f.day.blood < 0.05, caught: people.every((p: any) => p.act?.caught), away, targets: e.mapTargets().length, goal: document.getElementById('quest-goal')?.textContent, listed: document.getElementById('quest-basket')?.childElementCount },
+      after: { step: e.step, cinematic: f.camp.cinematic, ghosts: W.filter((w: any) => w.group.visible).length, red: f.day.blood > 0.95, caught: people.every((p: any) => p.act?.caught), away, targets: e.mapTargets().length, goal: document.getElementById('quest-goal')?.textContent, listed: document.getElementById('quest-basket')?.childElementCount },
     };
   });
   expect(split).toEqual({
     trembling: { scene: true, one: 1, allWatchIt: 1 },
     four: { shown: 4, apart: true, lined: true, ownGhost: 4, red: true },
     run: { scene: true, off: true },
-    after: { step: 'rescue', cinematic: false, ghosts: 4, calm: true, caught: true, away: true, targets: 4, goal: 'چهار رفیقت را در جنگل نجات بده (۰ از ۴)', listed: 4 },
+    after: { step: 'rescue', cinematic: false, ghosts: 4, red: true, caught: true, away: true, targets: 4, goal: 'چهار رفیقت را در جنگل نجات بده (۰ از ۴)', listed: 4 },
   });
   expect(errors).toEqual([]);
 });
