@@ -12,6 +12,10 @@ import type { LineUp } from './LineUp.ts';
 //             it, one hand behind them in the puddle, the other up against it,
 //             shoving themselves back;
 //   'climb' - up the trunk of a tree, hugging it, looking down at it.
+// Or they don't stay: up the tree they shuffle round the trunk (`around`), keeping
+// it between them and the ghost, and with a `lap` they never stop running, round
+// and round it, until `halted` (the ghost has turned on someone else): then they
+// drop to a crouch where they are, and run on when it lets go.
 // They stay so until saved: `free()` gets them up (or down the trunk), and there
 // they stand, getting their breath, looking at who saved them. `comeBack()` sends
 // them back along the way they came to their seat, to sit down through the line's
@@ -20,7 +24,7 @@ import type { LineUp } from './LineUp.ts';
 
 const UP = new THREE.Vector3(0, 1, 0);
 type Rig = Human & { voiceLevel: number | null };
-type Phase = 'stare' | 'run' | 'caught' | 'home' | 'free' | 'back' | 'sit' | 'done';
+type Phase = 'stare' | 'run' | 'round' | 'caught' | 'home' | 'free' | 'back' | 'sit' | 'done';
 export type CaughtHow = 'cower' | 'fall' | 'climb';
 
 /** a tree's trunk: its centre and radius at the ground, how much thinner it gets for each metre up, and how far it leans over for each metre up (x, z) */
@@ -32,16 +36,20 @@ export interface ChaseRoute {
   how: CaughtHow;
   /** 'climb': the trunk */
   tree?: Trunk;
+  /** at the end of their way they don't stop: they go on round and round this (x, z; it starts where their way ends) */
+  lap?: [number, number][];
 }
 
 /** running: m/s, strides a second */
 const RUN = { speed: 4.1, steps: 1.55 };
 /** how long it takes them to go down / up (s) */
 const CATCH: Record<CaughtHow, number> = { cower: 0.9, fall: 0.55, climb: 2.2 };
+/** running round their lap: m/s */
+const LAP = { speed: 3.4 };
 /** saved: how long it takes them to get up / down again (s) */
 const RISE: Record<CaughtHow, number> = { cower: 0.7, fall: 0.8, climb: 1.5 };
-/** coming back to the fire: m/s, strides a second */
-const BACK = { speed: 3.3, steps: 1.3 };
+/** coming back to the fire, tired, at a slow walk: m/s, strides a second, how much of a running stride it is; how far the arms hang (of their length) and swing (m) */
+const BACK = { speed: 1.25, steps: 0.85, stride: 0.5, hang: 0.85, swing: 0.16 };
 /**
  * up the tree: how much higher the pelvis gets (m), a whole number of `step`s; how far out from the bark it is (m);
  * how far they get with each reach of either hand (m); how far above the shoulder a hand takes hold (m); how far
@@ -49,6 +57,8 @@ const BACK = { speed: 3.3, steps: 1.3 };
  * more as the hand moves up; half the hand's length (m); the knees going out to either side of it (radians)
  */
 const CLIMB = { up: 1.2, off: 0.17, step: 0.3, top: 0.28, wrap: 1.0, wrist: 0.05, lift: 0.07, hand: 0.09, splay: 0.55 };
+/** shuffling round the trunk: how many shuffles for each radian round it; how much the legs go with it (radians), the hands (m) */
+const SHUFFLE = { often: 7, legs: 0.16, hands: 0.04 };
 /** in the water: how far they shove themselves back (m) and in how long (s) */
 const SHOVE = { by: 0.35, time: 2.2 };
 
@@ -61,6 +71,10 @@ export class Chase {
   chaser: THREE.Vector3;
   /** metres along their way */
   s = 0;
+  /** up the tree: how far round the trunk they have gone (radians; the scene keeps it up to date) */
+  around = 0;
+  /** on their lap: they drop where they are and stay down while this is so (the scene keeps it up to date) */
+  halted = false;
   /** the length of their way (m) */
   total: number;
   readonly how: CaughtHow;
@@ -69,6 +83,11 @@ export class Chase {
   private readonly terrain: { heightAt(x: number, z: number): number };
   private path: THREE.Vector2[];
   private readonly tree: Trunk | null;
+  private readonly lap: THREE.Vector2[] | null;
+  private lapLength = 0;
+  /** metres round their lap, all told */
+  private lapS = 0;
+  private saved = false;
   /** they get this far along their way and wait there (off camera) until `release()` */
   private hold = Infinity;
   /** how long they stand staring at it before they bolt (s) */
@@ -90,6 +109,8 @@ export class Chase {
     this.chaser = chaser;
     this.how = route.how;
     this.tree = route.tree ?? null;
+    this.lap = route.lap?.map(([x, z]) => new THREE.Vector2(x, z)) ?? null;
+    if (this.lap) this.lap.forEach((p, i) => { this.lapLength += p.distanceTo(this.lap![(i + 1) % this.lap!.length]); });
     const w = line.where;
     this.x = w.x; this.z = w.z; this.heading = w.heading;
     this.path = [new THREE.Vector2(w.x, w.z), ...route.path.map(([x, z]) => new THREE.Vector2(x, z))];
@@ -105,6 +126,13 @@ export class Chase {
   get caught(): boolean { return this.phase === 'caught'; }
   /** their way, from their place in the line */
   get points(): readonly THREE.Vector2[] { return this.path; }
+  /** they never stop running: they have a lap */
+  get lapping(): boolean { return !!this.lap; }
+  /** `m` metres behind them on their way and round their lap (x, z) */
+  behind(m: number, out: THREE.Vector2): THREE.Vector2 {
+    if (this.lapS >= m) return this._lapPoint(this.lapS - m, out);
+    return this._pathPoint(this.s - (m - this.lapS), out);
+  }
   /** where they are (x, z) */
   get pos(): THREE.Vector2 { return this._p.set(this.x, this.z); }
 
@@ -123,6 +151,15 @@ export class Chase {
   /** at once caught, as they will stay (when the film is skipped) */
   caughtNow(): void {
     this.hold = this.s = this.total;
+    // (no catching those with a lap: on they run)
+    if (this.lap) {
+      this._lapPoint(this.lapS, this._p);
+      this.x = this._p.x; this.z = this._p.y;
+      this.phase = 'round'; this.t = 0; this.run = 1;
+      this.handsSet = false;
+      this.hidden = false;
+      return;
+    }
     this._at(this.s);
     this.phase = 'caught'; this.t = 10; this.run = 0;
     if (this.how === 'fall') this.fell.set(this.x, this.z);
@@ -131,10 +168,13 @@ export class Chase {
   }
 
   /** saved: up they get (or down the trunk) and stand there */
-  free(): void { if (this.phase === 'caught') { this.phase = 'home'; this.t = 0; this.run = 0; } }
+  free(): void {
+    this.saved = true;
+    if (this.phase === 'caught') { this.phase = 'home'; this.t = 0; this.run = 0; } else if (this.phase === 'round') this.freeNow();
+  }
 
   /** saved already, standing there (when what comes before is skipped over) */
-  freeNow(): void { this.phase = 'free'; this.t = 0; this.run = 0; }
+  freeNow(): void { this.saved = true; this.phase = 'free'; this.t = 0; this.run = 0; }
 
   /** saved, and off back to their seat, from `lead` metres short of it (what comes before is out of sight) */
   comeBack(lead: number): void {
@@ -143,7 +183,7 @@ export class Chase {
     for (let i = 1; i < this.path.length; i++) this.total += this.path[i].distanceTo(this.path[i - 1]);
     this.s = Math.min(lead, this.total);
     this._at(this.s, true);
-    this.phase = 'back'; this.t = 0; this.run = 1;
+    this.phase = 'back'; this.t = 0; this.run = BACK.stride;
   }
 
   /** sat down, or on the way to it */
@@ -172,12 +212,23 @@ export class Chase {
       this.run = damp(this.run, 1, 8, dt);
       this.gait += dt * 2 * Math.PI * RUN.steps;
       if (this.s >= this.total) {
-        this.phase = 'caught'; this.t = 0;
+        this.phase = this.lap ? 'round' : 'caught'; this.t = 0;
         this.fell.set(this.x, this.z);
+      }
+    } else if (this.phase === 'round') {
+      // on round their lap, until the ghost behind them turns away
+      if (this.halted) { this.phase = 'caught'; this.t = 0; } else {
+        this.lapS += LAP.speed * dt;
+        this._lapPoint(this.lapS, this._p);
+        const ahead = this._lapPoint(this.lapS + 1, new THREE.Vector2());
+        this.x = this._p.x; this.z = this._p.y;
+        this.heading = lerpAngle(this.heading, Math.atan2(ahead.x - this.x, ahead.y - this.z), 1 - Math.exp(-8 * dt));
+        this.run = damp(this.run, 1, 8, dt);
+        this.gait += dt * 2 * Math.PI * RUN.steps;
       }
     } else if (this.phase === 'home') {
       if (this.how === 'climb') this._toTrunk(1, dt);
-      if (this.t >= RISE[this.how]) { this.phase = 'free'; this.t = 0; }
+      if (this.t >= RISE[this.how]) { this.phase = this.lap && !this.saved ? 'round' : 'free'; this.t = 0; }
     } else if (this.phase === 'free') {
       // getting their breath, turning to it (who saved them; the scene keeps it up to date)
       this.heading = lerpAngle(this.heading, Math.atan2(this.chaser.x - this.x, this.chaser.z - this.z), 1 - Math.exp(-2 * dt));
@@ -191,6 +242,8 @@ export class Chase {
         return;
       }
     } else {
+      // (it has let go: up again and on they run)
+      if (this.lap && !this.halted && !this.saved && this.t > CATCH[this.how]) { this.phase = 'home'; this.t = 0; }
       this.run = damp(this.run, 0, 10, dt);
       const toIt = Math.atan2(this.chaser.x - this.x, this.chaser.z - this.z);
       if (this.how === 'climb' && this.tree) {
@@ -209,7 +262,7 @@ export class Chase {
     }
     this._pose(dt);
     // screaming as they run and again as they are caught; then sobbing breaths, shaking
-    const scream = this.phase !== 'run' && this.phase !== 'caught' ? false : (this.phase === 'run' && this.t < 1.8) || (this.phase === 'caught' && this.t < 1.3);
+    const scream = this.phase === 'round' || (this.phase === 'run' && this.t < 1.8) || (this.phase === 'caught' && this.t < 1.3);
     this.h.voiceLevel = scream ? 0.75 + 0.25 * Math.abs(Math.sin(this.time * 23)) : 0.25 + 0.15 * Math.sin(this.time * 9);
     this.h.laugh = damp(this.h.laugh, 0, 4, dt);
     this.h.talk = 0;
@@ -221,7 +274,7 @@ export class Chase {
     const at = this._trunk(this.terrain.heightAt(tr.x, tr.z) + this.line.standH * 0.85 + CLIMB.up * this._climbed);
     this.heading = lerpAngle(this.heading, Math.atan2(at.x - this.x, at.z - this.z), 1 - Math.exp(-14 * dt));
     const end = this.path[this.path.length - 1];
-    const a = Math.atan2(end.x - tr.x, end.y - tr.z), r = at.r + CLIMB.off;
+    const a = Math.atan2(end.x - tr.x, end.y - tr.z) + this.around, r = at.r + CLIMB.off;
     this.x = end.x + (at.x + Math.sin(a) * r - end.x) * k;
     this.z = end.y + (at.z + Math.cos(a) * r - end.y) * k;
   }
@@ -235,6 +288,23 @@ export class Chase {
     const nx = a.x + (b.x - a.x) * k, nz = a.y + (b.y - a.y) * k;
     if (Math.hypot(nx - this.x, nz - this.z) > 1e-4) this.heading = lerpAngle(this.heading, back ? Math.atan2(a.x - b.x, a.y - b.y) : Math.atan2(b.x - a.x, b.y - a.y), 0.18);
     this.x = nx; this.z = nz;
+  }
+
+  // `s` metres along their way
+  private _pathPoint(s: number, out: THREE.Vector2): THREE.Vector2 {
+    let i = 0, left = Math.max(0, s);
+    while (i < this.path.length - 2 && left > this.path[i].distanceTo(this.path[i + 1])) { left -= this.path[i].distanceTo(this.path[i + 1]); i++; }
+    const a = this.path[i], b = this.path[i + 1];
+    return out.copy(a).lerp(b, Math.min(1, left / Math.max(1e-3, a.distanceTo(b))));
+  }
+
+  // `s` metres round their lap
+  private _lapPoint(s: number, out: THREE.Vector2): THREE.Vector2 {
+    const lap = this.lap!;
+    let left = s % this.lapLength, i = 0;
+    while (left > lap[i].distanceTo(lap[(i + 1) % lap.length])) { left -= lap[i].distanceTo(lap[(i + 1) % lap.length]); i++; }
+    const a = lap[i], b = lap[(i + 1) % lap.length];
+    return out.copy(a).lerp(b, left / Math.max(1e-3, a.distanceTo(b)));
   }
 
   // how far up the tree they are (0..1)
@@ -267,7 +337,8 @@ export class Chase {
       // climbing: knees out round the trunk, one up after the other in time with the hands, then gripping
       const ph = (rose / (2 * CLIMB.step)) * 2 * Math.PI + (i === 0 ? 0 : Math.PI);
       const climbing = 1 - ease((climbed - 0.85) / 0.15);
-      return [-1.0 + 0.3 * Math.sin(ph) * climbing, 1.25 + 0.3 * Math.sin(ph) * climbing, -0.4, CLIMB.splay];
+      const shuffling = SHUFFLE.legs * Math.sin(this.around * SHUFFLE.often + (i === 0 ? 0 : Math.PI));
+      return [-1.0 + 0.3 * Math.sin(ph) * climbing + shuffling, 1.25 + 0.3 * Math.sin(ph) * climbing + shuffling, -0.4, CLIMB.splay];
     };
     this._legs((i) => {
       const ph = this.gait + (i === 0 ? 0 : Math.PI);
@@ -302,7 +373,7 @@ export class Chase {
     h.root.updateMatrixWorld(true);
     const head = h.headPivot.getWorldPosition(new THREE.Vector3());
     let yaw = 0, pitch = -0.05 + 0.2 * run;
-    const glance = this.phase === 'run' && this.t > 0.6 && (this.t % 1.6) > 1.1;
+    const glance = (this.phase === 'run' || this.phase === 'round') && this.t > 0.6 && (this.t % 1.6) > 1.1;
     if (glance || this.phase === 'caught' || this.phase === 'stare' || this.phase === 'free') {
       const to = this.chaser.clone().sub(head);
       const fd = to.dot(fwd), rd = to.dot(right);
@@ -323,9 +394,10 @@ export class Chase {
       const out = right.clone().multiplyScalar(i === 0 ? 1 : -1);
       const sh = A.shoulder.getWorldPosition(new THREE.Vector3());
       const reach = (A.upperLen + A.foreLen) * h.root.scale.x;
-      // pumping as they run
+      // pumping as they run (just swinging, walking back)
       const ph = this.gait + (i === 0 ? Math.PI : 0);
-      const pump = sh.clone().addScaledVector(UP, -reach * 0.62).addScaledVector(fwd, 0.08 + 0.26 * Math.sin(ph)).addScaledVector(out, 0.06);
+      const walking = this.phase === 'back';
+      const pump = sh.clone().addScaledVector(UP, -reach * (walking ? BACK.hang : 0.62)).addScaledVector(fwd, 0.08 + (walking ? BACK.swing : 0.26) * Math.sin(ph)).addScaledVector(out, 0.06);
       let caughtT: THREE.Vector3;
       let grip: { pole: THREE.Vector3; thumb: THREE.Vector3; fingers: THREE.Vector3 } | null = null;
       if (how === 'cower') {
@@ -340,13 +412,13 @@ export class Chase {
         // arms round the trunk, one hand over the other: each takes hold of the bark and stays
         // there as they pull themselves up past it, then lets go and reaches up again
         const tr = this.tree!, end = this.path[this.path.length - 1];
-        const a0 = Math.atan2(end.x - tr.x, end.y - tr.z);
+        const a0 = Math.atan2(end.x - tr.x, end.y - tr.z) + this.around;
         const front = new THREE.Vector3(Math.sin(a0), 0, Math.cos(a0)); // from the trunk toward them
         const side = new THREE.Vector3(front.z, 0, -front.x).multiplyScalar(i === 0 ? 1 : -1); // their right / left of it
         const round = (a: number) => front.clone().multiplyScalar(Math.cos(a)).addScaledVector(side, Math.sin(a));
         const c = (rose + i * CLIMB.step) / (2 * CLIMB.step), n = Math.floor(c), reaching = ease((c - n) / 0.5);
         const hold = (m: number) => CLIMB.top + (2 * m + 1 - i) * CLIMB.step - rose;
-        const hy = sh.y - heave + hold(n - 1) + (hold(n) - hold(n - 1)) * reaching;
+        const hy = sh.y - heave + hold(n - 1) + (hold(n) - hold(n - 1)) * reaching + SHUFFLE.hands * Math.sin(this.around * SHUFFLE.often + (i === 0 ? Math.PI : 0));
         const at = this._trunk(hy);
         caughtT = new THREE.Vector3(at.x, hy, at.z).addScaledVector(round(CLIMB.wrap), at.r + CLIMB.wrist + CLIMB.lift * Math.sin(reaching * Math.PI));
         // the palm flat on the bark, the fingers up and on round it, the thumb on the side above them

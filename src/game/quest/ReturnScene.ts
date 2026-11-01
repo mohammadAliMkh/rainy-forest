@@ -11,7 +11,7 @@ import type { ChaseScene } from './ChaseScene.ts';
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** the dips to black and back (s); how long it holds once they all sit; the longest it can last (s) */
-const TIME = { dip: 0.6, back: 0.8, hold: 1.8, most: 14 };
+const TIME = { dip: 0.6, back: 0.8, hold: 1.8, most: 24 };
 /** the camera: how far from the fire, how high, at first and by the end (m); field of view */
 const CAM = { far: [8.4, 6.4], up: [3, 2.1], fov: 58 };
 /** a warm light high over the fire, so they can be seen coming out of the dark: how high (m), how bright */
@@ -128,7 +128,7 @@ export class ReturnScene {
       return;
     }
     // over the fire, drawing slowly in
-    const k = sstep(this.time / 9), s = this.shot();
+    const k = sstep(this.time / 15), s = this.shot();
     this.dir.set(s.x - this.fire.x, 0, s.z - this.fire.z).normalize();
     const far = CAM.far[0] + (CAM.far[1] - CAM.far[0]) * k, up = CAM.up[0] + (CAM.up[1] - CAM.up[0]) * k;
     this.look.set(this.fire.x, this.ground(this.fire.x, this.fire.z), this.fire.z);

@@ -10,7 +10,6 @@ export const BANNERS = {
   start: TITLE,
   bought: '✓ خرید انجام شد',
   rescue: 'رفقایت را نجات بده',
-  allSaved: '✓ همه نجات پیدا کردند',
   end: 'پایان سناریوی روح سرگردان',
 };
 

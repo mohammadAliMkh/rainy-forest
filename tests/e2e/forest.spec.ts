@@ -207,7 +207,9 @@ async function errandSetup(page: Page) {
     f.camp.voices = {
       ready: () => true,
       play: () => { const t0 = gameT; return { duration: 6, get done() { return gameT - t0 > 6; }, elapsed: () => gameT - t0, level: () => 0.2, stop: () => {} }; },
+      loop: (key: string) => { const l = { key, level: 0, clear: 0, on: true, set(v: number, c: number) { l.level = v; l.clear = c; }, stop() { l.on = false; } }; (window as any).loops.push(l); return l; },
     };
+    (window as any).loops = [];
     // what made a sound, and the lightning
     (window as any).cues = []; f.events.on('scenario:cue', (c: { cue: string }) => (window as any).cues.push(c.cue));
     f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); // past the opening flight
@@ -228,11 +230,15 @@ test('the last one saved: they all come back to the fire and sit down', async ({
     const before = { step: e.step, ghosts: e.wraiths.filter((w: any) => w.group.visible).length };
     for (let k = 0; k < 60 && !e.returnScene.filming; k++) step(0.1);
     const film = e.returnScene.filming;
-    for (let k = 0; k < 400 && e.returnScene.active; k++) step(0.1);
+    // (no words across the view: only the box, the scenario's name ticked off)
+    const box = { done: document.getElementById('quest')!.classList.contains('done'), goal: document.getElementById('quest-goal')!.textContent, banner: document.getElementById('banner')!.textContent };
+    let took = 0;
+    for (let k = 0; k < 400 && e.returnScene.active; k++) { step(0.1); took += 0.1; }
     const seated = people.every((p: any) => !p.act && Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) < 0.01);
-    return { before, film, seated, cinematic: f.camp.cinematic };
+    // (they took their time, and nobody was cut short)
+    return { before, film, box, slow: took > 12 && e.returnScene.seatedAt < 22, seated, cinematic: f.camp.cinematic };
   });
-  expect(r).toEqual({ before: { step: 'saved', ghosts: 0 }, film: true, seated: true, cinematic: false });
+  expect(r).toEqual({ before: { step: 'saved', ghosts: 0 }, film: true, box: { done: true, goal: 'سناریوی روح سرگردان', banner: expect.not.stringContaining('نجات') }, slow: true, seated: true, cinematic: false });
   expect(errors).toEqual([]);
 });
 
@@ -245,11 +251,36 @@ test('saving the four: the cross fills the bar near a ghost, its friend goes hom
     const f = (window as any).forest, e = f.errand, F = e.fight, step = (window as any).step;
     step(1);
     const start = { step: e.step, targets: e.mapTargets().length, key: F.key };
-    // up to the ghost behind the shop, the cross in hand: click until it is gone
-    f.player.teleport(f.player.x, f.player.z + 3, f.player.yaw);
+    const loops = (window as any).loops, far = loops.map((l: any) => [l.key, l.level, l.clear]);
+    // the owner running round the shop, the ghost at his heels, and Amin round the trunk from his
+    const owner = f.camp.gathering.byName('owner').act, amin = f.camp.gathering.byName('amin').act, tree = e.chaseScene.routes.amin.tree;
+    const was = e.chaseScene.spot('owner'), aminWas = e.chaseScene.spot('amin'), roundBefore = amin.around;
+    step(2);
+    const at = e.chaseScene.spot('owner'), aminAt = e.chaseScene.spot('amin'), ap = f.camp.gathering.byName('amin').h.root.position;
+    const across = ((aminAt.x - tree.x) * (ap.x - tree.x) + (aminAt.z - tree.z) * (ap.z - tree.z)) / (Math.hypot(aminAt.x - tree.x, aminAt.z - tree.z) * Math.hypot(ap.x - tree.x, ap.z - tree.z));
+    const moving = { owner: owner.phase, ownerMoved: Math.hypot(at.x - was.x, at.z - was.z) > 3, heels: Math.abs(owner.pos.distanceTo(new f.THREE.Vector2(at.x, at.z)) - 3) < 1.2, aminRound: amin.around !== roundBefore, aminGhostMoved: Math.hypot(aminAt.x - aminWas.x, aminAt.z - aminWas.z) > 0.5, across: across < -0.95 };
+    // up to the ghost at the tree: it turns on you and both stop; away again and they go on
+    const home = [f.player.x, f.player.z];
+    f.player.teleport(aminAt.x, aminAt.z - 5, f.player.yaw);
+    step(0.3);
+    const stillAt = amin.around; step(1);
+    const tree2 = { key: F.key, still: amin.around === stillAt };
+    f.player.teleport(home[0], home[1], f.player.yaw);
+    step(0.5);
+    const treeOn = { key: F.key, round: amin.around !== stillAt };
+    // up to the ghost at the shop, the cross in hand: click until it is gone; they stop
+    const now = e.chaseScene.spot('owner');
+    f.player.teleport(now.x, now.z - 5, f.player.yaw);
     f.inventory.equip('amulet');
     step(0.3);
     const near = { key: F.key, ring: !document.getElementById('cross-ring')!.classList.contains('hidden') };
+    // the nearer the ghost the louder and clearer, the friends' fear faint under it
+    const [ghost, fear, music] = loops;
+    const heard = { keys: loops.map((l: any) => l.key), louder: ghost.level > far[0][1] && ghost.clear > far[0][2], faint: fear.level < ghost.level / 5, music: music.level > 0 };
+    step(1.5);
+    const stopAt = e.chaseScene.spot('owner');
+    step(1);
+    const stopped = { owner: owner.phase, ghost: Math.hypot(e.chaseScene.spot('owner').x - stopAt.x, e.chaseScene.spot('owner').z - stopAt.z) < 0.01 };
     for (let k = 0; k < 10; k++) { F.tap(); step(0.05); }
     const some = F.fill; step(2);
     const draining = F.fill < some;
@@ -260,25 +291,30 @@ test('saving the four: the cross fills the bar near a ghost, its friend goes hom
     const s = e.chaseScene.spot('alireza');
     f.player.teleport(s.x, s.z + 3, 0);
     for (let k = 0; k < 200 && !F.dying; k++) step(0.1);
-    const dying = { dying: F.dying, cinematic: f.camp.cinematic };
+    const dying = { dying: F.dying, cinematic: f.camp.cinematic, silent: !ghost.on && !fear.on && !music.on };
     step(3);
     const over = document.getElementById('game-over')!.classList.contains('show');
     for (let k = 0; k < 200 && F.dying; k++) step(0.1);
     const again = { filming: e.chaseScene.filming, saved: e.saved.size, step: e.step, held: f.inventory.held, over: document.getElementById('game-over')!.classList.contains('show') };
     for (let k = 0; k < 800 && e.step !== 'rescue'; k++) f.frame(0.05);
-    const end = { step: e.step, targets: e.mapTargets().length, caught: f.camp.gathering.people.every((p: any) => p.act?.caught), cinematic: f.camp.cinematic };
+    const end = { step: e.step, targets: e.mapTargets().length, caught: f.camp.gathering.people.every((p: any) => p.act?.caught || p.act?.phase === 'round'), cinematic: f.camp.cinematic };
     // out of time
     const timer = !document.getElementById('quest-timer')!.classList.contains('hidden');
     F.left = 0.2; step(0.5);
     const late = F.dying;
-    return { start, near, draining, won, dying, over, again, end, timer, late };
+    return { start, moving, tree2, treeOn, near, heard, stopped, draining, won, dying, over, again, end, timer, late };
   });
   expect(r).toEqual({
     start: { step: 'rescue', targets: 4, key: null },
+    moving: { owner: 'round', ownerMoved: true, heels: true, aminRound: true, aminGhostMoved: true, across: true },
+    tree2: { key: 'amin', still: true },
+    treeOn: { key: null, round: true },
     near: { key: 'owner', ring: true },
+    heard: { keys: ['ghost_appear', 'friends_scared', 'rescue_music'], louder: true, faint: true, music: true },
+    stopped: { owner: 'caught', ghost: true },
     draining: true,
     won: { saved: ['owner'], waiting: 'free', goal: 'چهار رفیقت را در جنگل نجات بده (۱ از ۴)', targets: 3 },
-    dying: { dying: true, cinematic: true },
+    dying: { dying: true, cinematic: true, silent: true },
     over: true,
     again: { filming: true, saved: 0, step: 'fire', held: null, over: false },
     end: { step: 'rescue', targets: 4, caught: true, cinematic: false },
@@ -449,7 +485,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     const away = people.every((p: any) => Math.hypot(p.h.root.position.x - f.FIRE.x, p.h.root.position.z - f.FIRE.z) > 6);
     return {
       trembling, four, run,
-      after: { step: e.step, cinematic: f.camp.cinematic, ghosts: W.filter((w: any) => w.group.visible).length, red: f.day.blood > 0.95, caught: people.every((p: any) => p.act?.caught), away, targets: e.mapTargets().length, goal: document.getElementById('quest-goal')?.textContent, listed: document.getElementById('quest-basket')?.childElementCount },
+      after: { step: e.step, cinematic: f.camp.cinematic, ghosts: W.filter((w: any) => w.group.visible).length, red: f.day.blood > 0.95, caught: people.every((p: any) => p.act?.caught || p.act?.phase === 'round'), away, targets: e.mapTargets().length, goal: document.getElementById('quest-goal')?.textContent, listed: document.getElementById('quest-basket')?.childElementCount },
     };
   });
   expect(split).toEqual({

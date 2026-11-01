@@ -560,6 +560,9 @@ body.touch .fps { top: auto; left: 50%; bottom: calc(env(safe-area-inset-bottom,
 .quest-title { font-size: 0.72rem; color: var(--accent-2); letter-spacing: 0.02em; }
 .quest-goal { font-size: 1.02rem; font-weight: 700; color: var(--text); margin-top: 2px; }
 .quest-goal::before { content: '◆ '; color: var(--accent); }
+.quest.done .quest-title { display: none; }
+.quest.done .quest-goal { margin-top: 0; }
+.quest.done .quest-goal::before { content: '✓ '; color: #b9e4a8; }
 .quest-hint { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 .quest-hint:empty { display: none; }
 .quest-basket { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 7px; max-height: 120px; overflow: hidden; transition: opacity 0.9s ease, max-height 0.9s ease, margin-top 0.9s ease; }

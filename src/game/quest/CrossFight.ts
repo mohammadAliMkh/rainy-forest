@@ -7,6 +7,7 @@ import type { Inventory } from '../items/Inventory.ts';
 import type { Hands } from '../player/Hands.ts';
 import type { Picker } from '../player/Picker.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
+import type { LoopHandle } from '../sound/Soundscape.ts';
 import { RESCUE, FIGHT_TEXT } from './errandScript.ts';
 
 // Saving the four, one ghost at a time. Come close to a ghost and it turns on
@@ -20,7 +21,9 @@ import { RESCUE, FIGHT_TEXT } from './errandScript.ts';
 // the nearer the faster: run out of that and the ghost comes for you - you drop
 // to the ground, dead, game over. And above it all the time runs: all four saved
 // in time, or that's game over as well. Either way it all starts again from
-// the moment the ghosts went for the friends.
+// the moment the ghosts went for the friends. All the while the nearest ghost can
+// be heard, louder and clearer the nearer it is, the friends' fear faintly under it,
+// and over it all the music, round and round until it is over one way or the other.
 
 const UP = new THREE.Vector3(0, 1, 0);
 const sstep = (x: number) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
@@ -46,6 +49,18 @@ const SHINE = { color: 0xffc27a, from: 0.06, to: 0.5, drawing: 2.2 };
 const DEATH = { fall: 1.1, lie: 0.7, black: 0.9, over: 3.2, back: 0.9, eye: 0.22, roll: 1.35 };
 /** the ghost's laughter (its recording) as it rushes at you: somewhere in this stretch (s), how long, how loud; and as it comes for you */
 const LAUGH = { from: 2, to: 26, length: 1.1, gain: 0.9, last: 2.6 };
+/**
+ * hearing the nearest ghost: from how far (m), all there from how near (m); how steeply it gets louder;
+ * how much of it comes through the shop's walls
+ */
+const HEAR = { far: 30, near: 2, steep: 2.2, indoors: 0.35 };
+/** what is heard, going round: the three swells of the ghost's recording; under it, faintly, the friends' gasp and scream, now and then */
+const DREAD = [
+  { key: 'ghost_appear', parts: [[4.6, 8.6], [11.2, 17], [22, 28.5]], fade: 1.2, rest: 0, gain: 1.4 },
+  { key: 'friends_scared', parts: [[5.1, 9.4]], fade: 0.15, rest: 5, gain: 0.12 },
+] as const;
+/** the music all through it: its recording, how loud */
+const MUSIC = { key: 'rescue_music', gain: 1.6 };
 
 export class CrossFight {
   /** the film camera has the view: you are dying */
@@ -98,6 +113,8 @@ export class CrossFight {
   private readonly pos0 = new THREE.Vector3();
   private readonly quat0 = new THREE.Quaternion();
   private fallen = false;
+  private readonly dread: (LoopHandle | null)[] = [];
+  private music: LoopHandle | null = null;
   private readonly _m = new THREE.Matrix4();
   private readonly _q = new THREE.Quaternion();
   private readonly _r = new THREE.Quaternion();
@@ -185,7 +202,31 @@ export class CrossFight {
   end(): void {
     this.on = false;
     this._clear();
+    this._silence();
     this.events.emit(EV.RESCUE_TIMER, null);
+  }
+
+  // the nearest ghost, `dist` metres off, and the friends' fear under it
+  private _hear(dist: number): void {
+    const k = 1 - Math.min(1, Math.max(0, (dist - HEAR.near) / (HEAR.far - HEAR.near)));
+    const level = k ** HEAR.steep * (this.indoors() ? HEAR.indoors : 1);
+    DREAD.forEach((d, i) => {
+      this.dread[i] ??= this.voices()?.loop(d.key, d) ?? null;
+      this.dread[i]?.set(level * d.gain, k);
+    });
+  }
+
+  // the music: on, or held down (with the menu open)
+  private _play(on: boolean): void {
+    this.music ??= this.voices()?.loop(MUSIC.key, { music: true }) ?? null;
+    this.music?.set(on ? MUSIC.gain : 0, 1);
+  }
+
+  private _silence(): void {
+    for (const d of this.dread) d?.stop();
+    this.dread.length = 0;
+    this.music?.stop();
+    this.music = null;
   }
 
   private _clock(): void { this.events.emit(EV.RESCUE_TIMER, { left: this.left, total: FIGHT.time }); }
@@ -208,7 +249,7 @@ export class CrossFight {
     }
     if (!this.on) return;
     // (nothing runs with the menu open)
-    if (!this.picker.ready) return;
+    if (!this.picker.ready) { this._hear(Infinity); this._play(false); return; }
     // the time for all of them
     this.left = Math.max(0, this.left - dt);
     this._clock();
@@ -221,6 +262,8 @@ export class CrossFight {
       const d = Math.hypot(s.x - this.player.x, s.z - this.player.z);
       if (d < best) { best = d; near = key; }
     }
+    this._hear(best);
+    this._play(true);
     this.chase.lit = near && best < FIGHT.glowAt ? near : null;
     this.chase.litBy = FIGHT.glow;
     if (this.key) {
@@ -292,6 +335,7 @@ export class CrossFight {
   // it comes for you
   // (or, `null`, your time is up: no ghost, the view just goes dark)
   private _die(key: string | null): void {
+    this._silence();
     this.at.set(this.player.x, this.player.y, this.player.z);
     if (key) {
       this.chase.threat(key, this.at, 1);

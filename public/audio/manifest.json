@@ -1,5 +1,5 @@
 {
-  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here (mp3 data renamed to .voice, so download managers such as IDM don't grab them as music downloads). Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/game/intro/introScript.js); scenario_intro = the narrator introducing scenario 1 over a shot of everyone at the fire, at the end of the introductions. ghost_boo / ghost_giggle / scream_<owner|amir|alireza|amin> = scenario 1 (the sheet ghost), synthesized when empty. amir_party / farajpour_thanks / farajpour_pickles = lines of errand 1 (shown as captions when empty). ghost_appear = the ghost coming out of the pickle jar and at the camp after it (parts of it: src/game/quest/JarScene.ts, CreepScene.ts, SplitScene.ts); ghost_split = the ghost tearing into four at the fire (a part of it: SplitScene.ts). ghost_laugh_scary / ghost_whisper / luna_bark = a deep laugh, a whisper, Luna barking: not used for now (the ghost at the camp has only ghost_appear).",
+  "_readme": "Optional real recordings. Put files in public/audio/ and write their file names here (mp3 data renamed to .voice, so download managers such as IDM don't grab them as music downloads). Empty entries = synthesized sound is used (or, for the voice lines, the step is skipped). welcome / intro_* = the owner's welcome and his introductions of everyone around the fire (see src/game/intro/introScript.js); scenario_intro = the narrator introducing scenario 1 over a shot of everyone at the fire, at the end of the introductions. ghost_boo / ghost_giggle / scream_<owner|amir|alireza|amin> = scenario 1 (the sheet ghost), synthesized when empty. amir_party / farajpour_thanks / farajpour_pickles = lines of errand 1 (shown as captions when empty). ghost_appear = the ghost coming out of the pickle jar and at the camp after it (parts of it: src/game/quest/JarScene.ts, CreepScene.ts, SplitScene.ts); ghost_split = the ghost tearing into four at the fire (a part of it: SplitScene.ts). friends_scared = the friends' fear, faint under the nearest ghost while you go and save them (parts of it: src/game/quest/CrossFight.ts). rescue_music = the music all through saving the friends, over and over (src/game/quest/CrossFight.ts). ghost_laugh_scary / ghost_whisper / luna_bark = a deep laugh, a whisper, Luna barking: not used for now (the ghost at the camp has only ghost_appear).",
   "welcome": "welcome.voice",
   "intro_owner": "intro-owner.voice",
   "intro_amir": "intro-amir.voice",
@@ -18,6 +18,8 @@
   "ghost_laugh_scary": "",
   "ghost_whisper": "",
   "luna_bark": "",
+  "friends_scared": "friends-scared.voice",
+  "rescue_music": "rescue-music.voice",
   "scream_owner": "",
   "scream_amir": "",
   "scream_alireza": "",

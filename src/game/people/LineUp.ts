@@ -21,7 +21,7 @@ type Phase = 'turn' | 'up' | 'walk' | 'face' | 'sit' | 'done';
 /** hurrying (m/s), strides a second, getting up (s) */
 const HURRY = { speed: 2.5, steps: 1.45, up: 0.45 };
 /** sitting back down (s) */
-const SIT = 0.9;
+const SIT = 2;
 
 const ease = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
 const lerpAngle = (a: number, b: number, t: number) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
@@ -155,7 +155,7 @@ export class LineUp {
       // turning round to the seat and down onto it
       const k = ease(this.t / SIT);
       this.stand = 1 - k;
-      this.walk = damp(this.walk, 0, 10, dt);
+      this.walk = damp(this.walk, 0, 4, dt);
       this.x = this.from.x + (this.seat.x - this.from.x) * k;
       this.z = this.from.y + (this.seat.z - this.from.y) * k;
       this.heading = lerpAngle(this.fromHeading, this.seat.facing, ease(this.t / (SIT * 0.7)));

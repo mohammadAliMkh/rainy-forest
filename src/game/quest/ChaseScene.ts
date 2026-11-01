@@ -14,8 +14,9 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // a different way into the dark - and each ghost sweeps after its own. Then
 // one shot for each of them, cut together: Alireza slips in the big puddle on
 // the trail and goes down in the water; Amin scrambles up a tree; Amir runs
-// for his Patrol and ends up backed against it; the owner hides behind
-// Farajpour's shop - and every time the ghost is there, over them. The sound:
+// for his Patrol and ends up backed against it; the owner runs round and round
+// Farajpour's shop - and every time the ghost is there: over them, or round the
+// trunk from Amin, or at the owner's heels, until it turns on the player. The sound:
 // the ghost's laughter from its tearing goes on and on, each shot's part of
 // it from that shot's ghost, its own recording swelling under the last two;
 // a scream for each as they are caught (if there is a recording of it). Then
@@ -25,7 +26,7 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 interface DogLike { alertAt: THREE.Vector3 | null }
 interface Route {
   path: [number, number][]; how: CaughtHow; ghost: [number, number];
-  tree?: Trunk; shot: [number, number, number]; stare: number;
+  tree?: Trunk; lap?: [number, number][]; shot: [number, number, number]; stare: number;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -40,6 +41,10 @@ const SCATTER = 1.8;
 const LEAD = 6;
 /** the ghosts: how far behind the one they chase (m); how fast they can go (m/s); how high they float running */
 const GHOST = { gap: 2.2, speed: 5.5, lift: 0.3 };
+/** going round the trunk, the friend on the far side of it: radians a second */
+const CIRCLE = -0.3;
+/** at the heels of the one on a lap: how far behind them (m) */
+const HEELS = 3;
 /** how high each floats over the one it has caught: bowing down over the one on the ground or crouching, rising to the one up the tree */
 const LOOM: Record<CaughtHow, number> = { cower: 0.1, fall: 0, climb: 1.25 };
 /** in each shot a cold glow from its ghost lights the one it is after (colour, candela, reach m); how far down from its head */
@@ -67,6 +72,8 @@ interface Ghost {
   into: (() => THREE.Vector3) | null; drawn: number; from: THREE.Vector3;
   /** it has turned on the player: where they are, and how far toward them it has come (0..1) */
   to: THREE.Vector3 | null; lunge: number;
+  /** how far round the trunk it has gone (radians); where it is, when it isn't rushing at anyone (x, z) */
+  circle: number; at: THREE.Vector2;
 }
 
 export class ChaseScene {
@@ -80,6 +87,8 @@ export class ChaseScene {
   /** a warm light from up there instead of the glow (world; null: none), how bright, for the film of their coming back */
   flood: THREE.Vector3 | null = null;
   floodBy = 0;
+  /** behind the black at the end of the film, just before going back to the player */
+  onCut: (() => void) | null = null;
   /** the glow from the ghost in the shot (to be added to the world) */
   readonly light = new THREE.PointLight(GLOW.color, 0, GLOW.distance, 1.6);
   private readonly wraiths: Wraith[];
@@ -182,10 +191,10 @@ export class ChaseScene {
 
   skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }
 
-  /** where the ghost over `key` waits (none: it has been driven off) */
+  /** where the ghost after `key` is now (none: it has been driven off) */
   spot(key: string): { x: number; z: number } | null {
-    const g = this.ghosts.get(key), r = this.routes[key];
-    return g && !g.gone && r ? { x: r.ghost[0], z: r.ghost[1] } : null;
+    const g = this.ghosts.get(key);
+    return g && !g.gone ? { x: g.at.x, z: g.at.y } : null;
   }
 
   /** the head of the ghost over `key` (world) */
@@ -254,7 +263,7 @@ export class ChaseScene {
     this.order.forEach((key, i) => {
       const line = acts.get(key), p = this.gathering.byName(key), r = this.routes[key], w = this.wraiths[i];
       if (!line || !p || !r || !w) return;
-      const g: Ghost = { w, path: [], total: 0, before: 0, s: 0, head: new THREE.Vector3(), loom: LOOM[r.how], gone: false, into: null, drawn: 0, from: new THREE.Vector3(), to: null, lunge: 0 };
+      const g: Ghost = { w, path: [], total: 0, before: 0, s: 0, head: new THREE.Vector3(), loom: LOOM[r.how], gone: false, into: null, drawn: 0, from: new THREE.Vector3(), to: null, lunge: 0, circle: 0, at: new THREE.Vector2(...r.ghost) };
       w.show(true);
       w.headWorld(g.head);
       const chase = new Chase(p.h, line, r, this.terrain, g.head, r.stare);
@@ -344,6 +353,7 @@ export class ChaseScene {
         this.held = [];
         this._settle();
         this.caught = true;
+        this.onCut?.();
         this.events.emit(EV.INTRO_CINEMATIC, false);
       }
     } else {
@@ -363,9 +373,22 @@ export class ChaseScene {
       // (out of sight: there at once)
       if (!g.w.group.visible) g.s = want;
       else if (!still) g.s = Math.min(want, g.s + GHOST.speed * Math.min(1, 0.3 + this.t) * dt);
-      const [x, z] = this._along(g, g.s);
-      const lastLeg = g.path[g.path.length - 2].distanceTo(g.path[g.path.length - 1]);
-      const over = c.caught ? sstep(g.total - lastLeg, g.total, g.s) : 0;
+      let [x, z] = this._along(g, g.s);
+      const r = this.routes[key], lastLeg = g.path[g.path.length - 2].distanceTo(g.path[g.path.length - 1]);
+      // at the heels of the one on a lap (from their shot on), who runs until it turns away
+      const heels = c.lapping && c.s >= c.total - LEAD;
+      c.halted = !!g.to;
+      if (heels) { c.behind(HEELS, g.at); x = g.at.x; z = g.at.y; }
+      // there at the tree: slowly round it, and they round it too, on the far side; both still once it has turned away
+      if (r.tree && g.s >= g.total) {
+        if (!g.to) g.circle += CIRCLE * dt;
+        c.around = g.circle;
+        const a = Math.atan2(r.ghost[0] - r.tree.x, r.ghost[1] - r.tree.z) + g.circle, far = Math.hypot(r.ghost[0] - r.tree.x, r.ghost[1] - r.tree.z);
+        x = r.tree.x + Math.sin(a) * far;
+        z = r.tree.z + Math.cos(a) * far;
+      }
+      g.at.set(x, z);
+      const over = c.caught && !heels ? sstep(g.total - lastLeg, g.total, g.s) : 0;
       const wob = (a: number) => Math.sin(this.time * (1.3 + i * 0.2) + a);
       P.x = x + 0.05 * wob(i) * over;
       P.z = z + 0.05 * wob(i + 2) * over;

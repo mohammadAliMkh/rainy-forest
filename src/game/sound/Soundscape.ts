@@ -29,6 +29,17 @@ export interface VoiceHandle {
   elapsed(): number;
 }
 
+/** a recording going round and round, silent until told how loud */
+export interface LoopHandle {
+  /** how loud now, and how clear (0: muffled, as if from far off; 1: all there) */
+  set(level: number, clear: number): void;
+  /** it fades out and is gone */
+  stop(): void;
+}
+
+/** a loop, as heard from far off: where its treble is cut at `clear` 0 (Hz), at `clear` 1; how fast it follows (s) */
+const LOOP = { dark: 350, bright: 18000, follow: 0.3 };
+
 type CreatureSound = GameEvents[typeof EV.CREATURE_SOUND];
 
 export class Soundscape {
@@ -150,6 +161,67 @@ export class Soundscape {
         return Math.min(1, Math.sqrt(s / data.length) * 6);
       },
     };
+  }
+
+  // a recording going round for as long as it takes, or null if there is no
+  // recording. `parts`: only those (seconds), each melting into the next over
+  // `fade` seconds and the last into the first; `rest`: a silence before it comes
+  // round again; `music`: it is music (the player's music volume, not the voices')
+  playLoop(key: string, { parts, fade = 0.2, rest = 0, music = false }: { parts?: readonly (readonly [number, number])[]; fade?: number; rest?: number; music?: boolean }): LoopHandle | null {
+    if (!this.started) return null;
+    const file = this.engine.file(key);
+    if (!file || Array.isArray(file)) return null;
+    const ctx = this.engine.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = parts ? this._woven(file, parts, fade, rest) : file;
+    src.loop = true;
+    const cut = ctx.createBiquadFilter();
+    cut.type = 'lowpass';
+    cut.frequency.value = LOOP.dark;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    src.connect(cut).connect(g).connect(music ? this.engine.buses!.music : this.engine.buses!.voices);
+    src.start();
+    let was = -1, wasClear = -1, stopped = false;
+    src.addEventListener('ended', () => g.disconnect());
+    return {
+      set(level, clear) {
+        if (stopped || (Math.abs(level - was) < 0.005 && Math.abs(clear - wasClear) < 0.01)) return;
+        was = level; wasClear = clear;
+        const t = ctx.currentTime;
+        g.gain.setTargetAtTime(level, t, LOOP.follow);
+        cut.frequency.setTargetAtTime(LOOP.dark * (LOOP.bright / LOOP.dark) ** clear, t, LOOP.follow);
+      },
+      stop() {
+        if (stopped) return;
+        stopped = true;
+        const t = ctx.currentTime;
+        g.gain.setTargetAtTime(0, t, LOOP.follow);
+        src.stop(t + LOOP.follow * 5);
+      },
+    };
+  }
+
+  // those parts of it woven into one buffer that comes round without a seam
+  private _woven(buf: AudioBuffer, parts: readonly (readonly [number, number])[], fade: number, rest: number): AudioBuffer {
+    const sr = buf.sampleRate, xf = Math.round(fade * sr);
+    const spans = parts.map(([a, b]) => [Math.round(a * sr), Math.min(buf.length, Math.round(b * sr))]);
+    const total = spans.reduce((n, [a, b]) => n + b - a - xf, Math.round(rest * sr));
+    const out = this.engine.ctx!.createBuffer(buf.numberOfChannels, total, sr);
+    for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+      const from = buf.getChannelData(ch), to = out.getChannelData(ch);
+      let at = 0;
+      for (const [a, b] of spans) {
+        const len = b - a;
+        for (let i = 0; i < len; i++) {
+          // (equal power, so the loudness doesn't dip where they meet)
+          const edge = Math.min(1, i / xf, (len - 1 - i) / xf);
+          to[(at + i) % total] += from[a + i] * Math.sin(edge * Math.PI / 2);
+        }
+        at += len - xf;
+      }
+    }
+    return out;
   }
 
   strum(pos: THREE.Vector3, chord: number, down: boolean, velocity: number): void {

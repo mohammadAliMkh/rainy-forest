@@ -20,7 +20,7 @@ import { ChaseScene } from './ChaseScene.ts';
 import { CrossFight } from './CrossFight.ts';
 import { ReturnScene } from './ReturnScene.ts';
 import { Wraith } from '../scenario/Wraith.ts';
-import { GHOST_IN, CREEP_STOP, LINE_UP, CHASE, CHASE_SHOTS, RETURN_LEADS } from '../scenario/ghostScript.ts';
+import { GHOST_IN, CREEP_STOP, LINE_UP, CHASE, CHASE_SHOTS, RETURN_LEADS, RESCUE_START } from '../scenario/ghostScript.ts';
 import { makeAmulet } from '../items/Amulet.ts';
 import type { Inventory } from '../items/Inventory.ts';
 import type { Hands } from '../player/Hands.ts';
@@ -186,6 +186,7 @@ export class PartyErrand {
       gathering: camp.gathering, terrain, standing: () => this.lineUpScene.standing(), order, routes: CHASE, shots: CHASE_SHOTS,
     });
     camp.films.push(this.chaseScene);
+    this.chaseScene.onCut = () => this._toRescue();
     world.add(this.chaseScene.light);
     // ...and you go and save them
     this.fight = new CrossFight({
@@ -280,6 +281,8 @@ export class PartyErrand {
 
   // the goal line and the basket
   private _announce(): void {
+    // all saved: only the box, the scenario's name ticked off
+    if (this.step === 'saved') { this.events.emit(EV.QUEST, { title: TITLE, objective: TITLE, hint: null, basket: null, done: true }); return; }
     // while Amir talks / the ghost is out, the goal before stays up
     const key = this.step === 'amirTalks' ? 'toAmir' : this.step === 'ghost' ? 'pickles' : this.step === 'keeper' ? 'pay' : this.step;
     const goal = key === 'rescue' ? rescueGoal(this.saved.size) : (GOALS as Record<string, string>)[key];
@@ -341,10 +344,7 @@ export class PartyErrand {
     if (this.saved.size < RESCUE.length) {
       if (r) this.events.emit(EV.BANNER, { text: savedNote(r.label), kind: 'note', seconds: 2.6 });
       this._announce();
-    } else {
-      this.events.emit(EV.BANNER, { text: BANNERS.allSaved, kind: 'title', seconds: 3.5 });
-      this._go('saved');
-    }
+    } else this._go('saved');
   }
 
   // the friends in the line, the four ghosts facing them, the camera on them: as they are about to run for it
@@ -359,6 +359,12 @@ export class PartyErrand {
   private _toPorch(): void {
     const st = this.store.errand.jarStage();
     this.player.teleport(st.stand.x, st.stand.z, Math.atan2(-(st.woods.x - st.stand.x), -(st.woods.z - st.stand.z)));
+  }
+
+  // where you start going to save them, the shop ahead of you
+  private _toRescue(): void {
+    const [x, z] = RESCUE_START.at, [fx, fz] = RESCUE_START.facing;
+    this.player.teleport(x, z, Math.atan2(-(fx - x), -(fz - z)));
   }
 
   // you are dead: from the moment the ghosts went for them, all over again (behind the black)
@@ -413,10 +419,10 @@ export class PartyErrand {
       else {
         this.splitScene.setEnd(cam, this.lineUpScene.setEnd(cam, shot));
         if (stage === 9) this.chaseScene.start(cam, this.splitScene.takeActs(), this.splitScene.placesNow(), []);
-        else this.chaseScene.setEnd(this.splitScene.takeActs(), this.splitScene.placesNow());
-        // (a few steps from the ghost behind the shop, facing it)
+        else { this.chaseScene.setEnd(this.splitScene.takeActs(), this.splitScene.placesNow()); this._toRescue(); }
+        // (on the way to the shop, facing it, the ghost going round it)
         if (stage === 11) {
-          const [gx, gz] = CHASE.owner.ghost, x = gx, z = gz - 9;
+          const [gx, gz] = CHASE.owner.ghost, x = gx, z = gz - 14;
           this.player.teleport(x, z, Math.atan2(-(gx - x), -(gz - z)));
         }
         if (stage >= 12) {

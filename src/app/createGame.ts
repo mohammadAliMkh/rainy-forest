@@ -161,6 +161,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   camp.voices = {
     play: (key: string, pos: THREE.Vector3, o?: { duck?: boolean; gain?: number; from?: number; length?: number }) =>
       sound.playVoice(key, pos, { duck: o?.duck ?? false, flat: true, gain: o?.gain ?? 1, from: o?.from ?? 0, length: o?.length ?? 0 }),
+    loop: (key, o) => sound.playLoop(key, o),
     ready: () => !!sound.engine.filesLoaded,
   };
 

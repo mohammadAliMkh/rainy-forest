@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { INTRO } from './introScript.js';
 import { EV } from '../../config/events.ts';
 import type { Camp } from '../camp/Camp.js';
-import type { VoiceHandle } from '../sound/Soundscape.ts';
+import type { VoiceHandle, LoopHandle } from '../sound/Soundscape.ts';
 
 // The owner's welcome and introductions, played like a film scene. The
 // moment the player enters, the view is already high in the sky (circling
@@ -47,6 +47,8 @@ export interface VoiceService {
   /** `duck`: lower the ambience while it plays; `gain`: louder / quieter than the narration;
    * `from` / `length`: only that part of the recording (seconds) */
   play(key: string, position: THREE.Vector3, opts?: { duck?: boolean; gain?: number; from?: number; length?: number }): VoiceHandle | null;
+  /** a recording going round: `parts`, only those (seconds), each melting into the next over `fade` seconds; `rest`: a silence before it comes round again; `music`: it is music */
+  loop(key: string, opts: { parts?: readonly (readonly [number, number])[]; fade?: number; rest?: number; music?: boolean }): LoopHandle | null;
   /** the recordings have loaded (the introductions wait for them) */
   ready(): boolean;
 }

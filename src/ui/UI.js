@@ -128,6 +128,7 @@ export class UI {
     const el = $('quest');
     el.classList.toggle('hidden', !q);
     if (!q) return;
+    el.classList.toggle('done', !!q.done);
     $('quest-title').textContent = q.title;
     const goal = $('quest-goal');
     if (goal.textContent !== q.objective) {

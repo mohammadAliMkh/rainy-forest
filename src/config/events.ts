@@ -72,7 +72,7 @@ export interface GameEvents {
   /** the time left to save them all (s) */
   [EV.RESCUE_TIMER]: { left: number; total: number } | null;
   [EV.GAME_OVER]: { title: string; note: string } | null;
-  [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null } | null;
+  [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null; done?: boolean } | null;
   /** someone says a line to the player (shown as a caption box), or null to clear it */
   [EV.DIALOG]: { speaker: string; text: string; seconds: number } | null;
   /** a message across the middle of the view that fades away after `seconds`: a big
