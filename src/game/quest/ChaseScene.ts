@@ -5,7 +5,7 @@ import type { EventBus } from '../../engine/events.ts';
 import type { Wraith } from '../scenario/Wraith.ts';
 import type { LineUp } from '../people/LineUp.ts';
 import type { Gathering } from '../people/Gathering.ts';
-import { Chase, type CaughtHow } from '../people/Chase.ts';
+import { Chase, type CaughtHow, type Trunk } from '../people/Chase.ts';
 import type { VoiceService } from '../intro/IntroDirector.ts';
 import type { VoiceHandle } from '../sound/Soundscape.ts';
 
@@ -25,7 +25,7 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 interface DogLike { alertAt: THREE.Vector3 | null }
 interface Route {
   path: [number, number][]; how: CaughtHow; ghost: [number, number];
-  tree?: { x: number; z: number; r: number }; shot: [number, number, number]; stare: number;
+  tree?: Trunk; shot: [number, number, number]; stare: number;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
