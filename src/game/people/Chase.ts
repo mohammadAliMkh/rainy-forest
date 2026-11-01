@@ -12,14 +12,15 @@ import type { LineUp } from './LineUp.ts';
 //             it, one hand behind them in the puddle, the other up against it,
 //             shoving themselves back;
 //   'climb' - up the trunk of a tree, hugging it, looking down at it.
-// They stay so until saved: `free()` gets them up (or down the trunk) and running
-// back the way they came, and at the end of it onto their seat through the
-// line's own act (`finish()`: at once). Drives the same rig as the gathering; while
+// They stay so until saved: `free()` gets them up (or down the trunk), and there
+// they stand, getting their breath, looking at who saved them. `comeBack()` sends
+// them back along the way they came to their seat, to sit down through the line's
+// own act (`finish()`: at once). Drives the same rig as the gathering; while
 // it runs the gathering leaves that person alone.
 
 const UP = new THREE.Vector3(0, 1, 0);
 type Rig = Human & { voiceLevel: number | null };
-type Phase = 'stare' | 'run' | 'caught' | 'home' | 'done';
+type Phase = 'stare' | 'run' | 'caught' | 'home' | 'free' | 'back' | 'sit' | 'done';
 export type CaughtHow = 'cower' | 'fall' | 'climb';
 
 /** a tree's trunk: its centre and radius at the ground, how much thinner it gets for each metre up, and how far it leans over for each metre up (x, z) */
@@ -39,6 +40,8 @@ const RUN = { speed: 4.1, steps: 1.55 };
 const CATCH: Record<CaughtHow, number> = { cower: 0.9, fall: 0.55, climb: 2.2 };
 /** saved: how long it takes them to get up / down again (s) */
 const RISE: Record<CaughtHow, number> = { cower: 0.7, fall: 0.8, climb: 1.5 };
+/** coming back to the fire: m/s, strides a second */
+const BACK = { speed: 3.3, steps: 1.3 };
 /**
  * up the tree: how much higher the pelvis gets (m), a whole number of `step`s; how far out from the bark it is (m);
  * how far they get with each reach of either hand (m); how far above the shoulder a hand takes hold (m); how far
@@ -64,7 +67,7 @@ export class Chase {
   private readonly h: Rig;
   private readonly line: LineUp;
   private readonly terrain: { heightAt(x: number, z: number): number };
-  private readonly path: THREE.Vector2[];
+  private path: THREE.Vector2[];
   private readonly tree: Trunk | null;
   /** they get this far along their way and wait there (off camera) until `release()` */
   private hold = Infinity;
@@ -76,7 +79,6 @@ export class Chase {
   private headYaw = 0; private headPitch = 0;
   private readonly hand: THREE.Vector3[];
   private handsSet = true;
-  private homeward = false; // saved, and on their way
   private readonly fell = new THREE.Vector2(); // where they went down in the water
   private readonly _p = new THREE.Vector2();
 
@@ -128,14 +130,35 @@ export class Chase {
     this.hidden = false;
   }
 
-  /** saved: up they get and off back the way they came */
+  /** saved: up they get (or down the trunk) and stand there */
   free(): void { if (this.phase === 'caught') { this.phase = 'home'; this.t = 0; this.run = 0; } }
+
+  /** saved already, standing there (when what comes before is skipped over) */
+  freeNow(): void { this.phase = 'free'; this.t = 0; this.run = 0; }
+
+  /** saved, and off back to their seat, from `lead` metres short of it (what comes before is out of sight) */
+  comeBack(lead: number): void {
+    this.path = [...this.line.wayBack, ...this.path.slice(1, -1), new THREE.Vector2(this.x, this.z)];
+    this.total = 0;
+    for (let i = 1; i < this.path.length; i++) this.total += this.path[i].distanceTo(this.path[i - 1]);
+    this.s = Math.min(lead, this.total);
+    this._at(this.s, true);
+    this.phase = 'back'; this.t = 0; this.run = 1;
+  }
+
+  /** sat down, or on the way to it */
+  get seating(): boolean { return this.phase === 'sit' || this.phase === 'done'; }
 
   /** back on the seat at once (the story is over, or cut short) */
   finish(): void { this.phase = 'done'; this.hidden = false; this.line.finish(); }
 
   update(dt: number): void {
     if (this.phase === 'done') return;
+    if (this.phase === 'sit') {
+      this.line.update(dt);
+      if (this.line.done) this.phase = 'done';
+      return;
+    }
     this.t += dt; this.time += dt;
     if (this.phase === 'stare') {
       // frozen for a moment, staring at it
@@ -153,22 +176,19 @@ export class Chase {
         this.fell.set(this.x, this.z);
       }
     } else if (this.phase === 'home') {
-      if (this.t < RISE[this.how]) {
-        if (this.how === 'climb') this._toTrunk(1, dt);
-      } else {
-        if (!this.homeward) {
-          // from where they are now, along their way
-          this.homeward = true;
-          this.path[this.path.length - 1].set(this.x, this.z);
-          this.total = 0;
-          for (let i = 1; i < this.path.length; i++) this.total += this.path[i].distanceTo(this.path[i - 1]);
-          this.s = this.total;
-        }
-        this.s = Math.max(0, this.s - RUN.speed * Math.min(1, 0.35 + (this.t - RISE[this.how]) * 1.8) * dt);
-        this._at(this.s, true);
-        this.run = damp(this.run, 1, 8, dt);
-        this.gait += dt * 2 * Math.PI * RUN.steps;
-        if (this.s <= 0) { this.finish(); return; }
+      if (this.how === 'climb') this._toTrunk(1, dt);
+      if (this.t >= RISE[this.how]) { this.phase = 'free'; this.t = 0; }
+    } else if (this.phase === 'free') {
+      // getting their breath, turning to it (who saved them; the scene keeps it up to date)
+      this.heading = lerpAngle(this.heading, Math.atan2(this.chaser.x - this.x, this.chaser.z - this.z), 1 - Math.exp(-2 * dt));
+    } else if (this.phase === 'back') {
+      this.s = Math.max(0, this.s - BACK.speed * dt);
+      this._at(this.s, true);
+      this.gait += dt * 2 * Math.PI * BACK.steps;
+      if (this.s <= 0) {
+        this.phase = 'sit';
+        this.line.sitFrom(this.x, this.z, this.heading, this.hand, this.gait, this.run);
+        return;
       }
     } else {
       this.run = damp(this.run, 0, 10, dt);
@@ -189,7 +209,7 @@ export class Chase {
     }
     this._pose(dt);
     // screaming as they run and again as they are caught; then sobbing breaths, shaking
-    const scream = this.phase === 'stare' ? false : (this.phase === 'run' && this.t < 1.8) || (this.phase === 'caught' && this.t < 1.3);
+    const scream = this.phase !== 'run' && this.phase !== 'caught' ? false : (this.phase === 'run' && this.t < 1.8) || (this.phase === 'caught' && this.t < 1.3);
     this.h.voiceLevel = scream ? 0.75 + 0.25 * Math.abs(Math.sin(this.time * 23)) : 0.25 + 0.15 * Math.sin(this.time * 9);
     this.h.laugh = damp(this.h.laugh, 0, 4, dt);
     this.h.talk = 0;
@@ -283,7 +303,7 @@ export class Chase {
     const head = h.headPivot.getWorldPosition(new THREE.Vector3());
     let yaw = 0, pitch = -0.05 + 0.2 * run;
     const glance = this.phase === 'run' && this.t > 0.6 && (this.t % 1.6) > 1.1;
-    if (glance || this.phase === 'caught' || this.phase === 'stare') {
+    if (glance || this.phase === 'caught' || this.phase === 'stare' || this.phase === 'free') {
       const to = this.chaser.clone().sub(head);
       const fd = to.dot(fwd), rd = to.dot(right);
       yaw = clamp(Math.atan2(-rd, fd), -1.4, 1.4);

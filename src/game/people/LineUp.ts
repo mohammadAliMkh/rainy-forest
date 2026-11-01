@@ -10,15 +10,18 @@ import type { SeatPose, GuitarDrop } from './Flight.ts';
 // the line, glancing back at it, and stand there facing it - upright,
 // breathing hard, hands half up in front of them, ready. Drives the same rig
 // the gathering uses; while it runs the gathering leaves that person alone
-// (Gathering checks `act`). `finish()` puts them straight back on their seat.
+// (Gathering checks `act`). `sitFrom()` has them sit back down, standing in front
+// of the seat; `finish()` puts them straight back on it.
 
 const UP = new THREE.Vector3(0, 1, 0);
 type Rig = Human & { voiceLevel: number | null };
 type Euler3 = [number, number, number];
-type Phase = 'turn' | 'up' | 'walk' | 'face' | 'done';
+type Phase = 'turn' | 'up' | 'walk' | 'face' | 'sit' | 'done';
 
 /** hurrying (m/s), strides a second, getting up (s) */
 const HURRY = { speed: 2.5, steps: 1.45, up: 0.45 };
+/** sitting back down (s) */
+const SIT = 0.9;
 
 const ease = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
 const lerpAngle = (a: number, b: number, t: number) => { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
@@ -55,6 +58,8 @@ export class LineUp {
   private flinchT = -1;
   private readonly hand = [new THREE.Vector3(), new THREE.Vector3()];
   private handsSet = false;
+  private readonly from = new THREE.Vector2();
+  private fromHeading = 0;
 
   constructor(h: Human, seat: SeatPose, route: LineUpRoute, terrain: { heightAt(x: number, z: number): number }, target: THREE.Vector3) {
     this.h = h as Rig;
@@ -100,6 +105,19 @@ export class LineUp {
   /** in the line, a start: half a step back from it, the hands flying up */
   flinch(): void { if (this.phase === 'face') this.flinchT = 0; }
 
+  /** the way back from their place in the line to in front of the seat (x, z) */
+  get wayBack(): THREE.Vector2[] { return this.path.map((v) => v.clone()); }
+
+  /** standing at (x, z), coming from elsewhere, their hands at `hands`: they sit back down */
+  sitFrom(x: number, z: number, heading: number, hands: readonly THREE.Vector3[], stride: number, walk: number): void {
+    this.x = x; this.z = z; this.heading = heading;
+    this.from.set(x, z); this.fromHeading = heading;
+    this.gait = stride; this.walk = walk; this.stand = 1; this.tense = 0;
+    hands.forEach((v, i) => this.hand[i].copy(v));
+    this.handsSet = true;
+    this.phase = 'sit'; this.t = 0;
+  }
+
   /** at once back on the seat (the scene is over or cut short) */
   finish(): void { this.phase = 'done'; this._restore(); }
 
@@ -133,6 +151,15 @@ export class LineUp {
       this.walk = damp(this.walk, 1, 10, dt);
       this.gait += dt * 2 * Math.PI * HURRY.steps;
       if (this.seg >= this.path.length - 1) { this.phase = 'face'; this.t = 0; }
+    } else if (this.phase === 'sit') {
+      // turning round to the seat and down onto it
+      const k = ease(this.t / SIT);
+      this.stand = 1 - k;
+      this.walk = damp(this.walk, 0, 10, dt);
+      this.x = this.from.x + (this.seat.x - this.from.x) * k;
+      this.z = this.from.y + (this.seat.z - this.from.y) * k;
+      this.heading = lerpAngle(this.fromHeading, this.seat.facing, ease(this.t / (SIT * 0.7)));
+      if (this.t >= SIT) { this.finish(); return; }
     } else {
       // in the line: turning to face it, standing their ground (a start: half a step back)
       this.walk = damp(this.walk, 0, 6, dt);

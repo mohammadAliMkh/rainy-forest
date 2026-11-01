@@ -26,6 +26,7 @@ export const EV = {
   DIALOG: 'quest:dialog',
   BANNER: 'quest:banner',
   CROSS_RING: 'quest:crossRing',
+  RESCUE_TIMER: 'quest:rescueTimer',
   GAME_OVER: 'quest:gameOver',
 
   // the player's bag (src/game/items/Inventory.ts)
@@ -66,8 +67,10 @@ export interface GameEvents {
     /** a footstep somewhere else (steps that echo yours) */
     | { cue: 'echoStep'; position: Vector3; surface: 'water' | 'mud' | 'leaves' | 'wood'; running: boolean };
   /** the errand's current goal and the basket (null: no errand on screen) */
-  /** the round bar against a ghost (src/game/quest/CrossFight.ts): how full, how near to death by it, the ghost's rush just hit, the cross in hand, what to do */
-  [EV.CROSS_RING]: { fill: number; danger: number; hit: boolean; armed: boolean; label: string } | null;
+  /** the round bar against a ghost (src/game/quest/CrossFight.ts): how full, how near to death by it, the ghost's rush just hit, the cross in hand, what to do, whether that is a warning */
+  [EV.CROSS_RING]: { fill: number; danger: number; hit: boolean; armed: boolean; label: string; warn: boolean } | null;
+  /** the time left to save them all (s) */
+  [EV.RESCUE_TIMER]: { left: number; total: number } | null;
   [EV.GAME_OVER]: { title: string; note: string } | null;
   [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null } | null;
   /** someone says a line to the player (shown as a caption box), or null to clear it */

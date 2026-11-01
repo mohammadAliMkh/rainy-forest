@@ -626,6 +626,14 @@ body.touch .dialog { bottom: auto; top: 112px; font-size: 0.92rem; max-width: ca
 /* in a film scene the line sits just above the bottom letterbox bar, clear of the faces */
 body.in-cinema .dialog { bottom: calc(11vh + 12px + env(safe-area-inset-bottom, 0px)); top: auto; }
 
+/* the time left to save them all: a bar along the top of the goal box */
+.quest-timer { position: relative; direction: ltr; height: 18px; width: min(70vw, 340px); margin: 2px auto 6px; border-radius: 9px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
+.quest-timer.hidden { display: none; }
+.quest-timer-bar { position: absolute; inset: 0; background: #e8b95a; transform-origin: left center; }
+.quest-timer-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.8rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; }
+.quest-timer.low .quest-timer-bar { background: #d8392a; animation: quest-timer-low 0.7s ease-in-out infinite alternate; }
+@keyframes quest-timer-low { from { opacity: 1; } to { opacity: 0.55; } }
+
 /* the fight with a ghost: the round bar (under the middle of the view), the red closing in, the end of it */
 .cross-ring {
   position: fixed; left: 50%; top: 62%; transform: translateX(-50%);
@@ -647,6 +655,7 @@ body.in-cinema .dialog { bottom: calc(11vh + 12px + env(safe-area-inset-bottom, 
   60% { transform: scale(1.04) translateX(-3px); }
   100% { transform: none; }
 }
+.cross-ring.warn .cross-ring-label { color: #fff; background: rgba(170, 20, 10, 0.85); }
 .cross-ring-label { color: #f2e9d8; font-size: 15px; font-weight: 600; padding: 3px 12px; border-radius: 12px; background: rgba(8, 12, 14, 0.55); white-space: nowrap; }
 .cross-danger {
   position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0; transition: opacity 0.3s;

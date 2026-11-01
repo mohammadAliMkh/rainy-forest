@@ -215,6 +215,26 @@ async function errandSetup(page: Page) {
   });
 }
 
+test('the last one saved: they all come back to the fire and sit down', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors, '/?debug&stage=12');
+  await enter(page);
+  await errandSetup(page);
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, step = (window as any).step;
+    const people = f.camp.gathering.people;
+    step(1);
+    const before = { step: e.step, away: people.every((p: any) => Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) > 1), ghosts: e.wraiths.filter((w: any) => w.group.visible).length };
+    for (let k = 0; k < 60 && !e.returnScene.filming; k++) step(0.1);
+    const film = e.returnScene.filming;
+    for (let k = 0; k < 400 && e.returnScene.active; k++) step(0.1);
+    const seated = people.every((p: any) => !p.act && Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) < 0.01);
+    return { before, film, seated, cinematic: f.camp.cinematic };
+  });
+  expect(r).toEqual({ before: { step: 'saved', away: true, ghosts: 0 }, film: true, seated: true, cinematic: false });
+  expect(errors).toEqual([]);
+});
+
 test('saving the four: the cross fills the bar near a ghost, its friend goes home; left empty the ghost kills you and it starts again', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors, '/?debug&stage=11');
@@ -234,7 +254,7 @@ test('saving the four: the cross fills the bar near a ghost, its friend goes hom
     const draining = F.fill < some;
     for (let k = 0; k < 600 && !e.saved.size; k++) { F.tap(); step(0.1); }
     step(1);
-    const won = { saved: [...e.saved], going: f.camp.gathering.byName('owner').act?.phase, goal: document.getElementById('quest-goal')!.textContent, targets: e.mapTargets().length };
+    const won = { saved: [...e.saved], waiting: f.camp.gathering.byName('owner').act?.phase, goal: document.getElementById('quest-goal')!.textContent, targets: e.mapTargets().length };
     // up to another, doing nothing: it kills you, and it all starts again from when they ran for it
     const s = e.chaseScene.spot('alireza');
     f.player.teleport(s.x, s.z + 3, 0);
@@ -246,17 +266,23 @@ test('saving the four: the cross fills the bar near a ghost, its friend goes hom
     const again = { filming: e.chaseScene.filming, saved: e.saved.size, step: e.step, held: f.inventory.held, over: document.getElementById('game-over')!.classList.contains('show') };
     for (let k = 0; k < 800 && e.step !== 'rescue'; k++) f.frame(0.05);
     const end = { step: e.step, targets: e.mapTargets().length, caught: f.camp.gathering.people.every((p: any) => p.act?.caught), cinematic: f.camp.cinematic };
-    return { start, near, draining, won, dying, over, again, end };
+    // out of time
+    const timer = !document.getElementById('quest-timer')!.classList.contains('hidden');
+    F.left = 0.2; step(0.5);
+    const late = F.dying;
+    return { start, near, draining, won, dying, over, again, end, timer, late };
   });
   expect(r).toEqual({
     start: { step: 'rescue', targets: 4, key: null },
     near: { key: 'owner', ring: true },
     draining: true,
-    won: { saved: ['owner'], going: 'home', goal: 'چهار رفیقت را در جنگل نجات بده (۱ از ۴)', targets: 3 },
+    won: { saved: ['owner'], waiting: 'free', goal: 'چهار رفیقت را در جنگل نجات بده (۱ از ۴)', targets: 3 },
     dying: { dying: true, cinematic: true },
     over: true,
     again: { filming: true, saved: 0, step: 'fire', held: null, over: false },
     end: { step: 'rescue', targets: 4, caught: true, cinematic: false },
+    timer: true,
+    late: true,
   });
   expect(errors).toEqual([]);
 });

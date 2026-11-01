@@ -159,11 +159,27 @@ export class UI {
     $('cross-danger').style.opacity = r ? String(r.danger * 0.85) : '0';
     if (!r) return;
     el.classList.toggle('unarmed', !r.armed);
+    el.classList.toggle('warn', r.warn);
     $('cross-ring-bar').style.strokeDasharray = `${(r.fill * 100).toFixed(1)} 100`;
     $('cross-ring-label').textContent = r.label;
     if (r.hit) {
       const d = $('cross-ring-disc');
       d.classList.remove('hit'); void d.offsetWidth; d.classList.add('hit');
+    }
+  }
+
+  /** the bar of the time left, over the goal (null: gone) */
+  setRescueTimer(t) {
+    const el = $('quest-timer');
+    el.classList.toggle('hidden', !t);
+    if (!t) return;
+    const left = Math.ceil(t.left);
+    el.classList.toggle('low', t.left <= t.total / 4);
+    $('quest-timer-bar').style.transform = `scaleX(${(t.left / t.total).toFixed(4)})`;
+    if (left !== this._timerLeft) {
+      this._timerLeft = left;
+      const fa = (n) => String(n).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[+d]);
+      $('quest-timer-text').textContent = `${fa(Math.floor(left / 60))}:${fa(String(left % 60).padStart(2, '0'))}`;
     }
   }
 

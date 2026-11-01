@@ -45,4 +45,7 @@ export const CHASE: Record<string, {
   owner: { path: [[0.9, -9.6], [-1.5, -2.0], [-6.0, 8.0], [-10.0, 18.0], [-13.2, 24.0], [-14.3, 25.85], [-16.05, 28.65]], how: 'cower', ghost: [-17.5, 27.9], shot: [-18.0, 25.3, 1.6], stare: 0.1 },
 };
 /** the order of their shots, and how long each lasts (s) */
+/** when all four are saved they come back to the fire: how far from their seat each comes into the film (m): the nearer, the sooner */
+export const RETURN_LEADS: Record<string, number> = { alireza: 8, amin: 11, amir: 14, owner: 17 };
+
 export const CHASE_SHOTS: [string, number][] = [['alireza', 4.2], ['amin', 5.0], ['amir', 4.2], ['owner', 5.0]];
