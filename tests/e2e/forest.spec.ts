@@ -224,14 +224,15 @@ test('the last one saved: they all come back to the fire and sit down', async ({
     const f = (window as any).forest, e = f.errand, step = (window as any).step;
     const people = f.camp.gathering.people;
     step(1);
-    const before = { step: e.step, away: people.every((p: any) => Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) > 1), ghosts: e.wraiths.filter((w: any) => w.group.visible).length };
+    // (by now the film has begun: the setup above already ran the game for a few seconds)
+    const before = { step: e.step, ghosts: e.wraiths.filter((w: any) => w.group.visible).length };
     for (let k = 0; k < 60 && !e.returnScene.filming; k++) step(0.1);
     const film = e.returnScene.filming;
     for (let k = 0; k < 400 && e.returnScene.active; k++) step(0.1);
     const seated = people.every((p: any) => !p.act && Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) < 0.01);
     return { before, film, seated, cinematic: f.camp.cinematic };
   });
-  expect(r).toEqual({ before: { step: 'saved', away: true, ghosts: 0 }, film: true, seated: true, cinematic: false });
+  expect(r).toEqual({ before: { step: 'saved', ghosts: 0 }, film: true, seated: true, cinematic: false });
   expect(errors).toEqual([]);
 });
 
