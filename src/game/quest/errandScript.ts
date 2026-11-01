@@ -9,6 +9,7 @@ export const TITLE = 'سناریوی روح سرگردان';
 export const BANNERS = {
   start: TITLE,
   bought: '✓ خرید انجام شد',
+  rescue: 'رفقایت را نجات بده',
   end: 'پایان سناریوی روح سرگردان',
 };
 
@@ -29,13 +30,18 @@ export const GOALS = {
   pay: 'پول خریدها را به فرج‌پور بده',
   leave: 'از مغازه بیرون برو',
   pickles: 'از دبه‌ی کنار در خیارشور بردار',
+  rescue: 'چهار رفیقت را در جنگل نجات بده',
   deliver: 'خریدها را برای امیر اسماعیل ببر',
 };
+
+/** the goal line while saving them, with how many are saved so far */
+export const rescueGoal = (saved: number): string => `${GOALS.rescue} (${'۰۱۲۳۴'[saved]} از ۴)`;
 
 /** a hint under the goal, for the steps where something has to be clicked / tapped */
 export const HINTS = {
   click: 'روی چیزهایی که چشمک می‌زنند کلیک کن',
   tap: 'روی چیزهایی که چشمک می‌زنند بزن',
+  rescue: 'جای هر کدام روی نقشه چشمک می‌زند',
 };
 
 export const BASKET = [
@@ -43,6 +49,14 @@ export const BASKET = [
   { key: 'puffs', label: 'پفک' },
   { key: 'yogurt', label: 'ماست' },
   { key: 'drink', label: 'نوشیدنی' },
+] as const;
+
+/** the four out in the woods, as the goal box lists them */
+export const RESCUE = [
+  { key: 'amin', label: 'امین' },
+  { key: 'alireza', label: 'علیرضا' },
+  { key: 'amir', label: 'امیر اسماعیل' },
+  { key: 'owner', label: 'صاحب کلبه' },
 ] as const;
 
 /** paying: when (seconds into his recording `farajpour_thanks`) Farajpour brings out the amulet and holds it out to you */

@@ -195,10 +195,11 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     container: document.body, trees: forest.trees, pathLine: terrain.pathLine,
     // what moves on the map, read-only
     source: {
-      people: () => camp.gathering.people.map((p) => p.seat),
+      // (once they have run for it, where they really are)
+      people: () => camp.gathering.people.map((p) => (errand?.chaseScene.caught ? p.h.root.position : p.seat)),
       dog: () => camp.dog?.root.position ?? null,
       deer: () => deer.agents,
-      target: () => errand?.mapTarget() ?? null,
+      targets: () => errand?.mapTargets() ?? [],
     },
     store: { ...store.mapShape(), path: terrain.storePath },
   });

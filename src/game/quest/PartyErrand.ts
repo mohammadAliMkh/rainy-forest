@@ -22,7 +22,7 @@ import { GHOST_IN, CREEP_STOP, LINE_UP, CHASE, CHASE_SHOTS } from '../scenario/g
 import { makeAmulet } from '../items/Amulet.ts';
 import type { Inventory } from '../items/Inventory.ts';
 import type { Hands } from '../player/Hands.ts';
-import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, KEEPER_GIVES_AT } from './errandScript.ts';
+import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, RESCUE, rescueGoal, NEAR_AMIR, KEEPER_GIVES_AT } from './errandScript.ts';
 
 // The first errand, step by step, after the introductions:
 //   Amir's spot blinks on the map -> walk up to him: he asks you to fetch
@@ -42,14 +42,15 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, NEAR_AMIR, KEEPER_GIVES_AT
 //   they see it, get up and line up across the fire facing it (LineUpScene.ts)
 //   -> it trembles and tears into four, one opposite each of them
 //   (SplitScene.ts) -> they run for it, each a different way into the woods, each ghost after its
-//   own, and each is caught somewhere out there (ChaseScene.ts); you are back on the porch -> (the
+//   own, and each is caught somewhere out there (ChaseScene.ts); you are back on the porch -> save
+//   the four: the goal line counts them, the box lists them, each one blinks on the map -> (the
 //   rest of the story comes next; at its very end you take the shopping to Amir).
 // Night falls as you step out of the shop; with «روح ترسناک» on, in heavy rain.
 // What to do now is announced as QUEST (the goal line and the basket),
 // lines people say as DIALOG, its name at the start and the end and
 // "shopping done" as BANNER; `mapTarget()` is what blinks on the map.
 
-type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keeper' | 'leave' | 'pickles' | 'ghost' | 'fire' | 'next';
+type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keeper' | 'leave' | 'pickles' | 'ghost' | 'fire' | 'rescue';
 
 interface PlayerLike { x: number; z: number; y: number; yaw: number; pitch: number; teleport(x: number, z: number, yaw?: number): void }
 type Night = ConstructorParameters<typeof Nightfall>[0];
@@ -108,6 +109,8 @@ export class PartyErrand {
   /** this time round the night is stormy (read on leaving the shop) */
   haunted = false;
   private readonly got = new Set<string>();
+  /** those of the four saved so far (by name) */
+  readonly saved = new Set<string>();
   private t = 0; // seconds in this step
   private blinkT = 0;
 
@@ -223,6 +226,18 @@ export class PartyErrand {
     }
   }
 
+  /** everywhere that blinks on the map now: where to go next, or each of the four still out there */
+  mapTargets(): { x: number; z: number }[] {
+    if (this.step === 'rescue') {
+      return RESCUE.filter((r) => !this.saved.has(r.key)).flatMap((r) => {
+        const p = this.camp.gathering.byName(r.key);
+        return p ? [p.h.root.position] : [];
+      });
+    }
+    const t = this.mapTarget();
+    return t ? [t] : [];
+  }
+
   private _go(step: Step): void {
     this.step = step;
     this.t = 0;
@@ -233,11 +248,12 @@ export class PartyErrand {
   private _announce(): void {
     // while Amir talks / the ghost is out, the goal before stays up
     const key = this.step === 'amirTalks' ? 'toAmir' : this.step === 'ghost' ? 'pickles' : this.step === 'keeper' ? 'pay' : this.step;
-    const goal = (GOALS as Record<string, string>)[key];
+    const goal = key === 'rescue' ? rescueGoal(this.saved.size) : (GOALS as Record<string, string>)[key];
     if (!goal) { this.events.emit(EV.QUEST, null); return; }
     // the basket only while shopping (once paid for it fades away)
-    const basket = ['shop', 'pay'].includes(this.step) ? BASKET.map((b) => ({ label: b.label, got: this.got.has(b.key) })) : null;
-    const hint = ['shop', 'pay', 'pickles'].includes(this.step) ? (this.touch() ? HINTS.tap : HINTS.click) : null;
+    const basket = this.step === 'rescue' ? RESCUE.map((r) => ({ label: r.label, got: this.saved.has(r.key) }))
+      : ['shop', 'pay'].includes(this.step) ? BASKET.map((b) => ({ label: b.label, got: this.got.has(b.key) })) : null;
+    const hint = this.step === 'rescue' ? HINTS.rescue : ['shop', 'pay', 'pickles'].includes(this.step) ? (this.touch() ? HINTS.tap : HINTS.click) : null;
     this.events.emit(EV.QUEST, { title: TITLE, objective: goal, hint, basket });
   }
 
@@ -287,7 +303,7 @@ export class PartyErrand {
   /**
    * while developing (?stage=N): straight into stage N of the ghost's story
    * (2 the jar, 5 the sky shot, 6 it creeps up, 7 the line-up, 8 it splits,
-   * 9 they run for it; see STATUS.md), as if all before had happened: the
+   * 9 they run for it, 10 go and save them; see STATUS.md), as if all before had happened: the
    * shopping and the amulet in the bag, night fallen, you on the shop's porch
    * (where the films leave you), and what the scene before left
    */
@@ -322,7 +338,8 @@ export class PartyErrand {
       else if (stage === 8) this.splitScene.start(cam, this.lineUpScene.setEnd(cam, shot), null);
       else {
         this.splitScene.setEnd(cam, this.lineUpScene.setEnd(cam, shot));
-        this.chaseScene.start(cam, this.splitScene.takeActs(), this.splitScene.placesNow(), []);
+        if (stage === 9) this.chaseScene.start(cam, this.splitScene.takeActs(), this.splitScene.placesNow(), []);
+        else this.chaseScene.setEnd(this.splitScene.takeActs(), this.splitScene.placesNow());
       }
     }
   }
@@ -397,8 +414,11 @@ export class PartyErrand {
         }
         break;
       case 'fire':
-        // the ghost at the fire: the rest of the story comes next
-        if (!this.skyShot.active && !this.creepScene.active && !this.lineUpScene.active && !this.splitScene.active && !this.chaseScene.active) this._go('next');
+        // the films are over and you are back on the porch: now go and save them
+        if (!this.skyShot.active && !this.creepScene.active && !this.lineUpScene.active && !this.splitScene.active && !this.chaseScene.active) {
+          this.events.emit(EV.BANNER, { text: BANNERS.rescue, kind: 'title', seconds: 3.5 });
+          this._go('rescue');
+        }
         break;
     }
   }
