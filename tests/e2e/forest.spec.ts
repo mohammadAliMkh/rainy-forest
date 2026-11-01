@@ -234,11 +234,53 @@ test('the last one saved: they all come back to the fire and sit down', async ({
     const box = { done: document.getElementById('quest')!.classList.contains('done'), goal: document.getElementById('quest-goal')!.textContent, banner: document.getElementById('banner')!.textContent };
     let took = 0;
     for (let k = 0; k < 400 && e.returnScene.active; k++) { step(0.1); took += 0.1; }
-    const seated = people.every((p: any) => !p.act && Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) < 0.01);
+    // (Amir has got up again by now: he has something to say)
+    const seated = people.filter((p: any) => p !== f.camp.gathering.byName('amir')).every((p: any) => !p.act && Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) < 0.01);
     // (they took their time, and nobody was cut short)
-    return { before, film, box, slow: took > 12 && e.returnScene.seatedAt < 22, seated, cinematic: f.camp.cinematic };
+    return { before, film, box, slow: took > 12 && e.returnScene.seatedAt < 22, seated, then: e.step, cinematic: f.camp.cinematic };
   });
-  expect(r).toEqual({ before: { step: 'saved', ghosts: 0 }, film: true, box: { done: true, goal: 'سناریوی روح سرگردان', banner: expect.not.stringContaining('نجات') }, slow: true, seated: true, cinematic: false });
+  expect(r).toEqual({ before: { step: 'saved', ghosts: 0 }, film: true, box: { done: true, goal: 'سناریوی روح سرگردان', banner: expect.not.stringContaining('نجات') }, slow: true, seated: true, then: 'thanks', cinematic: true });
+  expect(errors).toEqual([]);
+});
+
+test('the end: Amir talks to you, the bag calls, the shopping goes to him one thing after another; the flashlight and the cross stay in the bag', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors, '/?debug&stage=13');
+  await enter(page);
+  await errandSetup(page);
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, step = (window as any).step, amir = f.camp.gathering.byName('amir');
+    const btn = document.getElementById('bag-btn')!, goal = () => document.getElementById('quest-goal')!.textContent;
+    for (let k = 0; k < 300 && e.step !== 'deliver'; k++) step(0.1);
+    step(1);
+    const near = Math.hypot(f.player.x - amir.seat.x, f.player.z - amir.seat.z);
+    const start = { step: e.step, cinematic: f.camp.cinematic, up: !!amir.act, near: near > 1 && near < 4.2, call: btn.classList.contains('call'), goal: goal(), listed: document.getElementById('quest-basket')!.childElementCount, blink: e.mapTargets().length };
+    // in the bag: the two that stay can't be chosen, the rest can
+    const items = () => Array.from(document.querySelectorAll('#bag-items .bag-item')) as HTMLButtonElement[];
+    const named = (b: HTMLButtonElement) => b.querySelector('.bag-item-name')!.textContent!;
+    const locked = items().filter((b) => b.disabled).map(named).sort();
+    f.inventory.equip('flashlight');
+    const stays = f.inventory.held;
+    // one thing after another, chosen from the bag
+    const steps: number[] = [];
+    for (let k = 0; k < 8 && e.step === 'deliver' && items().some((b) => !b.disabled); k++) {
+      items().find((b) => !b.disabled)!.click();
+      step(1.2);
+      steps.push(e.given.size);
+    }
+    step(2.5);
+    return {
+      start, locked, stays, steps,
+      end: { step: e.step, left: items().map(named).sort(), call: btn.classList.contains('call'), done: document.getElementById('quest')!.classList.contains('done'), goal: goal(), seated: !amir.act, loose: f.world.children ? e.handing.length : 0, freeAgain: items().every((b) => !b.disabled) },
+    };
+  });
+  expect(r).toEqual({
+    start: { step: 'deliver', cinematic: false, up: true, near: true, call: true, goal: 'خوراکی‌ها را از کوله به امیر اسماعیل بده', listed: 5, blink: 1 },
+    locked: ['صلیب سنگی', 'چراغ‌قوه'].sort(),
+    stays: null,
+    steps: [1, 2, 3, 4, 5],
+    end: { step: 'done', left: ['صلیب سنگی', 'چراغ‌قوه'].sort(), call: false, done: true, goal: 'سناریوی روح سرگردان', seated: true, loose: 0, freeAgain: true },
+  });
   expect(errors).toEqual([]);
 });
 

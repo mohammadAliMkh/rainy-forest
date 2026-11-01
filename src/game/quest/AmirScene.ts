@@ -14,6 +14,8 @@ import type { VoiceHandle } from '../sound/Soundscape.ts';
 // straight into it (to you), with his free hand; toward the end he points
 // the way to the shop. A dip to black, the view is yours again, and he sits
 // back down. The line is his recording when there is one, else a caption.
+// At the end of it all he gets up to talk to you again, pointing nowhere, and
+// stays on his feet to be handed the shopping (`stay`, until `letGo()`).
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
@@ -31,7 +33,8 @@ export class AmirScene {
   private readonly voices: () => VoiceService | null;
   private act: StandTalk | null = null;
   private line: SceneLine | null = null;
-  private pointAt = new THREE.Vector3();
+  private pointAt: THREE.Vector3 | null = null;
+  private stay = false;
   private voice: VoiceHandle | null = null;
   private t = -1;
   private lineT = -1; // seconds into the line, -1 before it
@@ -55,12 +58,13 @@ export class AmirScene {
 
   get active(): boolean { return this.t >= 0; }
 
-  /** Amir gets up and says `line`; `pointAt` is where he shows the way (world) */
-  start(line: SceneLine, pointAt: THREE.Vector3, camera: THREE.Camera): void {
+  /** Amir gets up and says `line`; `pointAt` is where he shows the way (world; null: nowhere); `stay`: he stays on his feet afterwards, until `letGo()` */
+  start(line: SceneLine, pointAt: THREE.Vector3 | null, camera: THREE.Camera, stay = false): void {
     const p = this.gathering.byName('amir');
     if (!p || this.active) return;
     this.line = line;
-    this.pointAt.copy(pointAt);
+    this.pointAt = pointAt?.clone() ?? null;
+    this.stay = stay;
     this.t = 0; this.lineT = -1; this.ending = 0; this.voice = null;
     const s = p.seat;
     this.act = new StandTalk(p.h, { x: s.x, y: s.y, z: s.z, facing: s.facing, lean: p.baseLean }, this.terrain);
@@ -75,6 +79,16 @@ export class AmirScene {
     this.filming = true;
     this.gathering.guitar = 'off'; // Amin stops playing while he asks
     this.events.emit(EV.INTRO_CINEMATIC, true); // (his name is on the line's caption box)
+  }
+
+  /** on his feet, after the scene, until `letGo()` (null: he isn't) */
+  get standing(): StandTalk | null { return this.stay ? this.act : null; }
+
+  /** he can sit down again */
+  letGo(): void {
+    if (this.stay && this.act) { this.act.point = 0; this.act.sitDown(); }
+    this.stay = false;
+    this.act = null;
   }
 
   /** cut it short: he sits down, the view comes back */
@@ -104,7 +118,7 @@ export class AmirScene {
     if (this.lineT >= 0) {
       this.lineT = this.voice ? this.voice.elapsed() : this.lineT + dt;
       // the last couple of seconds: "that way, to the shop"
-      if (act) act.point = Math.min(1, Math.max(0, (this.lineT - (this.lineLen - 2.8)) / 2.6));
+      if (act && this.pointAt) act.point = Math.min(1, Math.max(0, (this.lineT - (this.lineLen - 2.8)) / 2.6));
       // over once the recording has really finished (its clock stops at its length) or the caption's time is up
       if (this.voice ? this.voice.done : this.lineT >= this.lineLen) this.afterT += dt;
       if (this.afterT >= 0.4 && !this.ending) this.ending = 1e-6;
@@ -118,14 +132,14 @@ export class AmirScene {
         if (this.ending >= 0.35) {
           this.filming = false;
           this.voice?.stop();
-          if (act) { act.speaking = false; act.point = 0; act.sitDown(); }
+          if (act) { act.speaking = false; act.point = 0; if (!this.stay) act.sitDown(); }
           this.events.emit(EV.DIALOG, null);
           this.events.emit(EV.INTRO_CINEMATIC, false);
         }
       } else {
         this.fade = Math.max(0, this.fade - dt / 0.45);
         this.events.emit(EV.INTRO_FADE, this.fade);
-        if (this.fade <= 0 && (!act || act.done)) { this.t = -1; this.act = null; this.gathering.guitar = 'auto'; }
+        if (this.fade <= 0 && (!act || act.done || this.stay)) { this.t = -1; if (!this.stay) this.act = null; this.gathering.guitar = 'auto'; }
       }
     }
   }

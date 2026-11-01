@@ -31,6 +31,7 @@ export const EV = {
 
   // the player's bag (src/game/items/Inventory.ts)
   INVENTORY: 'items:inventory',
+  BAG_CALL: 'items:bag-call',
 
   // the weather (src/game/weather/Weather.ts)
   LIGHTNING: 'weather:lightning',
@@ -79,7 +80,9 @@ export interface GameEvents {
    * title (the errand's name at its start and end) or a short note ("shopping done") */
   [EV.BANNER]: { text: string; kind: 'title' | 'note'; seconds: number };
   /** what is in the player's bag and what is in their hand */
-  [EV.INVENTORY]: { items: { id: string; label: string; icon: string }[]; held: string | null };
+  [EV.INVENTORY]: { items: { id: string; label: string; icon: string; locked: boolean }[]; held: string | null };
+  /** the bag's button calls for attention: there is something to choose in it */
+  [EV.BAG_CALL]: boolean;
   /** a soft, distant flash; the rumble arrives `delay` seconds later */
   [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };

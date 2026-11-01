@@ -292,6 +292,9 @@ body.in-cinema .bag-btn, body.in-cinema .bag { opacity: 0; visibility: hidden; p
 .bag-btn.open { background: rgba(60, 50, 30, 0.8); border-color: var(--accent-2); }
 .bag-btn.new { animation: bagNew 0.6s ease 3; }
 @keyframes bagNew { 50% { transform: scale(1.22); border-color: var(--accent-2); } }
+.bag-btn.call:not(.open) { animation: bagCall 0.9s ease-in-out infinite; border-color: var(--accent-2); }
+@keyframes bagCall { 50% { transform: scale(1.35); } }
+.bag-item:disabled { opacity: 0.4; cursor: not-allowed; }
 .bag-count {
   position: absolute;
   bottom: -2px;

@@ -22,9 +22,9 @@ import { ReturnScene } from './ReturnScene.ts';
 import { Wraith } from '../scenario/Wraith.ts';
 import { GHOST_IN, CREEP_STOP, LINE_UP, CHASE, CHASE_SHOTS, RETURN_LEADS, RESCUE_START } from '../scenario/ghostScript.ts';
 import { makeAmulet } from '../items/Amulet.ts';
-import type { Inventory } from '../items/Inventory.ts';
+import type { Inventory, ItemId } from '../items/Inventory.ts';
 import type { Hands } from '../player/Hands.ts';
-import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, RESCUE, rescueGoal, savedNote, NEAR_AMIR, KEEPER_GIVES_AT } from './errandScript.ts';
+import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, RESCUE, DELIVERY, KEPT, DELIVER_AT, rescueGoal, savedNote, NEAR_AMIR, KEEPER_GIVES_AT } from './errandScript.ts';
 
 // The first errand, step by step, after the introductions:
 //   Amir's spot blinks on the map -> walk up to him: he asks you to fetch
@@ -49,7 +49,10 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, RESCUE, rescueGoal, savedN
 //   a ghost, the stone cross in hand, it's a fight (CrossFight.ts): win and its friend stands
 //   free; lose, or run out of the time there is for all four (the sky red all the while), and it starts again from the
 //   moment they ran for it -> the last one free: they all come back to the fire and sit down
-//   (ReturnScene.ts) -> (the rest of the story comes next: you take the shopping to Amir).
+//   (ReturnScene.ts) -> you are at the fire by Amir, who gets up and talks to you, a film scene
+//   again -> the bag's button calls: open it and choose the shopping, one thing after another
+//   (the flashlight and the cross stay in the bag): each goes from your hand to his -> the box
+//   ticks the scenario off, and he sits down.
 // Night falls as you step out of the shop; with «روح ترسناک» on, in heavy rain.
 // What to do now is announced as QUEST (the goal line and the basket),
 // lines people say as DIALOG, its name at the start and the end and
@@ -59,8 +62,12 @@ import { TITLE, BANNERS, LINES, GOALS, HINTS, BASKET, RESCUE, rescueGoal, savedN
 const AFTER_LAST = 1.7;
 /** the last ghost gone: how long the sky takes to clear (s) */
 const SKY_CLEARS = 2.5;
+/** back at the fire you stand by Amir: how far from his seat (m), how far round from straight in front of him (radians) */
+const BY_AMIR = { far: 1.9, round: 2.0 };
+/** the shopping going from your hand to his: how long it takes (s), how high it arcs (m), how fast his arm comes out for it */
+const HANDING = { time: 0.7, arc: 0.12, arm: 5 };
 
-type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keeper' | 'leave' | 'pickles' | 'ghost' | 'fire' | 'rescue' | 'saved';
+type Step = 'wait' | 'toAmir' | 'amirTalks' | 'toStore' | 'shop' | 'pay' | 'keeper' | 'leave' | 'pickles' | 'ghost' | 'fire' | 'rescue' | 'saved' | 'thanks' | 'deliver' | 'done';
 
 interface PlayerLike { x: number; z: number; y: number; yaw: number; pitch: number; teleport(x: number, z: number, yaw?: number): void }
 type Night = ConstructorParameters<typeof Nightfall>[0];
@@ -128,6 +135,12 @@ export class PartyErrand {
   private t = 0; // seconds in this step
   private blinkT = 0;
   private returned = false; // the film of their coming back has been shown
+  /** the shopping handed over to Amir so far */
+  readonly given = new Set<string>();
+  /** what is on its way from your hand to his */
+  private readonly handing: { model: THREE.Object3D; from: THREE.Vector3; t: number }[] = [];
+  private readonly world: THREE.Object3D;
+  private readonly you = new THREE.Vector3();
 
   constructor({ camp, store, player, picker, events, terrain, world, voices, touch, camera, night, scary, hands, inventory, shoo, cabin }: {
     camp: Camp; store: Store; player: PlayerLike; picker: Picker; events: EventBus<GameEvents>;
@@ -141,6 +154,7 @@ export class PartyErrand {
   }) {
     this.hands = hands;
     this.inventory = inventory;
+    this.world = world;
     this.camp = camp;
     this.store = store;
     this.player = player;
@@ -248,6 +262,10 @@ export class PartyErrand {
         const a = this.camp.gathering.byName('amir');
         return a ? { x: a.seat.x, z: a.seat.z } : null;
       }
+      case 'deliver': {
+        const a = this.camp.gathering.byName('amir');
+        return a ? { x: a.seat.x, z: a.seat.z } : null;
+      }
       case 'toStore': case 'leave': case 'pickles': {
         const s = this.store.mapShape();
         return { x: s.x, z: s.z };
@@ -281,16 +299,17 @@ export class PartyErrand {
 
   // the goal line and the basket
   private _announce(): void {
-    // all saved: only the box, the scenario's name ticked off
-    if (this.step === 'saved') { this.events.emit(EV.QUEST, { title: TITLE, objective: TITLE, hint: null, basket: null, done: true }); return; }
+    // all saved, and at the very end: only the box, the scenario's name ticked off
+    if (this.step === 'saved' || this.step === 'done') { this.events.emit(EV.QUEST, { title: TITLE, objective: TITLE, hint: null, basket: null, done: true }); return; }
     // while Amir talks / the ghost is out, the goal before stays up
     const key = this.step === 'amirTalks' ? 'toAmir' : this.step === 'ghost' ? 'pickles' : this.step === 'keeper' ? 'pay' : this.step;
     const goal = key === 'rescue' ? rescueGoal(this.saved.size) : (GOALS as Record<string, string>)[key];
     if (!goal) { this.events.emit(EV.QUEST, null); return; }
     // the basket only while shopping (once paid for it fades away)
     const basket = this.step === 'rescue' ? RESCUE.map((r) => ({ label: r.label, got: this.saved.has(r.key) }))
+      : this.step === 'deliver' ? DELIVERY.map((d) => ({ label: d.label, got: this.given.has(d.key) }))
       : ['shop', 'pay'].includes(this.step) ? BASKET.map((b) => ({ label: b.label, got: this.got.has(b.key) })) : null;
-    const hint = this.step === 'rescue' ? HINTS.rescue : ['shop', 'pay', 'pickles'].includes(this.step) ? (this.touch() ? HINTS.tap : HINTS.click) : null;
+    const hint = this.step === 'rescue' ? HINTS.rescue : this.step === 'deliver' ? (this.touch() ? HINTS.deliverTouch : HINTS.deliver) : ['shop', 'pay', 'pickles'].includes(this.step) ? (this.touch() ? HINTS.tap : HINTS.click) : null;
     this.events.emit(EV.QUEST, { title: TITLE, objective: goal, hint, basket });
   }
 
@@ -347,6 +366,51 @@ export class PartyErrand {
     } else this._go('saved');
   }
 
+  // back at the fire: you stand by Amir, and he gets up and talks to you
+  private _thanks(): void {
+    const a = this.camp.gathering.byName('amir');
+    if (!a) return;
+    this.inventory.equip(null);
+    // (beside him, on the side with more room: away from the fire and the others)
+    const spot = (side: number) => {
+      const r = a.seat.facing + side * BY_AMIR.round;
+      return { x: a.seat.x + Math.sin(r) * BY_AMIR.far, z: a.seat.z + Math.cos(r) * BY_AMIR.far };
+    };
+    const off = (s: { x: number; z: number }) => Math.min(Math.hypot(s.x - FIRE.x, s.z - FIRE.z), ...this.camp.gathering.people.filter((p) => p !== a).map((p) => Math.hypot(s.x - p.seat.x, s.z - p.seat.z)));
+    const l = spot(1), r = spot(-1), at = off(l) > off(r) ? l : r;
+    this.player.teleport(at.x, at.z, Math.atan2(-(a.seat.x - at.x), -(a.seat.z - at.z)));
+    // (his film starts from your own view, not from the one just over)
+    const cam = this.camera;
+    cam.position.set(this.player.x, this.player.y, this.player.z);
+    cam.lookAt(a.headPos);
+    this.amirScene.start(LINES.last, null, cam, true);
+    this._go('thanks');
+  }
+
+  // you have let go of it, it goes to him; he has it all: the box ticks the scenario off
+  private _hand(id: ItemId): void {
+    const model = this.inventory.give(id, this.world);
+    this.given.add(id);
+    if (model) this.handing.push({ model, from: model.position.clone(), t: 0 });
+    this._announce();
+  }
+
+  private _handing(dt: number): void {
+    const act = this.amirScene.standing;
+    if (!act) return;
+    // his free hand out to you while something is on its way
+    act.pointAt = this.you.set(this.player.x, this.player.y, this.player.z);
+    act.point += ((this.handing.length ? 0.5 : 0) - act.point) * Math.min(1, dt * HANDING.arm);
+    for (let i = this.handing.length - 1; i >= 0; i--) {
+      const h = this.handing[i];
+      h.t += dt;
+      const k = Math.min(1, h.t / HANDING.time), e = k * k * (3 - 2 * k);
+      h.model.position.copy(h.from).lerp(act.freeHand, e);
+      h.model.position.y += Math.sin(k * Math.PI) * HANDING.arc;
+      if (k >= 1) { h.model.removeFromParent(); this.handing.splice(i, 1); }
+    }
+  }
+
   // the friends in the line, the four ghosts facing them, the camera on them: as they are about to run for it
   private _beforeChase(): void {
     const cam = this.camera as THREE.PerspectiveCamera, shot = this.skyShot.shotPos();
@@ -382,8 +446,8 @@ export class PartyErrand {
   /**
    * while developing (?stage=N): straight into stage N of the ghost's story
    * (2 the jar, 5 the sky shot, 6 it creeps up, 7 the line-up, 8 it splits,
-   * 9 they run for it, 10 go and save them, 11 the same but right by a ghost, 12 all saved and
-   * back they come; see STATUS.md), as if all before had happened: the
+   * 9 they run for it, 10 go and save them, 11 the same but on the way to the shop, 12 all saved and
+   * back they come, 13 Amir talks to you and you hand him the shopping; see STATUS.md), as if all before had happened: the
    * shopping and the amulet in the bag, night fallen, you on the shop's porch
    * (where the films leave you), and what the scene before left
    */
@@ -427,6 +491,8 @@ export class PartyErrand {
         }
         if (stage >= 12) {
           for (const r of RESCUE) { this.saved.add(r.key); this.chaseScene.banishNow(r.key); }
+          // (13: past the film of their coming back, straight to Amir)
+          if (stage >= 13) { this.chaseScene.reset(); this.camp.gathering.guitar = 'auto'; this.returned = true; }
           this._go('saved');
         }
       }
@@ -448,6 +514,7 @@ export class PartyErrand {
     this.fight.update(dt);
     this.returnScene.update(dt);
     this.nightfall.update(dt);
+    this._handing(dt);
     const camp = this.camp, store = this.store;
     const amir = camp.gathering.byName('amir');
     const toAmir = amir ? Math.hypot(this.player.x - amir.seat.x, this.player.z - amir.seat.z) : Infinity;
@@ -507,7 +574,29 @@ export class PartyErrand {
       case 'saved':
         // the last ghost gone into the cross: they all come back
         if (!this.returned && this.t > AFTER_LAST) { this.returned = true; this.returnScene.start(); }
+        // ...and when they have, Amir has something to say
+        else if (this.returned && !this.returnScene.filming) this._thanks();
         break;
+      case 'thanks':
+        // he has said it, and stands there: now the bag
+        if (!this.amirScene.filming) {
+          this.inventory.lock(KEPT);
+          this.events.emit(EV.BAG_CALL, true);
+          this._go('deliver');
+        }
+        break;
+      case 'deliver': {
+        // what you have chosen from the bag goes to him, as soon as you are near enough
+        const held = this.inventory.held;
+        if (held && toAmir < DELIVER_AT && DELIVERY.some((d) => d.key === held)) this._hand(held);
+        if (this.given.size >= DELIVERY.length && !this.handing.length) {
+          this.inventory.lock([]);
+          this.events.emit(EV.BAG_CALL, false);
+          this.amirScene.letGo();
+          this._go('done');
+        }
+        break;
+      }
       case 'fire':
         // the films are over and you are back on the porch: now go and save them
         if (!this.skyShot.active && !this.creepScene.active && !this.lineUpScene.active && !this.splitScene.active && !this.chaseScene.active) {

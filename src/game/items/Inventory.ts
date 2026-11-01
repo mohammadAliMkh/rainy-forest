@@ -50,6 +50,7 @@ export class Inventory {
   private readonly hands: Hands;
   private readonly events: EventBus<GameEvents>;
   private readonly models = new Map<ItemId, THREE.Object3D>();
+  private readonly locked = new Set<ItemId>();
   private readonly makers = new Map<ItemId, () => THREE.Object3D>();
   private readonly _v = new THREE.Vector3();
   private readonly _d = new THREE.Vector3();
@@ -74,8 +75,31 @@ export class Inventory {
     this._announce();
   }
 
+  /** these can't be chosen for now: they stay in the bag (none: all can again) */
+  lock(ids: readonly ItemId[]): void {
+    this.locked.clear();
+    for (const id of ids) this.locked.add(id);
+    this._announce();
+  }
+
+  /**
+   * `id` leaves the bag for good. What it looks like in the hand, if that is
+   * where it is, is handed to `into` (where it is in the world staying as it is)
+   */
+  give(id: ItemId, into: THREE.Object3D): THREE.Object3D | null {
+    const model = this.held === id ? this.models.get(id) ?? null : null;
+    if (model) into.attach(model);
+    if (this.held === id) { this.held = null; this.hands.hold(null, 'right'); }
+    this.models.delete(id);
+    const i = this.items.indexOf(id);
+    if (i >= 0) this.items.splice(i, 1);
+    this._announce();
+    return model;
+  }
+
   /** take `id` out into the right hand (null, or the one already held: put it away) */
   equip(id: ItemId | null): void {
+    if (id && this.locked.has(id)) return;
     if (id && (!this.has(id) || id === this.held)) id = null;
     let model: THREE.Object3D | null = null;
     const make = id ? this.makers.get(id) ?? ITEMS[id].make : null;
@@ -89,7 +113,7 @@ export class Inventory {
   }
 
   private _announce(): void {
-    this.events.emit(EV.INVENTORY, { items: this.items.map((id) => ({ id, label: ITEMS[id].label, icon: ITEMS[id].icon })), held: this.held });
+    this.events.emit(EV.INVENTORY, { items: this.items.map((id) => ({ id, label: ITEMS[id].label, icon: ITEMS[id].icon, locked: this.locked.has(id) })), held: this.held });
   }
 
   /** after the hands (the beam comes from the lens, toward where the player looks) */

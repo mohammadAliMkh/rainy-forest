@@ -211,6 +211,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const hands = new Hands({ scene, world: questWorld, ground: (x, z) => terrain.heightAt(x, z), model: (T as TextureSet).scenes?.fp_arms ?? null });
   const inventory = new Inventory({ hands, events, scene });
   events.on(EV.INVENTORY, (inv) => ui.setInventory(inv));
+  events.on(EV.BAG_CALL, (on) => ui.setBagCall(on));
   ui.on('equip', (id) => inventory.equip(id as ItemId | null));
   ui.on('enter', () => ui.showBag(true));
   inventory.add('flashlight');

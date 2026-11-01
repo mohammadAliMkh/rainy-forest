@@ -98,6 +98,7 @@ export class UI {
     for (const it of inv.items) {
       const b = document.createElement('button');
       b.className = 'bag-item' + (inv.held === it.id ? ' held' : '');
+      b.disabled = !!it.locked;
       b.innerHTML = '<span class="bag-item-icon" aria-hidden="true"></span><span class="bag-item-name"></span>';
       b.querySelector('.bag-item-icon').textContent = it.icon;
       b.querySelector('.bag-item-name').textContent = inv.held === it.id ? it.label + ' (در دست)' : it.label;
@@ -115,6 +116,9 @@ export class UI {
 
   /** show the bag button (once the player is in the forest) */
   showBag(on) { $('bag-btn').classList.toggle('hidden', !on); if (!on) this.setBagOpen(false); }
+
+  /** the bag's button grows and shrinks, calling to be opened */
+  setBagCall(on) { $('bag-btn').classList.toggle('call', on); }
 
   setBagOpen(open) {
     $('bag').classList.toggle('hidden', !open);
