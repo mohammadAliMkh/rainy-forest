@@ -201,7 +201,7 @@ export class Chase {
   private _legs(fn: (i: number) => [number, number, number, number]): void {
     this.h.legs.forEach((L, i) => {
       const [hip, knee, ankle, splay] = fn(i);
-      L.hip.rotation.set(hip, 0, L.side * -splay);
+      L.hip.rotation.set(hip, 0, L.side * splay);
       L.knee.rotation.set(knee, 0, 0);
       L.ankle.rotation.set(ankle, 0, 0);
     });
