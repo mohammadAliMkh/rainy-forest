@@ -12,13 +12,14 @@ import type { LineUp } from './LineUp.ts';
 //             it, one hand behind them in the puddle, the other up against it,
 //             shoving themselves back;
 //   'climb' - up the trunk of a tree, hugging it, looking down at it.
-// They stay so (until saved); `finish()` puts them straight back on their
-// seat through the line's own act. Drives the same rig as the gathering; while
+// They stay so until saved: `free()` gets them up (or down the trunk) and running
+// back the way they came, and at the end of it onto their seat through the
+// line's own act (`finish()`: at once). Drives the same rig as the gathering; while
 // it runs the gathering leaves that person alone.
 
 const UP = new THREE.Vector3(0, 1, 0);
 type Rig = Human & { voiceLevel: number | null };
-type Phase = 'stare' | 'run' | 'caught' | 'done';
+type Phase = 'stare' | 'run' | 'caught' | 'home' | 'done';
 export type CaughtHow = 'cower' | 'fall' | 'climb';
 
 /** a tree's trunk: its centre and radius at the ground, how much thinner it gets for each metre up, and how far it leans over for each metre up (x, z) */
@@ -36,6 +37,8 @@ export interface ChaseRoute {
 const RUN = { speed: 4.1, steps: 1.55 };
 /** how long it takes them to go down / up (s) */
 const CATCH: Record<CaughtHow, number> = { cower: 0.9, fall: 0.55, climb: 2.2 };
+/** saved: how long it takes them to get up / down again (s) */
+const RISE: Record<CaughtHow, number> = { cower: 0.7, fall: 0.8, climb: 1.5 };
 /**
  * up the tree: how much higher the pelvis gets (m), a whole number of `step`s; how far out from the bark it is (m);
  * how far they get with each reach of either hand (m); how far above the shoulder a hand takes hold (m); how far
@@ -56,7 +59,7 @@ export class Chase {
   /** metres along their way */
   s = 0;
   /** the length of their way (m) */
-  readonly total: number;
+  total: number;
   readonly how: CaughtHow;
   private readonly h: Rig;
   private readonly line: LineUp;
@@ -73,6 +76,7 @@ export class Chase {
   private headYaw = 0; private headPitch = 0;
   private readonly hand: THREE.Vector3[];
   private handsSet = true;
+  private homeward = false; // saved, and on their way
   private readonly fell = new THREE.Vector2(); // where they went down in the water
   private readonly _p = new THREE.Vector2();
 
@@ -124,6 +128,9 @@ export class Chase {
     this.hidden = false;
   }
 
+  /** saved: up they get and off back the way they came */
+  free(): void { if (this.phase === 'caught') { this.phase = 'home'; this.t = 0; this.run = 0; } }
+
   /** back on the seat at once (the story is over, or cut short) */
   finish(): void { this.phase = 'done'; this.hidden = false; this.line.finish(); }
 
@@ -145,19 +152,29 @@ export class Chase {
         this.phase = 'caught'; this.t = 0;
         this.fell.set(this.x, this.z);
       }
+    } else if (this.phase === 'home') {
+      if (this.t < RISE[this.how]) {
+        if (this.how === 'climb') this._toTrunk(1, dt);
+      } else {
+        if (!this.homeward) {
+          // from where they are now, along their way
+          this.homeward = true;
+          this.path[this.path.length - 1].set(this.x, this.z);
+          this.total = 0;
+          for (let i = 1; i < this.path.length; i++) this.total += this.path[i].distanceTo(this.path[i - 1]);
+          this.s = this.total;
+        }
+        this.s = Math.max(0, this.s - RUN.speed * Math.min(1, 0.35 + (this.t - RISE[this.how]) * 1.8) * dt);
+        this._at(this.s, true);
+        this.run = damp(this.run, 1, 8, dt);
+        this.gait += dt * 2 * Math.PI * RUN.steps;
+        if (this.s <= 0) { this.finish(); return; }
+      }
     } else {
       this.run = damp(this.run, 0, 10, dt);
       const toIt = Math.atan2(this.chaser.x - this.x, this.chaser.z - this.z);
       if (this.how === 'climb' && this.tree) {
-        // round to face the trunk, close in to it
-        const tr = this.tree, k = ease(this.t / 0.35);
-        const at = this._trunk(this.terrain.heightAt(tr.x, tr.z) + this.line.standH * 0.85 + CLIMB.up * this._climbed);
-        const toTree = Math.atan2(at.x - this.x, at.z - this.z);
-        this.heading = lerpAngle(this.heading, toTree, 1 - Math.exp(-14 * dt));
-        const end = this.path[this.path.length - 1];
-        const a = Math.atan2(end.x - tr.x, end.y - tr.z), r = at.r + CLIMB.off;
-        this.x = end.x + (at.x + Math.sin(a) * r - end.x) * k;
-        this.z = end.y + (at.z + Math.cos(a) * r - end.y) * k;
+        this._toTrunk(ease(this.t / 0.35), dt);
       } else {
         // round to face it (going down in the water: spinning round as they fall)
         this.heading = lerpAngle(this.heading, toIt, 1 - Math.exp(-(this.how === 'fall' ? 12 : 6) * dt));
@@ -178,19 +195,30 @@ export class Chase {
     this.h.talk = 0;
   }
 
-  // where `s` metres along the way is (and they face along it)
-  private _at(s: number): void {
+  // round to face the trunk, in to it by `k`, as high as they are up it
+  private _toTrunk(k: number, dt: number): void {
+    const tr = this.tree!;
+    const at = this._trunk(this.terrain.heightAt(tr.x, tr.z) + this.line.standH * 0.85 + CLIMB.up * this._climbed);
+    this.heading = lerpAngle(this.heading, Math.atan2(at.x - this.x, at.z - this.z), 1 - Math.exp(-14 * dt));
+    const end = this.path[this.path.length - 1];
+    const a = Math.atan2(end.x - tr.x, end.y - tr.z), r = at.r + CLIMB.off;
+    this.x = end.x + (at.x + Math.sin(a) * r - end.x) * k;
+    this.z = end.y + (at.z + Math.cos(a) * r - end.y) * k;
+  }
+
+  // where `s` metres along the way is (and they face along it, or back along it)
+  private _at(s: number, back = false): void {
     let i = 0, left = s;
     while (i < this.path.length - 2 && left > this.path[i].distanceTo(this.path[i + 1])) { left -= this.path[i].distanceTo(this.path[i + 1]); i++; }
     const a = this.path[i], b = this.path[i + 1];
     const k = Math.min(1, left / Math.max(1e-3, a.distanceTo(b)));
     const nx = a.x + (b.x - a.x) * k, nz = a.y + (b.y - a.y) * k;
-    if (Math.hypot(nx - this.x, nz - this.z) > 1e-4) this.heading = lerpAngle(this.heading, Math.atan2(b.x - a.x, b.y - a.y), 0.18);
+    if (Math.hypot(nx - this.x, nz - this.z) > 1e-4) this.heading = lerpAngle(this.heading, back ? Math.atan2(a.x - b.x, a.y - b.y) : Math.atan2(b.x - a.x, b.y - a.y), 0.18);
     this.x = nx; this.z = nz;
   }
 
   // how far up the tree they are (0..1)
-  private get _climbed(): number { return ease((this.t - 0.25) / (CATCH.climb - 0.25)); }
+  private get _climbed(): number { return this.phase === 'home' ? 1 - ease(this.t / RISE.climb) : ease((this.t - 0.25) / (CATCH.climb - 0.25)); }
 
   // where the trunk is and how thick at height `y` (world): it thins out and leans over on the way up
   private _trunk(y: number): { x: number; z: number; r: number } {
@@ -209,7 +237,7 @@ export class Chase {
 
   private _pose(dt: number): void {
     const h = this.h, how = this.how, run = this.run;
-    const k = this.phase === 'caught' ? ease(this.t / CATCH[how]) : 0;
+    const k = this.phase === 'caught' ? ease(this.t / CATCH[how]) : this.phase === 'home' ? 1 - ease(this.t / RISE[how]) : 0;
     const shake = this.phase === 'caught' ? Math.sin(this.time * 31) * 0.6 + Math.sin(this.time * 47 + 1) * 0.4 : 0;
     // legs: running strides, then how they end up
     const climbed = how === 'climb' && k > 0 ? this._climbed : 0, rose = CLIMB.up * climbed;
@@ -313,15 +341,15 @@ export class Chase {
         };
       }
       caughtT.addScaledVector(right, shake * 0.012 * k).addScaledVector(UP, shake * 0.01 * k);
-      const tg = this.phase === 'caught' ? pump.clone().lerp(caughtT, ease(this.t / (how === 'climb' ? 0.22 : CATCH[how] * 0.7))) : pump;
+      const tg = this.phase === 'caught' ? pump.clone().lerp(caughtT, ease(this.t / (how === 'climb' ? 0.22 : CATCH[how] * 0.7))) : this.phase === 'home' ? pump.clone().lerp(caughtT, k) : pump;
       if (!this.handsSet) this.hand[i].copy(tg);
       this.hand[i].lerp(tg, 1 - Math.exp(-16 * dt));
       const shield = this.phase === 'caught' && how !== 'climb' && (how === 'cower' || i === 1);
       const pole = out.clone().multiplyScalar(0.7).addScaledVector(fwd, shield ? 0.1 : -0.4).addScaledVector(UP, -0.5).normalize();
       const thumb = shield ? UP.clone().addScaledVector(out, -0.3).normalize() : fwd.clone();
       const fingers = shield ? UP.clone().addScaledVector(fwd, 0.2).normalize() : UP.clone().negate().addScaledVector(fwd, 0.3).normalize();
-      if (grip && this.phase === 'caught') {
-        const w = ease(this.t / 0.22);
+      if (grip && k > 0) {
+        const w = this.phase === 'home' ? k : ease(this.t / 0.22);
         pole.lerp(grip.pole, w).normalize();
         thumb.lerp(grip.thumb, w).normalize();
         fingers.lerp(grip.fingers, w).normalize();

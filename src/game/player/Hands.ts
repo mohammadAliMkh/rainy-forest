@@ -51,6 +51,8 @@ const POSE = {
   rest: { pos: new THREE.Vector3(0.21, -0.27, -0.42), quat: euler(0.15, 0.35, -1.25), grip: 0.3 },
   /** holding something up in front, ready to use it (turned a little inward, so it is seen from the side) */
   hold: { pos: new THREE.Vector3(0.19, -0.2, -0.4), quat: euler(0.16, 0.3, -1.35), grip: 1 },
+  /** what it holds held up high in front of you, against something */
+  raise: { pos: new THREE.Vector3(0.09, -0.11, -0.42), quat: euler(0.12, 0.12, -1.42), grip: 1 },
   /** out of view, down by the side */
   away: { pos: new THREE.Vector3(0.24, -0.62, -0.22), quat: euler(0.6, 0.1, -0.4), grip: 0.5 },
   /** palm out, pushing */
@@ -341,6 +343,16 @@ export class Hands {
       item.visible = true;
     }
     if (!h.step) h.aim(item ? POSE.hold : POSE.rest, 8);
+  }
+
+  /** hold up what the right hand holds, thrust forward by `kick` (0..1); null: back to just holding it */
+  raiseHeld(kick: number | null): void {
+    const h = this.right;
+    if (h.step) return;
+    if (kick === null) { h.aim(h.held ? POSE.hold : POSE.rest, 8); return; }
+    h.aim(POSE.raise, 16);
+    h.goal.pos.z -= 0.07 * kick;
+    h.goal.pos.y += 0.02 * kick;
   }
 
   /**

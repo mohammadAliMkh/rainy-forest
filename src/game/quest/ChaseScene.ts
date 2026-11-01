@@ -48,16 +48,27 @@ const GLOW = { color: 0xb8ccff, intensity: 5, distance: 8, below: 0.7 };
 const LAUGH = { from: 6.3, gain: 1.0 };
 /** its own recording under the last two shots: its third swell (from, how long, how loud), from which shot */
 const SWELL = { from: 22.0, length: 8.6, gain: 0.8, shot: 2 };
+/** turned on the player, how near to them it comes at most (m) */
+const CLOSE = 2.1;
 /** the film camera's field of view in the shots */
 const FOV = 50;
 
-interface Ghost { w: Wraith; path: THREE.Vector2[]; total: number; before: number; s: number; head: THREE.Vector3; loom: number }
+interface Ghost {
+  w: Wraith; path: THREE.Vector2[]; total: number; before: number; s: number; head: THREE.Vector3; loom: number;
+  /** it has been driven off (going, or gone) */
+  gone: boolean;
+  /** it has turned on the player: where they are, and how far toward them it has come (0..1) */
+  to: THREE.Vector3 | null; lunge: number;
+}
 
 export class ChaseScene {
   /** the film camera has the view */
   filming = false;
   /** the four are out there, caught, each with its ghost over them (after the film, until they are saved) */
   caught = false;
+  /** after the film: whose ghost's glow is on (by the name of its friend), how brightly */
+  lit: string | null = null;
+  litBy = 0;
   /** the glow from the ghost in the shot (to be added to the world) */
   readonly light = new THREE.PointLight(GLOW.color, 0, GLOW.distance, 1.6);
   private readonly wraiths: Wraith[];
@@ -163,6 +174,44 @@ export class ChaseScene {
 
   skip(): void { if (this.filming && !this.ending) this.ending = 1e-6; }
 
+  /** where the ghost over `key` waits (none: it has been driven off) */
+  spot(key: string): { x: number; z: number } | null {
+    const g = this.ghosts.get(key), r = this.routes[key];
+    return g && !g.gone && r ? { x: r.ghost[0], z: r.ghost[1] } : null;
+  }
+
+  /** the head of the ghost over `key` (world) */
+  head(key: string, out: THREE.Vector3): THREE.Vector3 {
+    const g = this.ghosts.get(key);
+    return g ? out.copy(g.head) : out;
+  }
+
+  /** the ghost over `key` turns on someone at `to` and comes `lunge` (0..1) of the way there; null: back over its friend */
+  threat(key: string, to: THREE.Vector3 | null, lunge: number): void {
+    const g = this.ghosts.get(key);
+    if (g) { g.to = to; g.lunge = lunge; }
+  }
+
+  /** the ghost over `key` is driven off, its friend free to go home */
+  banish(key: string): void {
+    const g = this.ghosts.get(key);
+    if (!g) return;
+    g.gone = true;
+    g.w.vanish();
+    this.chases.get(key)?.free();
+  }
+
+  /** all of it off, the friends back on their seats and the ghosts away (to start over) */
+  reset(): void {
+    for (const c of this.chases.values()) c.finish();
+    for (const w of this.wraiths) { w.still(); w.show(false); }
+    this.chases.clear();
+    this.ghosts.clear();
+    this.caught = false;
+    this.lit = null;
+    this.light.intensity = 0;
+  }
+
   // each friend off on their way, each ghost after its own
   private _cast(acts: Map<string, LineUp>, places: THREE.Vector3[]): void {
     this.chases.clear();
@@ -170,7 +219,7 @@ export class ChaseScene {
     this.order.forEach((key, i) => {
       const line = acts.get(key), p = this.gathering.byName(key), r = this.routes[key], w = this.wraiths[i];
       if (!line || !p || !r || !w) return;
-      const g: Ghost = { w, path: [], total: 0, before: 0, s: 0, head: new THREE.Vector3(), loom: LOOM[r.how] };
+      const g: Ghost = { w, path: [], total: 0, before: 0, s: 0, head: new THREE.Vector3(), loom: LOOM[r.how], gone: false, to: null, lunge: 0 };
       w.show(true);
       w.headWorld(g.head);
       const chase = new Chase(p.h, line, r, this.terrain, g.head, r.stare);
@@ -201,7 +250,11 @@ export class ChaseScene {
   update(dt: number): void {
     this.time += dt;
     // after the film: they stay caught out there, the ghosts hovering over them
-    if (this.caught && !this.active) { this._ghosts(dt, true); return; }
+    if (this.caught && !this.active) {
+      this._ghosts(dt, true);
+      this._glow(this.lit, this.litBy);
+      return;
+    }
     if (!this.active) return;
     this.t += dt;
     const t = this.t, { at, end } = this.times;
@@ -271,6 +324,7 @@ export class ChaseScene {
     let i = 0;
     for (const [key, g] of this.ghosts) {
       const c = this.chases.get(key)!, w = g.w, P = w.pose;
+      if (g.gone) { w.update(dt); w.headWorld(g.head); i++; continue; }
       const want = this._want(g, c);
       // (out of sight: there at once)
       if (!g.w.group.visible) g.s = want;
@@ -288,6 +342,15 @@ export class ChaseScene {
       P.wind = 2.0 - 0.8 * over;
       P.opacity = 1 - 0.12 * (0.5 + 0.5 * Math.sin(this.time * 17 + i * 2)) * (1 - over);
       P.dim = 0;
+      // turned on the player, and rushing at them
+      if (g.to) {
+        P.heading = Math.atan2(g.to.x - P.x, g.to.z - P.z);
+        const dx = g.to.x - P.x, dz = g.to.z - P.z, way = Math.max(0, 1 - CLOSE / Math.max(CLOSE, Math.hypot(dx, dz))) * g.lunge;
+        P.x += dx * way;
+        P.z += dz * way;
+        P.lift += (0 - P.lift) * Math.min(1, g.lunge * 1.5);
+        P.arms = Math.max(P.arms, 0.55 + 0.45 * g.lunge);
+      }
       // (back to its full size out of the shelter)
       w.group.scale.setScalar(w.group.scale.x + (1 - w.group.scale.x) * Math.min(1, dt * 1.5));
       w.update(dt);
@@ -309,6 +372,15 @@ export class ChaseScene {
     const a = g.path[i], b = g.path[i + 1];
     const k = Math.min(1, left / Math.max(1e-3, a.distanceTo(b)));
     return [a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k];
+  }
+
+  // the glow from the ghost over `key`, toward its friend
+  private _glow(key: string | null, intensity: number): void {
+    const g = key ? this.ghosts.get(key) : null, p = key ? this.gathering.byName(key) : null;
+    if (g && !g.gone && p) {
+      this.light.position.copy(g.head).lerp(p.headPos, 0.3).addScaledVector(UP, -GLOW.below);
+      this.light.intensity = intensity;
+    } else this.light.intensity = 0;
   }
 
   // the scatter from where the split left the camera (drawing up and back a
@@ -337,11 +409,7 @@ export class ChaseScene {
       fov = FOV;
     }
     // the glow: from the ghost in the shot, toward the one it is after
-    const k = this.shot >= 0 ? this.shots[this.shot][0] : null, g = k ? this.ghosts.get(k) : null, p = k ? this.gathering.byName(k) : null;
-    if (g && p) {
-      this.light.position.copy(g.head).lerp(p.headPos, 0.3).addScaledVector(UP, -GLOW.below);
-      this.light.intensity = GLOW.intensity * (1 - this.fade);
-    } else this.light.intensity = 0;
+    this._glow(this.shot >= 0 ? this.shots[this.shot][0] : null, GLOW.intensity * (1 - this.fade));
     camera.position.copy(this.pos);
     camera.quaternion.copy(this.quat);
     if (this.ending && this.fade >= 1) fov = 55;

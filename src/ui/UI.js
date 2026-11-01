@@ -152,6 +152,29 @@ export class UI {
     }));
   }
 
+  /** the round bar against a ghost, what to do under it, the red closing in (null: all gone) */
+  setCrossRing(r) {
+    const el = $('cross-ring');
+    el.classList.toggle('hidden', !r);
+    $('cross-danger').style.opacity = r ? String(r.danger * 0.85) : '0';
+    if (!r) return;
+    el.classList.toggle('unarmed', !r.armed);
+    $('cross-ring-bar').style.strokeDasharray = `${(r.fill * 100).toFixed(1)} 100`;
+    $('cross-ring-label').textContent = r.label;
+    if (r.hit) {
+      const d = $('cross-ring-disc');
+      d.classList.remove('hit'); void d.offsetWidth; d.classList.add('hit');
+    }
+  }
+
+  /** the words on the black when the ghost has killed you (null: gone) */
+  showGameOver(g) {
+    $('game-over').classList.toggle('show', !!g);
+    if (!g) return;
+    $('game-over-title').textContent = g.title;
+    $('game-over-note').textContent = g.note;
+  }
+
   /** a title card or a short note across the middle of the view, fading away after `seconds` */
   showBanner(b) {
     const el = $('banner');

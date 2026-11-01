@@ -5,10 +5,10 @@ import { test, expect, type Page } from '@playwright/test';
 
 // inside page.evaluate the game is reached as `(window as any).forest` (untyped on purpose)
 
-async function open(page: Page, errors: string[]) {
+async function open(page: Page, errors: string[], url = '/?debug') {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('/?debug');
+  await page.goto(url);
   // ready (start screen showing) or failed (the loading screen shows the error)
   await page.waitForFunction(() => ((window as any).forest && !document.getElementById('start')!.classList.contains('hidden'))
     || document.getElementById('loading-step')!.textContent!.startsWith('خطا'), null, { timeout: 240_000 });
@@ -214,6 +214,52 @@ async function errandSetup(page: Page) {
     (window as any).step(2);
   });
 }
+
+test('saving the four: the cross fills the bar near a ghost, its friend goes home; left empty the ghost kills you and it starts again', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors, '/?debug&stage=11');
+  await enter(page);
+  await errandSetup(page);
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, F = e.fight, step = (window as any).step;
+    step(1);
+    const start = { step: e.step, targets: e.mapTargets().length, key: F.key };
+    // up to the ghost behind the shop, the cross in hand: click until it is gone
+    f.player.teleport(f.player.x, f.player.z + 3, f.player.yaw);
+    f.inventory.equip('amulet');
+    step(0.3);
+    const near = { key: F.key, ring: !document.getElementById('cross-ring')!.classList.contains('hidden') };
+    for (let k = 0; k < 10; k++) { F.tap(); step(0.05); }
+    const some = F.fill; step(2);
+    const draining = F.fill < some;
+    for (let k = 0; k < 600 && !e.saved.size; k++) { F.tap(); step(0.1); }
+    step(1);
+    const won = { saved: [...e.saved], going: f.camp.gathering.byName('owner').act?.phase, goal: document.getElementById('quest-goal')!.textContent, targets: e.mapTargets().length };
+    // up to another, doing nothing: it kills you, and it all starts again from when they ran for it
+    const s = e.chaseScene.spot('alireza');
+    f.player.teleport(s.x, s.z + 3, 0);
+    for (let k = 0; k < 200 && !F.dying; k++) step(0.1);
+    const dying = { dying: F.dying, cinematic: f.camp.cinematic };
+    step(3);
+    const over = document.getElementById('game-over')!.classList.contains('show');
+    for (let k = 0; k < 200 && F.dying; k++) step(0.1);
+    const again = { filming: e.chaseScene.filming, saved: e.saved.size, step: e.step, held: f.inventory.held, over: document.getElementById('game-over')!.classList.contains('show') };
+    for (let k = 0; k < 800 && e.step !== 'rescue'; k++) f.frame(0.05);
+    const end = { step: e.step, targets: e.mapTargets().length, caught: f.camp.gathering.people.every((p: any) => p.act?.caught), cinematic: f.camp.cinematic };
+    return { start, near, draining, won, dying, over, again, end };
+  });
+  expect(r).toEqual({
+    start: { step: 'rescue', targets: 4, key: null },
+    near: { key: 'owner', ring: true },
+    draining: true,
+    won: { saved: ['owner'], going: 'home', goal: 'چهار رفیقت را در جنگل نجات بده (۱ از ۴)', targets: 3 },
+    dying: { dying: true, cinematic: true },
+    over: true,
+    again: { filming: true, saved: 0, step: 'fire', held: null, over: false },
+    end: { step: 'rescue', targets: 4, caught: true, cinematic: false },
+  });
+  expect(errors).toEqual([]);
+});
 
 test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire, the ghost creeping up on them, they line up facing it, it becomes four, they run for it and are caught', async ({ page }) => {
   const errors: string[] = [];

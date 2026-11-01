@@ -24,7 +24,8 @@ export class Picker {
   onTooFar: (() => void) | null = null;
   private readonly targets = new Set<PickTarget>();
   private readonly camera: THREE.Camera;
-  private readonly dom: HTMLElement;
+  /** the view that is clicked */
+  readonly dom: HTMLElement;
   private readonly active: () => boolean;
   private readonly ray = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
@@ -59,6 +60,9 @@ export class Picker {
       }
     }, { passive: true });
   }
+
+  /** the view can be clicked right now (playing: no menu, no film) */
+  get ready(): boolean { return this.active(); }
 
   /** register something that can be picked; returns a function that removes it */
   add(target: PickTarget): () => void {

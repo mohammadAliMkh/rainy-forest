@@ -10,6 +10,7 @@ export const BANNERS = {
   start: TITLE,
   bought: '✓ خرید انجام شد',
   rescue: 'رفقایت را نجات بده',
+  allSaved: '✓ همه نجات پیدا کردند',
   end: 'پایان سناریوی روح سرگردان',
 };
 
@@ -41,7 +42,7 @@ export const rescueGoal = (saved: number): string => `${GOALS.rescue} (${'۰۱۲
 export const HINTS = {
   click: 'روی چیزهایی که چشمک می‌زنند کلیک کن',
   tap: 'روی چیزهایی که چشمک می‌زنند بزن',
-  rescue: 'جای هر کدام روی نقشه چشمک می‌زند',
+  rescue: 'جای هر کدام روی نقشه چشمک می‌زند؛ نزدیک روح، صلیب سنگی را در دست بگیر',
 };
 
 export const BASKET = [
@@ -50,6 +51,19 @@ export const BASKET = [
   { key: 'yogurt', label: 'ماست' },
   { key: 'drink', label: 'نوشیدنی' },
 ] as const;
+
+/** a friend is saved */
+export const savedNote = (name: string): string => `✓ ${name} نجات پیدا کرد`;
+
+/** the fight with a ghost: what to do, under the round bar; the words when it has killed you */
+export const FIGHT_TEXT = {
+  take: 'صلیب سنگی را از کوله بردار (B)',
+  takeTouch: 'صلیب سنگی را از کوله بردار',
+  click: 'پشت سر هم کلیک کن!',
+  tap: 'پشت سر هم روی صفحه بزن!',
+  over: 'بازی تمام شد',
+  again: 'از لحظه‌ی حمله‌ی روح‌ها دوباره شروع می‌شود',
+};
 
 /** the four out in the woods, as the goal box lists them */
 export const RESCUE = [

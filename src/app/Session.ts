@@ -71,6 +71,8 @@ export class Session {
     events.on(EV.QUEST, (q) => ui.setQuest(q));
     events.on(EV.DIALOG, (d) => ui.showDialog(d));
     events.on(EV.BANNER, (b) => ui.showBanner(b));
+    events.on(EV.CROSS_RING, (r) => ui.setCrossRing(r));
+    events.on(EV.GAME_OVER, (g) => ui.showGameOver(g));
     ui.on('skip', () => { camp.intro.skip(); for (const f of camp.films) f.skip?.(); });
 
     // automatic quality: adapt only while playing; the menu shows the level it picked

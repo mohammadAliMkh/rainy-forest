@@ -625,3 +625,37 @@ body.touch .quest-goal { font-size: 0.9rem; }
 body.touch .dialog { bottom: auto; top: 112px; font-size: 0.92rem; max-width: calc(100vw - 230px); }
 /* in a film scene the line sits just above the bottom letterbox bar, clear of the faces */
 body.in-cinema .dialog { bottom: calc(11vh + 12px + env(safe-area-inset-bottom, 0px)); top: auto; }
+
+/* the fight with a ghost: the round bar (under the middle of the view), the red closing in, the end of it */
+.cross-ring {
+  position: fixed; left: 50%; top: 62%; transform: translateX(-50%);
+  z-index: 6; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  transition: opacity 0.25s;
+}
+.cross-ring.hidden, body.in-cinema .cross-ring { opacity: 0; }
+.cross-ring-disc { position: relative; width: 104px; height: 104px; }
+.cross-ring.unarmed .cross-ring-disc { display: none; }
+.cross-ring-disc svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.cross-ring-back { fill: rgba(8, 12, 14, 0.55); stroke: rgba(255, 255, 255, 0.18); stroke-width: 9; }
+.cross-ring-bar { fill: none; stroke: #ffd98a; stroke-width: 9; stroke-linecap: round; stroke-dasharray: 0 100; filter: drop-shadow(0 0 5px rgba(255, 205, 110, 0.8)); }
+.cross-ring-icon { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; color: #f2e9d8; text-shadow: 0 0 8px rgba(255, 205, 110, 0.7); }
+.cross-ring-disc.hit { animation: cross-ring-hit 0.4s ease-out; }
+.cross-ring-disc.hit .cross-ring-bar { stroke: #ff4632; }
+@keyframes cross-ring-hit {
+  0% { transform: scale(1.18) translateX(-5px); }
+  30% { transform: scale(0.94) translateX(5px); }
+  60% { transform: scale(1.04) translateX(-3px); }
+  100% { transform: none; }
+}
+.cross-ring-label { color: #f2e9d8; font-size: 15px; font-weight: 600; padding: 3px 12px; border-radius: 12px; background: rgba(8, 12, 14, 0.55); white-space: nowrap; }
+.cross-danger {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(140, 0, 0, 0.95) 100%);
+}
+.game-over {
+  position: fixed; inset: 0; z-index: 8; pointer-events: none; opacity: 0; transition: opacity 0.6s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #f2e9d8;
+}
+.game-over.show { opacity: 1; }
+.game-over b { font-size: 44px; color: #d8392a; }
+.game-over span { font-size: 16px; opacity: 0.85; }

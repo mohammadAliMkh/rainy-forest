@@ -280,6 +280,9 @@ export class Wraith {
     this.act = { kind: 'vanish', t: 0, onDone };
   }
 
+  /** stop coming or going, as it is */
+  still(): void { this.act = null; }
+
   /** coming or going */
   get busy(): boolean { return !!this.act; }
 
