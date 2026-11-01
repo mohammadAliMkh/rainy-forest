@@ -44,7 +44,7 @@
   - پایان صحنه را با `afterT` بعد از `voice.done` بشمار، **نه** با `voice.elapsed()` (آن در طول فایل سقف می‌خورد).
 - **صدای ضبط‌شده:** `voices.play(key, pos, {duck, gain, from, length})`.
   - فایل‌ها `.voice` هستند (mp3ِ تغییرنام‌داده، تا IDM آن‌ها را نگیرد) در `public/audio/` و در `manifest.json` ثبت می‌شوند.
-- **سناریوی روح:** `src/game/quest/` (PartyErrand، errandScript، JarScene، KeeperScene، AmirScene، NightWalk).
+- **سناریوی روح:** `src/game/quest/` (PartyErrand، errandScript، JarScene، KeeperScene، AmirScene، SplitScene، ChaseScene، CrossFight، ReturnScene).
   - شکل واقعی روح: `src/game/scenario/Wraith.ts` با `appear()` و `vanish()`.
   - `?lab=wraith` روح را تنها نشان می‌دهد.
 - GLTFLoader نقطه را از اسم گره‌ها حذف می‌کند (`wrist.R` ← `wristR`).
@@ -60,3 +60,10 @@
 1. STATUS.md را به‌روز کن: چه شد، کجای کاریم، قدم بعد، سؤال‌های باز، نکته‌های فنی تازه.
 2. اگر قاعده‌ی ثابت تازه‌ای پیدا شد، به همین فایل اضافه کن، کوتاه.
 3. کامیت محلی کن (بدون push).
+
+## صدا
+- کاربر صدای ساختگی (synthesized) در سناریو نمی‌خواهد: فقط ضبط‌هایی که خودش فرستاده و صداهای واقعی صحنه (مثل گیتار امین).
+- فایلی که کاربر می‌فرستد ← `public/audio/<name>.voice` و ثبت در `manifest.json`. قبل از استفاده بلندی‌اش را حساب کن تا تکه‌ی درست را برداری.
+
+## تست مرحله‌ها
+- کاربر نمی‌خواهد هر بار از اول بازی کند: هر مرحله‌ی تازه با `?stage=N` قابل شروع باشد (`PartyErrand.jumpTo` و `setEnd()` صحنه‌ی قبل). آدرس آخرین مرحله‌ی تأییدشده را به او بده.

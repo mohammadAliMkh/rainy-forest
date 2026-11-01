@@ -15,8 +15,8 @@ const ZOOMS = [28, 75]; // map radius in metres (close / wide)
 /**
  * What moves on the map, handed in by app/ (the map doesn't know the game).
  * @typedef {{ x: number, z: number }} MapPoint
- * @typedef {{ people: () => MapPoint[], dog: () => MapPoint | null, deer: () => MapPoint[], target?: () => MapPoint | null }} MapSource
- *   target: where to go next (the errand) - it blinks like an alarm
+ * @typedef {{ people: () => MapPoint[], dog: () => MapPoint | null, deer: () => MapPoint[], targets?: () => MapPoint[] }} MapSource
+ *   targets: where to go next (the errand) - each blinks like an alarm
  * @typedef {{ x: number, z: number, w: number, d: number, yaw: number, path: number[][] }} MapStore the shop (with its porch) and its footpath
  */
 
@@ -263,13 +263,13 @@ export class Minimap {
       }
     }
     // where to go next: a blinking alarm ring (or, off the map, a blinking arrow on the rim)
-    const goal = this.source.target?.();
+    const goals = this.source.targets?.() ?? [];
     const blink = Math.sin(this.time * Math.PI * 2 * 1.4) > -0.2;
-    let goalOff = false;
-    if (goal) {
+    const goalsOff = [];
+    for (const goal of goals) {
       const [tx, ty] = toScreen(goal.x, goal.z);
-      goalOff = Math.hypot(tx - R, ty - R) > R - 10 * dpr;
-      if (!goalOff) {
+      if (Math.hypot(tx - R, ty - R) > R - 10 * dpr) goalsOff.push(goal);
+      else {
         const pulse = (this.time * 1.4) % 1;
         g.beginPath();
         g.arc(tx, ty, (5 + pulse * 9) * dpr, 0, Math.PI * 2);
@@ -281,7 +281,7 @@ export class Minimap {
     }
     g.restore();
 
-    if (goal && goalOff && blink) {
+    if (blink) for (const goal of goalsOff) {
       const [tx, ty] = toScreen(goal.x, goal.z);
       const a = Math.atan2(ty - R, tx - R);
       const rr = R - 11 * dpr;

@@ -11,12 +11,14 @@ import { makeAmulet } from './Amulet.ts';
 // player's right hand (`equip`), choosing it again puts it away. A
 // flashlight is in it from the start: held, it shines a beam where the
 // player looks (its light is always in the scene, dark while put away, so
-// taking it out never stalls the game).
+// taking it out never stalls the game). The shopping for the party goes in
+// it too, the pickles last; their models in the hand are copies of the
+// ones in the shop (`define`).
 
-export type ItemId = 'flashlight' | 'amulet';
+export type ItemId = 'flashlight' | 'amulet' | 'chips' | 'puffs' | 'yogurt' | 'drink' | 'pickles';
 
-/** what each thing is called on screen, its icon, and its model in the hand */
-export const ITEMS: Record<ItemId, { label: string; icon: string; make: () => THREE.Object3D }> = {
+/** what each thing is called on screen, its icon, and its model in the hand (null: given by `define`) */
+export const ITEMS: Record<ItemId, { label: string; icon: string; make: (() => THREE.Object3D) | null }> = {
   flashlight: { label: 'چراغ‌قوه', icon: '🔦', make: makeFlashlight },
   amulet: {
     label: 'صلیب سنگی', icon: '☩',
@@ -31,6 +33,11 @@ export const ITEMS: Record<ItemId, { label: string; icon: string; make: () => TH
       return g;
     },
   },
+  chips: { label: 'چیپس', icon: '🍟', make: null },
+  puffs: { label: 'پفک', icon: '🧀', make: null },
+  yogurt: { label: 'ماست', icon: '🥛', make: null },
+  drink: { label: 'نوشیدنی', icon: '🥤', make: null },
+  pickles: { label: 'خیارشور', icon: '🥒', make: null },
 };
 
 const BEAM = { intensity: 26, distance: 34, angle: 0.4, penumbra: 0.55, decay: 1.25 };
@@ -43,6 +50,8 @@ export class Inventory {
   private readonly hands: Hands;
   private readonly events: EventBus<GameEvents>;
   private readonly models = new Map<ItemId, THREE.Object3D>();
+  private readonly locked = new Set<ItemId>();
+  private readonly makers = new Map<ItemId, () => THREE.Object3D>();
   private readonly _v = new THREE.Vector3();
   private readonly _d = new THREE.Vector3();
 
@@ -56,6 +65,9 @@ export class Inventory {
 
   has(id: ItemId): boolean { return this.items.includes(id); }
 
+  /** how `id` is made for the hand (for things whose model lives elsewhere) */
+  define(id: ItemId, make: () => THREE.Object3D): void { this.makers.set(id, make); }
+
   /** it goes in the bag */
   add(id: ItemId): void {
     if (this.has(id)) return;
@@ -63,21 +75,45 @@ export class Inventory {
     this._announce();
   }
 
+  /** these can't be chosen for now: they stay in the bag (none: all can again) */
+  lock(ids: readonly ItemId[]): void {
+    this.locked.clear();
+    for (const id of ids) this.locked.add(id);
+    this._announce();
+  }
+
+  /**
+   * `id` leaves the bag for good. What it looks like in the hand, if that is
+   * where it is, is handed to `into` (where it is in the world staying as it is)
+   */
+  give(id: ItemId, into: THREE.Object3D): THREE.Object3D | null {
+    const model = this.held === id ? this.models.get(id) ?? null : null;
+    if (model) into.attach(model);
+    if (this.held === id) { this.held = null; this.hands.hold(null, 'right'); }
+    this.models.delete(id);
+    const i = this.items.indexOf(id);
+    if (i >= 0) this.items.splice(i, 1);
+    this._announce();
+    return model;
+  }
+
   /** take `id` out into the right hand (null, or the one already held: put it away) */
   equip(id: ItemId | null): void {
+    if (id && this.locked.has(id)) return;
     if (id && (!this.has(id) || id === this.held)) id = null;
-    this.held = id;
     let model: THREE.Object3D | null = null;
-    if (id) {
-      model = this.models.get(id) ?? ITEMS[id].make();
+    const make = id ? this.makers.get(id) ?? ITEMS[id].make : null;
+    if (id && make) {
+      model = this.models.get(id) ?? make();
       this.models.set(id, model);
-    }
+    } else id = null;
+    this.held = id;
     this.hands.hold(model, 'right');
     this._announce();
   }
 
   private _announce(): void {
-    this.events.emit(EV.INVENTORY, { items: this.items.map((id) => ({ id, label: ITEMS[id].label, icon: ITEMS[id].icon })), held: this.held });
+    this.events.emit(EV.INVENTORY, { items: this.items.map((id) => ({ id, label: ITEMS[id].label, icon: ITEMS[id].icon, locked: this.locked.has(id) })), held: this.held });
   }
 
   /** after the hands (the beam comes from the lens, toward where the player looks) */

@@ -20,10 +20,12 @@ const KEYS = [
   K(20.8, { top: 0x05080d, hor: 0x131b26, fog: 0x121a23, sun: 0x8fa6d0, sunI: 0.2, hs: 0x34476a, hg: 0x10120f, hI: 0.42, amb: 0.06, exp: 1.45, fogD: 0.021, stars: 0.65, glow: 0.15 }),
   K(24.0, { top: 0x04070c, hor: 0x131b26, fog: 0x121a23, sun: 0x8fa6d0, sunI: 0.2, hs: 0x34476a, hg: 0x10120f, hI: 0.42, amb: 0.06, exp: 1.45, fogD: 0.021, stars: 0.7, glow: 0.15 }),
 ];
+// the ghost's red sky (`blood`): every colour drawn toward these, whatever the hour
+const BLOOD = { top: 0x2c0406, hor: 0x8a1a0c, fog: 0x3e0a08, sun: 0xff4628, hs: 0x9a2a1c, hg: 0x1e0605 };
 const COLOR_KEYS = ['top', 'hor', 'fog', 'sun', 'hs', 'hg'];
 const NUM_KEYS = ['sunI', 'hI', 'amb', 'exp', 'fogD', 'stars', 'glow'];
 // pre-convert colors
-for (const k of KEYS) for (const c of COLOR_KEYS) k[c] = new THREE.Color(k[c]);
+for (const k of [...KEYS, BLOOD]) for (const c of COLOR_KEYS) k[c] = new THREE.Color(k[c]);
 
 export class DayCycle {
   constructor({ scene, sky, sun, hemi, ambient, renderer }) {
@@ -31,6 +33,8 @@ export class DayCycle {
     this.hour = DAY.startHour;
     this.cycleSeconds = DAY.cycleSeconds;
     this.paused = false;
+    /** how red the sky and the light are (0..1), set by the ghost scenario */
+    this.blood = 0;
     this.state = {};
     for (const c of COLOR_KEYS) this.state[c] = new THREE.Color();
     this.lightDir = new THREE.Vector3(0.3, 1, 0.2).normalize();
@@ -60,6 +64,14 @@ export class DayCycle {
     const t = smoothstep(0, 1, (h - a.hour) / (b.hour - a.hour));
     for (const c of COLOR_KEYS) this.state[c].copy(a[c]).lerp(b[c], t);
     for (const n of NUM_KEYS) this.state[n] = a[n] + (b[n] - a[n]) * t;
+    // the red sky: no stars, the fog thicker
+    const r = this.blood;
+    if (r > 0) {
+      const s = this.state;
+      for (const c of COLOR_KEYS) s[c].lerp(BLOOD[c], r);
+      s.stars *= 1 - r;
+      s.fogD += 0.008 * r;
+    }
   }
 
   apply(snap) {

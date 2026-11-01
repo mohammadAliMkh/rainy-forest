@@ -25,9 +25,13 @@ export const EV = {
   QUEST: 'quest:update',
   DIALOG: 'quest:dialog',
   BANNER: 'quest:banner',
+  CROSS_RING: 'quest:crossRing',
+  RESCUE_TIMER: 'quest:rescueTimer',
+  GAME_OVER: 'quest:gameOver',
 
   // the player's bag (src/game/items/Inventory.ts)
   INVENTORY: 'items:inventory',
+  BAG_CALL: 'items:bag-call',
 
   // the weather (src/game/weather/Weather.ts)
   LIGHTNING: 'weather:lightning',
@@ -61,17 +65,24 @@ export interface GameEvents {
     | { cue: 'sneak' | 'sneakStop' | 'boo' | 'giggle' | 'eek' | 'vanish' | 'pickup' | 'pay' | 'lid'; position: Vector3 }
     | { cue: 'laughDeep' | 'glitch' | 'whisper' | 'heartbeat' | 'shriek' | 'bark' | 'whirl'; position: Vector3 }
     | { cue: 'scream'; position: Vector3; who: string }
-    /** a footstep somewhere else (the steps following you on the walk back) */
+    /** a footstep somewhere else (steps that echo yours) */
     | { cue: 'echoStep'; position: Vector3; surface: 'water' | 'mud' | 'leaves' | 'wood'; running: boolean };
   /** the errand's current goal and the basket (null: no errand on screen) */
-  [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null } | null;
+  /** the round bar against a ghost (src/game/quest/CrossFight.ts): how full, how near to death by it, the ghost's rush just hit, the cross in hand, what to do, whether that is a warning */
+  [EV.CROSS_RING]: { fill: number; danger: number; hit: boolean; armed: boolean; label: string; warn: boolean } | null;
+  /** the time left to save them all (s) */
+  [EV.RESCUE_TIMER]: { left: number; total: number } | null;
+  [EV.GAME_OVER]: { title: string; note: string } | null;
+  [EV.QUEST]: { title: string; objective: string; hint: string | null; basket: { label: string; got: boolean }[] | null; done?: boolean } | null;
   /** someone says a line to the player (shown as a caption box), or null to clear it */
   [EV.DIALOG]: { speaker: string; text: string; seconds: number } | null;
   /** a message across the middle of the view that fades away after `seconds`: a big
    * title (the errand's name at its start and end) or a short note ("shopping done") */
   [EV.BANNER]: { text: string; kind: 'title' | 'note'; seconds: number };
   /** what is in the player's bag and what is in their hand */
-  [EV.INVENTORY]: { items: { id: string; label: string; icon: string }[]; held: string | null };
+  [EV.INVENTORY]: { items: { id: string; label: string; icon: string; locked: boolean }[]; held: string | null };
+  /** the bag's button calls for attention: there is something to choose in it */
+  [EV.BAG_CALL]: boolean;
   /** a soft, distant flash; the rumble arrives `delay` seconds later */
   [EV.LIGHTNING]: { direction: Vector3; strength: number; delay: number };
   [EV.QUALITY_CHANGED]: { name: QualityName; preset: QualityPreset; auto: boolean };

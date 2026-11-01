@@ -5,10 +5,10 @@ import { test, expect, type Page } from '@playwright/test';
 
 // inside page.evaluate the game is reached as `(window as any).forest` (untyped on purpose)
 
-async function open(page: Page, errors: string[]) {
+async function open(page: Page, errors: string[], url = '/?debug') {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('/?debug');
+  await page.goto(url);
   // ready (start screen showing) or failed (the loading screen shows the error)
   await page.waitForFunction(() => ((window as any).forest && !document.getElementById('start')!.classList.contains('hidden'))
     || document.getElementById('loading-step')!.textContent!.startsWith('خطا'), null, { timeout: 240_000 });
@@ -39,7 +39,7 @@ test('entering: the start screen closes at once, the opening flight, the scene i
   expect(stats.flying).toBe(true);
   expect(stats.mapDuring).toBe(false);
   expect(stats.meshes).toBeGreaterThan(400);
-  expect(stats.lights).toBe(8); // (with the flashlight's beam, dark until it is taken out)
+  expect(stats.lights).toBe(9); // (with the flashlight's beam and the ghosts' glow, dark until they are needed)
   expect(stats.map).toBe(true);
   expect(errors).toEqual([]);
 });
@@ -185,65 +185,8 @@ test('the shop: up the steps and in, the door opens with its bell, the shopkeepe
   expect(errors).toEqual([]);
 });
 
-test('scenario 1: the button near the camp, the ghost, everyone runs and comes back to their seats', async ({ page }) => {
-  const errors: string[] = [];
-  await open(page, errors);
-  await enter(page);
-  // past the opening flight; offered near the camp once the introductions (and the errand) are over
-  const offered = await page.evaluate(() => {
-    const f = (window as any).forest, c = f.camp;
-    c.intro.skip();
-    for (let k = 0; k < 30; k++) f.frame(0.05);
-    f.errand.step = 'done';
-    f.player.teleport(1.5, -8, 0);
-    for (let k = 0; k < 5; k++) f.frame(0.05);
-    return {
-      button: !document.getElementById('scenario-btn')!.classList.contains('hidden'),
-      intro: c.intro.active, cinematic: c.cinematic, scenarioDone: c.scenario.done, errand: f.errand.step, menu: f.session.menuOpen(),
-    };
-  });
-  expect(offered.button, JSON.stringify(offered)).toBe(true);
-  const r = await page.evaluate(() => {
-    const f = (window as any).forest, g = f.camp.gathering, s = f.camp.scenario;
-    // step the game without drawing (software rendering is slow)
-    for (const name of ['render', 'environment map']) { const sys = f.game.systems.find((x: { name: string }) => x.name === name); sys.update = () => {}; }
-    const cues: string[] = [];
-    f.events.on('scenario:cue', (c: { cue: string }) => cues.push(c.cue));
-    const seats = g.people.map((p: any) => [p.h.root.position.x, p.h.root.position.y, p.h.root.position.z]);
-    document.getElementById('scenario-btn')!.click();
-    let ranOff = 0, maxAway = 0, cinematic = false;
-    for (let k = 0; k < 1000 && (s.active || k < 5); k++) {
-      f.frame(0.05);
-      cinematic ||= f.camp.cinematic;
-      g.people.forEach((p: any, i: number) => {
-        const d = Math.hypot(p.h.root.position.x - seats[i][0], p.h.root.position.z - seats[i][2]);
-        maxAway = Math.max(maxAway, d);
-        if (p.flight?.hiding) ranOff |= 1 << i;
-      });
-    }
-    f.frame(0.05);
-    const back = g.people.every((p: any, i: number) => Math.hypot(p.h.root.position.x - seats[i][0], p.h.root.position.y - seats[i][1], p.h.root.position.z - seats[i][2]) < 0.01 && !p.flight);
-    return { cues, ranOff, maxAway, cinematic, back, active: s.active, ghost: s.ghost.group.visible, done: s.done, cinemaNow: f.camp.cinematic };
-  });
-  expect(r.cinematic).toBe(true);
-  for (const c of ['sneak', 'sneakStop', 'boo', 'giggle', 'eek', 'vanish']) expect(r.cues).toContain(c);
-  expect(r.cues.filter((c) => c === 'scream')).toHaveLength(4);
-  expect(r.ranOff).toBe(0b1111); // all four reached their hiding places
-  expect(r.maxAway).toBeGreaterThan(4);
-  expect(r.back).toBe(true); // and sat down exactly where they were
-  expect(r.active).toBe(false);
-  expect(r.ghost).toBe(false);
-  expect(r.cinemaNow).toBe(false);
-  // played: the button doesn't come back, until it is offered again from the menu
-  await page.waitForTimeout(500);
-  expect(await page.evaluate(() => document.getElementById('scenario-btn')!.classList.contains('hidden'))).toBe(true);
-  await page.evaluate(() => document.getElementById('replay-scenario-btn')!.click());
-  await page.waitForFunction(() => !document.getElementById('scenario-btn')!.classList.contains('hidden'), null, { timeout: 60_000 });
-  expect(errors).toEqual([]);
-});
-
-// the errand tests: step the game without drawing; helpers to look at things,
-// to walk to a spot by the shop, and to walk home along the trail
+// the errand tests: step the game without drawing; helpers to look at things
+// and to walk to a spot by the shop
 async function errandSetup(page: Page) {
   await page.evaluate(() => {
     const f = (window as any).forest;
@@ -256,28 +199,6 @@ async function errandSetup(page: Page) {
       f.frame(0.05);
     };
     (window as any).goTo = (lx: number, lz: number) => { const e = f.store.group.localToWorld(new f.THREE.Vector3(lx, 0, lz)); f.player.teleport(e.x, e.z, 0); (window as any).step(0.3); };
-    // the way home: the shop's path, then the trail to the fire; walking pace, looking ahead, a step every half second
-    (window as any).walkHome = (until: () => boolean, maxSec = 90) => {
-      const t = f.terrain, end = t.storePath[t.storePath.length - 1];
-      let best = 0;
-      t.pathLine.forEach(([x, z]: number[], i: number) => { if (Math.hypot(x - end[0], z - end[1]) < Math.hypot(t.pathLine[best][0] - end[0], t.pathLine[best][1] - end[1])) best = i; });
-      // ...up to the fire, then over to beside Amir
-      const a = f.camp.gathering.byName('amir');
-      const route = [...t.storePath, ...t.pathLine.slice(best + 1)].filter(([x, z]: number[]) => Math.hypot(x - f.FIRE.x, z - f.FIRE.z) > 4);
-      route.push([a.seat.x + 2.0, a.seat.z + 2.6]);
-      f.player.teleport(route[0][0], route[0][1]);
-      let wp = 0;
-      for (let i = 0; i < maxSec * 20 && !until(); i++) {
-        while (wp < route.length - 1 && Math.hypot(route[wp][0] - f.player.x, route[wp][1] - f.player.z) < 0.5) wp++;
-        const dx = route[wp][0] - f.player.x, dz = route[wp][1] - f.player.z, d = Math.hypot(dx, dz);
-        if (d > 0.05) {
-          const k = Math.min(1, 0.07 / d);
-          f.player.teleport(f.player.x + dx * k, f.player.z + dz * k, Math.atan2(-dx, -dz));
-        }
-        if (i % 10 === 0) f.events.emit('player:step', { running: false, surface: 'mud', side: 1, speed: 1.4 });
-        f.frame(0.05);
-      }
-    };
     // the recorded lines as silent 6 s stand-ins that run on game time (a real
     // recording runs on the audio clock, while the test fast-forwards the game)
     let gameT = 0;
@@ -286,16 +207,166 @@ async function errandSetup(page: Page) {
     f.camp.voices = {
       ready: () => true,
       play: () => { const t0 = gameT; return { duration: 6, get done() { return gameT - t0 > 6; }, elapsed: () => gameT - t0, level: () => 0.2, stop: () => {} }; },
+      loop: (key: string) => { const l = { key, level: 0, clear: 0, on: true, set(v: number, c: number) { l.level = v; l.clear = c; }, stop() { l.on = false; } }; (window as any).loops.push(l); return l; },
     };
+    (window as any).loops = [];
     // what made a sound, and the lightning
     (window as any).cues = []; f.events.on('scenario:cue', (c: { cue: string }) => (window as any).cues.push(c.cue));
-    (window as any).flashes = 0; f.events.on('weather:lightning', (l: any) => { if (l.strength > 1) (window as any).flashes++; }); // the walk's reveals (the weather's own distant flashes are fainter)
     f.camp.intro.skip(); for (let k = 0; k < 30; k++) f.frame(0.05); // past the opening flight
     (window as any).step(2);
   });
 }
 
-test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, the haunted walk back, deliver, the twist', async ({ page }) => {
+test('the last one saved: they all come back to the fire and sit down', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors, '/?debug&stage=12');
+  await enter(page);
+  await errandSetup(page);
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, step = (window as any).step;
+    const people = f.camp.gathering.people;
+    step(1);
+    // (by now the film has begun: the setup above already ran the game for a few seconds)
+    const before = { step: e.step, ghosts: e.wraiths.filter((w: any) => w.group.visible).length };
+    for (let k = 0; k < 60 && !e.returnScene.filming; k++) step(0.1);
+    const film = e.returnScene.filming;
+    // (no words across the view: only the box, the scenario's name ticked off)
+    const box = { done: document.getElementById('quest')!.classList.contains('done'), goal: document.getElementById('quest-goal')!.textContent, banner: document.getElementById('banner')!.textContent };
+    let took = 0;
+    for (let k = 0; k < 400 && e.returnScene.active; k++) { step(0.1); took += 0.1; }
+    // (Amir has got up again by now: he has something to say)
+    const seated = people.filter((p: any) => p !== f.camp.gathering.byName('amir')).every((p: any) => !p.act && Math.hypot(p.h.root.position.x - p.seat.x, p.h.root.position.z - p.seat.z) < 0.01);
+    // (they took their time, and nobody was cut short)
+    return { before, film, box, slow: took > 12 && e.returnScene.seatedAt < 22, seated, then: e.step, cinematic: f.camp.cinematic };
+  });
+  expect(r).toEqual({ before: { step: 'saved', ghosts: 0 }, film: true, box: { done: true, goal: 'سناریوی روح سرگردان', banner: expect.not.stringContaining('نجات') }, slow: true, seated: true, then: 'thanks', cinematic: true });
+  expect(errors).toEqual([]);
+});
+
+test('the end: Amir talks to you, the bag calls, the shopping goes to him one thing after another; the flashlight and the cross stay in the bag', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors, '/?debug&stage=13');
+  await enter(page);
+  await errandSetup(page);
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, step = (window as any).step, amir = f.camp.gathering.byName('amir');
+    const btn = document.getElementById('bag-btn')!, goal = () => document.getElementById('quest-goal')!.textContent;
+    for (let k = 0; k < 300 && e.step !== 'deliver'; k++) step(0.1);
+    step(1);
+    const near = Math.hypot(f.player.x - amir.seat.x, f.player.z - amir.seat.z);
+    const start = { step: e.step, cinematic: f.camp.cinematic, up: !!amir.act, near: near > 1 && near < 4.2, call: btn.classList.contains('call'), goal: goal(), listed: document.getElementById('quest-basket')!.childElementCount, blink: e.mapTargets().length };
+    // in the bag: the two that stay can't be chosen, the rest can
+    const items = () => Array.from(document.querySelectorAll('#bag-items .bag-item')) as HTMLButtonElement[];
+    const named = (b: HTMLButtonElement) => b.querySelector('.bag-item-name')!.textContent!;
+    const locked = items().filter((b) => b.disabled).map(named).sort();
+    f.inventory.equip('flashlight');
+    const stays = f.inventory.held;
+    // one thing after another, chosen from the bag
+    const steps: number[] = [];
+    for (let k = 0; k < 8 && e.step === 'deliver' && items().some((b) => !b.disabled); k++) {
+      items().find((b) => !b.disabled)!.click();
+      step(1.2);
+      steps.push(e.given.size);
+    }
+    step(2.5);
+    return {
+      start, locked, stays, steps,
+      end: { step: e.step, left: items().map(named).sort(), call: btn.classList.contains('call'), done: document.getElementById('quest')!.classList.contains('done'), goal: goal(), seated: !amir.act, loose: f.world.children ? e.handing.length : 0, freeAgain: items().every((b) => !b.disabled) },
+    };
+  });
+  expect(r).toEqual({
+    start: { step: 'deliver', cinematic: false, up: true, near: true, call: true, goal: 'خوراکی‌ها را از کوله به امیر اسماعیل بده', listed: 5, blink: 1 },
+    locked: ['صلیب سنگی', 'چراغ‌قوه'].sort(),
+    stays: null,
+    steps: [1, 2, 3, 4, 5],
+    end: { step: 'done', left: ['صلیب سنگی', 'چراغ‌قوه'].sort(), call: false, done: true, goal: 'سناریوی روح سرگردان', seated: true, loose: 0, freeAgain: true },
+  });
+  expect(errors).toEqual([]);
+});
+
+test('saving the four: the cross fills the bar near a ghost, its friend goes home; left empty the ghost kills you and it starts again', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors, '/?debug&stage=11');
+  await enter(page);
+  await errandSetup(page);
+  const r = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, F = e.fight, step = (window as any).step;
+    step(1);
+    const start = { step: e.step, targets: e.mapTargets().length, key: F.key };
+    const loops = (window as any).loops, far = loops.map((l: any) => [l.key, l.level, l.clear]);
+    // the owner running round the shop, the ghost at his heels, and Amin round the trunk from his
+    const owner = f.camp.gathering.byName('owner').act, amin = f.camp.gathering.byName('amin').act, tree = e.chaseScene.routes.amin.tree;
+    const was = e.chaseScene.spot('owner'), aminWas = e.chaseScene.spot('amin'), roundBefore = amin.around;
+    step(2);
+    const at = e.chaseScene.spot('owner'), aminAt = e.chaseScene.spot('amin'), ap = f.camp.gathering.byName('amin').h.root.position;
+    const across = ((aminAt.x - tree.x) * (ap.x - tree.x) + (aminAt.z - tree.z) * (ap.z - tree.z)) / (Math.hypot(aminAt.x - tree.x, aminAt.z - tree.z) * Math.hypot(ap.x - tree.x, ap.z - tree.z));
+    const moving = { owner: owner.phase, ownerMoved: Math.hypot(at.x - was.x, at.z - was.z) > 3, heels: Math.abs(owner.pos.distanceTo(new f.THREE.Vector2(at.x, at.z)) - 3) < 1.2, aminRound: amin.around !== roundBefore, aminGhostMoved: Math.hypot(aminAt.x - aminWas.x, aminAt.z - aminWas.z) > 0.5, across: across < -0.95 };
+    // up to the ghost at the tree: it turns on you and both stop; away again and they go on
+    const home = [f.player.x, f.player.z];
+    f.player.teleport(aminAt.x, aminAt.z - 5, f.player.yaw);
+    step(0.3);
+    const stillAt = amin.around; step(1);
+    const tree2 = { key: F.key, still: amin.around === stillAt };
+    f.player.teleport(home[0], home[1], f.player.yaw);
+    step(0.5);
+    const treeOn = { key: F.key, round: amin.around !== stillAt };
+    // up to the ghost at the shop, the cross in hand: click until it is gone; they stop
+    const now = e.chaseScene.spot('owner');
+    f.player.teleport(now.x, now.z - 5, f.player.yaw);
+    f.inventory.equip('amulet');
+    step(0.3);
+    const near = { key: F.key, ring: !document.getElementById('cross-ring')!.classList.contains('hidden') };
+    // the nearer the ghost the louder and clearer, the friends' fear faint under it
+    const [ghost, fear, music] = loops;
+    const heard = { keys: loops.map((l: any) => l.key), louder: ghost.level > far[0][1] && ghost.clear > far[0][2], faint: fear.level < ghost.level / 5, music: music.level > 0 };
+    step(1.5);
+    const stopAt = e.chaseScene.spot('owner');
+    step(1);
+    const stopped = { owner: owner.phase, ghost: Math.hypot(e.chaseScene.spot('owner').x - stopAt.x, e.chaseScene.spot('owner').z - stopAt.z) < 0.01 };
+    for (let k = 0; k < 10; k++) { F.tap(); step(0.05); }
+    const some = F.fill; step(2);
+    const draining = F.fill < some;
+    for (let k = 0; k < 600 && !e.saved.size; k++) { F.tap(); step(0.1); }
+    step(1);
+    const won = { saved: [...e.saved], waiting: f.camp.gathering.byName('owner').act?.phase, goal: document.getElementById('quest-goal')!.textContent, targets: e.mapTargets().length };
+    // up to another, doing nothing: it kills you, and it all starts again from when they ran for it
+    const s = e.chaseScene.spot('alireza');
+    f.player.teleport(s.x, s.z + 3, 0);
+    for (let k = 0; k < 200 && !F.dying; k++) step(0.1);
+    const dying = { dying: F.dying, cinematic: f.camp.cinematic, silent: !ghost.on && !fear.on && !music.on };
+    step(3);
+    const over = document.getElementById('game-over')!.classList.contains('show');
+    for (let k = 0; k < 200 && F.dying; k++) step(0.1);
+    const again = { filming: e.chaseScene.filming, saved: e.saved.size, step: e.step, held: f.inventory.held, over: document.getElementById('game-over')!.classList.contains('show') };
+    for (let k = 0; k < 800 && e.step !== 'rescue'; k++) f.frame(0.05);
+    const end = { step: e.step, targets: e.mapTargets().length, caught: f.camp.gathering.people.every((p: any) => p.act?.caught || p.act?.phase === 'round'), cinematic: f.camp.cinematic };
+    // out of time
+    const timer = !document.getElementById('quest-timer')!.classList.contains('hidden');
+    F.left = 0.2; step(0.5);
+    const late = F.dying;
+    return { start, moving, tree2, treeOn, near, heard, stopped, draining, won, dying, over, again, end, timer, late };
+  });
+  expect(r).toEqual({
+    start: { step: 'rescue', targets: 4, key: null },
+    moving: { owner: 'round', ownerMoved: true, heels: true, aminRound: true, aminGhostMoved: true, across: true },
+    tree2: { key: 'amin', still: true },
+    treeOn: { key: null, round: true },
+    near: { key: 'owner', ring: true },
+    heard: { keys: ['ghost_appear', 'friends_scared', 'rescue_music'], louder: true, faint: true, music: true },
+    stopped: { owner: 'caught', ghost: true },
+    draining: true,
+    won: { saved: ['owner'], waiting: 'free', goal: 'چهار رفیقت را در جنگل نجات بده (۱ از ۴)', targets: 3 },
+    dying: { dying: true, cinematic: true, silent: true },
+    over: true,
+    again: { filming: true, saved: 0, step: 'fire', held: null, over: false },
+    end: { step: 'rescue', targets: 4, caught: true, cinematic: false },
+    timer: true,
+    late: true,
+  });
+  expect(errors).toEqual([]);
+});
+
+test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in the pickle jar, up into the sky and down to the friends at the fire, the ghost creeping up on them, they line up facing it, it becomes four, they run for it and are caught', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
@@ -306,7 +377,6 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
   expect(await page.textContent('#banner')).toBe('سناریوی روح سرگردان'); // its title card
   expect(await page.evaluate(() => (window as any).forest.errand.mapTarget())).not.toBeNull(); // Amir blinks on the map
   // Amir asks for the shopping
-  const hourBefore = await page.evaluate(() => (window as any).forest.day.hour);
   await page.evaluate(() => { const f = (window as any).forest, a = f.camp.gathering.byName('amir'); f.player.teleport(a.seat.x + 1.2, a.seat.z + 1.4, 0); (window as any).step(0.5); });
   // he gets up and talks to the player as a film scene
   expect(await state()).toBe('amirTalks');
@@ -349,7 +419,7 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { held, step: e.step, has: e.hasAmulet };
   });
   expect(handed).toEqual({ held: true, step: 'leave', has: true });
-  expect(await page.evaluate(() => (window as any).forest.inventory.items)).toEqual(['flashlight', 'amulet']); // in the bag
+  expect(await page.evaluate(() => (window as any).forest.inventory.items)).toEqual(['flashlight', 'chips', 'puffs', 'yogurt', 'drink', 'amulet']); // in the bag, with the shopping
   expect(await page.evaluate(() => (window as any).forest.store.errand.cash.visible)).toBe(true);
   // "shopping done", and the basket fades away
   expect(await page.textContent('#banner')).toContain('خرید انجام شد');
@@ -368,48 +438,104 @@ test('the errand: Amir asks, shop at Farajpour\'s by clicking, pay, the ghost in
     return { rising, formed: w.pose.form === 1, byTheJar: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) < 1 };
   });
   expect(jar).toEqual({ rising: { cinematic: true, shown: true, atMouth: true, small: true }, formed: true, byTheJar: true });
-  await page.evaluate(() => (window as any).step(3.5));
-  expect(await state()).toBe('deliver');
+  // then the second swell: the ground shakes (the camera) and the sky turns red
+  const quake = await page.evaluate(() => {
+    const f = (window as any).forest, s = f.errand.jarScene, calm = { shaking: s.shaking, blood: f.day.blood };
+    (window as any).step(5);
+    return { calm, shaking: s.shaking > 0.9, blood: f.day.blood > 0.95 };
+  });
+  expect(quake).toEqual({ calm: { shaking: 0, blood: 0 }, shaking: true, blood: true });
+  // it goes off into the woods, fainter the further it goes, and the sky turns back as it goes
+  const going = await page.evaluate(() => {
+    const f = (window as any).forest, w = f.errand.wraith, mouth = f.store.errand.jarMouthWorld();
+    (window as any).step(10.5);
+    return { far: Math.hypot(w.pose.x - mouth.x, w.pose.z - mouth.z) > 8, faint: w.pose.opacity < 0.8, calming: f.day.blood < 0.7, still: f.errand.jarScene.shaking };
+  });
+  expect(going).toEqual({ far: true, faint: true, calming: true, still: 0 });
+  // in the same shot (no dip to black) the camera goes on up into the sky
+  await page.evaluate(() => (window as any).step(6));
+  expect(await state()).toBe('fire');
+  expect(await page.evaluate(() => { const f = (window as any).forest; return { cinematic: f.camp.cinematic, blood: f.day.blood, ghost: f.errand.wraith.group.visible }; }))
+    .toEqual({ cinematic: true, blood: 0, ghost: false });
+  // the shopping is in the bag, the pickles too
+  expect(await page.evaluate(() => (window as any).forest.inventory.items)).toEqual(expect.arrayContaining(['chips', 'puffs', 'yogurt', 'drink', 'pickles']));
   // night has fallen, in heavy rain
   expect(await page.evaluate(() => { const f = (window as any).forest; return { night: f.day.hour > 21, rain: f.weather.kind, haunted: f.errand.haunted }; }))
     .toEqual({ night: true, rain: 'heavy', haunted: true });
-  // the walk back: eyes, steps behind, three lightning reveals in order, the whisper, Luna barks; then the scene at the fire
-  const walk = await page.evaluate(() => {
-    const f = (window as any).forest, w = f.errand.nightWalk;
-    let seenGhost = 0;
-    const flashes0 = (window as any).flashes;
-    (window as any).walkHome(() => { if (f.errand.jarGhost.group.visible) seenGhost++; return f.errand.step === 'scene'; });
-    return { fired: [...w.fired], flashes: (window as any).flashes - flashes0, seenGhost: seenGhost > 0, barked: (window as any).cues.includes('bark'), echoes: (window as any).cues.includes('echoStep'), step: f.errand.step };
+  // high over the trees, then down to a low shot of the four at the fire (still in their seats)
+  const sky = await page.evaluate(() => {
+    const f = (window as any).forest, s = f.errand.skyShot, ground = f.terrain.heightAt(f.camera.position.x, f.camera.position.z);
+    (window as any).step(4);
+    const high = f.camera.position.y - ground > 25;
+    (window as any).step(4.1);
+    const shot = s.shotPos(), atFire = f.camera.position.distanceTo(shot) < 0.5;
+    const seated = f.camp.gathering.people.every((p: any) => !p.flight);
+    (window as any).step(4);
+    return { high, atFire, seated, step: f.errand.step, cinematic: f.camp.cinematic };
   });
-  expect(walk.fired.filter((b: string) => b.startsWith('reveal'))).toEqual(['reveal1', 'reveal2', 'reveal3']);
-  expect(walk.fired).toEqual(expect.arrayContaining(['eyes', 'steps', 'whisper', 'luna']));
-  expect(walk).toMatchObject({ flashes: 3, seenGhost: true, barked: true, echoes: true, step: 'scene' });
-  // scenario 1 at night with the scary ghost; once they have all fled the player has control while they come back
-  const end = await page.evaluate(() => {
-    const f = (window as any).forest;
-    const started = f.errand.step === 'scene' && f.camp.cinematic && f.camp.scenario.ghost.style === 'scary';
-    let handedBack = false;
-    for (let k = 0; k < 900 && f.camp.scenario.active; k++) {
-      f.frame(0.05);
-      if (!handedBack && f.camp.scenario.active && !f.camp.cinematic) handedBack = f.player.active && f.camp.gathering.people.some((p: any) => p.flight);
-    }
-    (window as any).step(0.5);
-    return { started, handedBack, step: f.errand.step, seated: f.camp.gathering.people.every((p: any) => !p.flight) };
+  expect(sky).toEqual({ high: true, atFire: true, seated: true, step: 'fire', cinematic: true });
+  // and on in the same shot: two red eyes at the cabin's corner as the sky turns red again, Amin playing;
+  // it creeps up behind them (still in their seats), its recording playing, Luna staring at it; the guitar stops
+  const creep = await page.evaluate(() => {
+    const f = (window as any).forest, w = f.errand.wraith;
+    (window as any).cues = [];
+    (window as any).step(5);
+    const eyes = { shown: w.group.visible, dark: w.pose.dim > 0.9, reddening: f.day.blood > 0.2 && f.day.blood < 1, guitar: f.camp.gathering.guitar };
+    (window as any).step(14);
+    const cues = (window as any).cues;
+    const behind = {
+      near: Math.hypot(w.pose.x - 0.4, w.pose.z + 17.9) < 0.2, red: f.day.blood > 0.95,
+      luna: !f.camp.dog || !!f.camp.dog.alertAt, seated: f.camp.gathering.people.every((p: any) => !p.act), guitar: f.camp.gathering.guitar,
+    };
+    return { eyes, behind, cues };
   });
-  expect(end).toEqual({ started: true, handedBack: true, step: 'done', seated: true });
-  expect(await page.textContent('#banner')).toBe('پایان سناریوی روح سرگردان');
-  // ...or maybe not: the ghost at the fire with a glass of tea
-  const twist = await page.evaluate(() => {
-    const f = (window as any).forest, g = f.errand.jarGhost;
-    (window as any).step(6.5);
-    return { filming: f.errand.twist.filming, cinematic: f.camp.cinematic, visible: g.group.visible, nearFire: Math.hypot(g.pose.x - f.FIRE.x, g.pose.z - f.FIRE.z) < 2.5 };
+  expect(creep).toEqual({
+    eyes: { shown: true, dark: true, reddening: true, guitar: 'on' },
+    behind: { near: true, red: true, luna: true, seated: true, guitar: 'off' },
+    cues: [], // only the guitar and the ghost's recording: nothing synthesized (no barking)
   });
-  expect(twist).toEqual({ filming: true, cinematic: true, visible: true, nearFire: true });
-  expect(await page.textContent('#banner')).toBe('...یا شاید هم نه 👻');
-  // then the view is the player's again and the night lifts
-  const after = await page.evaluate(() => { const f = (window as any).forest; (window as any).step(16); return { cinematic: f.camp.cinematic, hour: f.day.hour, night: f.errand.nightfall.active, lantern: f.lighting.lanternMax }; });
-  expect(after).toMatchObject({ cinematic: false, night: false, lantern: 5.5 });
-  expect(Math.abs(after.hour - hourBefore)).toBeLessThan(0.3);
+  // and on: they see it, get up and line up across the fire facing it, the sky still red; then back to the player, all in their seats again
+  const line = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, w = e.wraith, people = f.camp.gathering.people;
+    (window as any).step(2);
+    const rising = { scene: e.lineUpScene.active, up: people.some((p: any) => p.act) };
+    // quickly: all of them in the line within a few seconds
+    let k = 0;
+    for (; k < 100 && !people.every((p: any) => p.act?.lined); k++) (window as any).step(0.05);
+    const lined = { quick: k * 0.05 < 4.5, all: people.every((p: any) => p.act?.lined), ghost: w.group.visible, red: f.day.blood > 0.95 };
+    return { rising, lined };
+  });
+  expect(line).toEqual({ rising: { scene: true, up: true }, lined: { quick: true, all: true, ghost: true, red: true } });
+  // and on: it trembles and becomes four, each opposite one of them, who still stand in the line staring at their own;
+  // then they run for it, each a different way, each ghost after its own, and each is caught out there; back to the
+  // player, the four left where they were caught, each with its ghost over them
+  const split = await page.evaluate(() => {
+    const f = (window as any).forest, e = f.errand, W = e.wraiths, people = f.camp.gathering.people;
+    (window as any).step(6);
+    const trembling = { scene: e.splitScene.active, one: W.filter((w: any) => w.group.visible).length, allWatchIt: new Set(people.map((p: any) => p.act?.target)).size };
+    (window as any).step(3);
+    let apart = true;
+    for (let i = 0; i < W.length; i++) for (let j = i + 1; j < W.length; j++) if (Math.hypot(W[i].pose.x - W[j].pose.x, W[i].pose.z - W[j].pose.z) < 1) apart = false;
+    const four = {
+      shown: W.filter((w: any) => w.group.visible).length, apart, lined: people.every((p: any) => p.act?.lined),
+      ownGhost: new Set(people.map((p: any) => p.act?.target)).size, red: f.day.blood > 0.95,
+    };
+    for (let k = 0; k < 200 && !e.chaseScene.filming; k++) (window as any).step(0.05);
+    (window as any).step(1.5);
+    const run = { scene: e.chaseScene.filming, off: people.every((p: any) => p.act && 'caught' in p.act && p.act.s > 0) };
+    (window as any).step(22);
+    const away = people.every((p: any) => Math.hypot(p.h.root.position.x - f.FIRE.x, p.h.root.position.z - f.FIRE.z) > 6);
+    return {
+      trembling, four, run,
+      after: { step: e.step, cinematic: f.camp.cinematic, ghosts: W.filter((w: any) => w.group.visible).length, red: f.day.blood > 0.95, caught: people.every((p: any) => p.act?.caught || p.act?.phase === 'round'), away, targets: e.mapTargets().length, goal: document.getElementById('quest-goal')?.textContent, listed: document.getElementById('quest-basket')?.childElementCount },
+    };
+  });
+  expect(split).toEqual({
+    trembling: { scene: true, one: 1, allWatchIt: 1 },
+    four: { shown: 4, apart: true, lined: true, ownGhost: 4, red: true },
+    run: { scene: true, off: true },
+    after: { step: 'rescue', cinematic: false, ghosts: 4, red: true, caught: true, away: true, targets: 4, goal: 'چهار رفیقت را در جنگل نجات بده (۰ از ۴)', listed: 4 },
+  });
   expect(errors).toEqual([]);
 });
 
@@ -459,7 +585,7 @@ test('the hands and the bag: a flashlight from the start, taken out it lights th
   expect(errors).toEqual([]);
 });
 
-test('the errand with «روح ترسناک» off: night on the way back but no storm, no scares, the funny ghost', async ({ page }) => {
+test('the errand with «روح ترسناک» off: night falls but no storm; the jar scene and the shot down to the fire all the same', async ({ page }) => {
   const errors: string[] = [];
   await open(page, errors);
   await enter(page);
@@ -474,12 +600,11 @@ test('the errand with «روح ترسناک» off: night on the way back but no 
     (window as any).goTo(1.0, 3.7); (window as any).step(1);
     (window as any).lookAt(f.store.errand.lid); e._openJar(); (window as any).step(1.5);
     const jar = e.wraith.group.visible;
-    for (let k = 0; k < 400 && e.step === 'ghost'; k++) f.frame(0.05);
+    for (let k = 0; k < 800 && e.step === 'ghost'; k++) f.frame(0.05);
     const night = f.day.hour > 21, storm = f.weather.kind === 'heavy';
-    (window as any).walkHome(() => e.step === 'scene');
-    return { haunted: e.haunted, night, storm, jar, fired: e.nightWalk.fired.size, step: e.step, scenarioGhost: f.camp.scenario.ghost.style };
+    return { haunted: e.haunted, night, storm, jar, step: e.step };
   });
-  expect(r).toEqual({ haunted: false, night: true, storm: false, jar: true, fired: 0, step: 'scene', scenarioGhost: 'funny' });
+  expect(r).toEqual({ haunted: false, night: true, storm: false, jar: true, step: 'fire' });
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('rainy-forest-settings-v2')!).scaryGhost)).toBe(false);
   expect(errors).toEqual([]);
 });

@@ -19,7 +19,7 @@ export class UI {
       showFps: false,
       subtitles: false, // subtitles for the introductions (off unless the visitor wants them)
       minimap: true,
-      scaryGhost: true, // the haunted walk back and the scary ghost in «سناریوی روح سرگردان»
+      scaryGhost: true, // heavy rain on the errand's night
       weather: 'auto', // the rain comes and goes by itself
     };
     try {
@@ -98,6 +98,7 @@ export class UI {
     for (const it of inv.items) {
       const b = document.createElement('button');
       b.className = 'bag-item' + (inv.held === it.id ? ' held' : '');
+      b.disabled = !!it.locked;
       b.innerHTML = '<span class="bag-item-icon" aria-hidden="true"></span><span class="bag-item-name"></span>';
       b.querySelector('.bag-item-icon').textContent = it.icon;
       b.querySelector('.bag-item-name').textContent = inv.held === it.id ? it.label + ' (در دست)' : it.label;
@@ -116,6 +117,9 @@ export class UI {
   /** show the bag button (once the player is in the forest) */
   showBag(on) { $('bag-btn').classList.toggle('hidden', !on); if (!on) this.setBagOpen(false); }
 
+  /** the bag's button grows and shrinks, calling to be opened */
+  setBagCall(on) { $('bag-btn').classList.toggle('call', on); }
+
   setBagOpen(open) {
     $('bag').classList.toggle('hidden', !open);
     $('bag-btn').classList.toggle('open', open);
@@ -128,6 +132,7 @@ export class UI {
     const el = $('quest');
     el.classList.toggle('hidden', !q);
     if (!q) return;
+    el.classList.toggle('done', !!q.done);
     $('quest-title').textContent = q.title;
     const goal = $('quest-goal');
     if (goal.textContent !== q.objective) {
@@ -152,6 +157,45 @@ export class UI {
     }));
   }
 
+  /** the round bar against a ghost, what to do under it, the red closing in (null: all gone) */
+  setCrossRing(r) {
+    const el = $('cross-ring');
+    el.classList.toggle('hidden', !r);
+    $('cross-danger').style.opacity = r ? String(r.danger * 0.85) : '0';
+    if (!r) return;
+    el.classList.toggle('unarmed', !r.armed);
+    el.classList.toggle('warn', r.warn);
+    $('cross-ring-bar').style.strokeDasharray = `${(r.fill * 100).toFixed(1)} 100`;
+    $('cross-ring-label').textContent = r.label;
+    if (r.hit) {
+      const d = $('cross-ring-disc');
+      d.classList.remove('hit'); void d.offsetWidth; d.classList.add('hit');
+    }
+  }
+
+  /** the bar of the time left, over the goal (null: gone) */
+  setRescueTimer(t) {
+    const el = $('quest-timer');
+    el.classList.toggle('hidden', !t);
+    if (!t) return;
+    const left = Math.ceil(t.left);
+    el.classList.toggle('low', t.left <= t.total / 4);
+    $('quest-timer-bar').style.transform = `scaleX(${(t.left / t.total).toFixed(4)})`;
+    if (left !== this._timerLeft) {
+      this._timerLeft = left;
+      const fa = (n) => String(n).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[+d]);
+      $('quest-timer-text').textContent = `${fa(Math.floor(left / 60))}:${fa(String(left % 60).padStart(2, '0'))}`;
+    }
+  }
+
+  /** the words on the black when the ghost has killed you (null: gone) */
+  showGameOver(g) {
+    $('game-over').classList.toggle('show', !!g);
+    if (!g) return;
+    $('game-over-title').textContent = g.title;
+    $('game-over-note').textContent = g.note;
+  }
+
   /** a title card or a short note across the middle of the view, fading away after `seconds` */
   showBanner(b) {
     const el = $('banner');
@@ -171,13 +215,6 @@ export class UI {
     $('dialog-text').textContent = d.text;
     el.classList.add('show');
     this._dialogT = setTimeout(() => el.classList.remove('show'), d.seconds * 1000);
-  }
-
-  /** the button that starts scenario 1 */
-  showScenarioButton(on) {
-    if (on === this._scenarioBtn) return;
-    this._scenarioBtn = on;
-    $('scenario-btn').classList.toggle('hidden', !on);
   }
 
   setFade(a) {
@@ -231,9 +268,6 @@ export class UI {
     $('resume-btn').addEventListener('click', () => this.emit('resume'));
     $('close-btn').addEventListener('click', () => this.emit('resume'));
     $('replay-btn').addEventListener('click', () => this.emit('replayIntro'));
-    $('replay-scenario-btn').addEventListener('click', () => this.emit('replayScenario'));
-    $('scenario-btn').addEventListener('click', (e) => { e.stopPropagation(); this.emit('scenario'); });
-    $('scenario-btn').addEventListener('pointerdown', (e) => e.stopPropagation());
     // a click / tap on the dimmed background closes the menu too
     $('pause').addEventListener('click', (e) => { if (e.target === $('pause')) this.emit('resume'); });
     $('skip-btn').addEventListener('click', (e) => { e.stopPropagation(); this.emit('skip'); });

@@ -123,15 +123,17 @@ export class ErrandProps {
 
   /**
    * the jar opened, as a film scene on the porch: where the ghost stands up
-   * (on the boards just in front of the jar) and where the camera sees it from
-   * (further along the porch, past the door, at eye height) - world
+   * (on the boards just in front of the jar), where the camera sees it from
+   * (further along the porch, past the door, at eye height) and where it goes
+   * when it leaves (out in front, well off the path, among the trees) - world
    */
-  jarStage(): { stand: THREE.Vector3; view: THREE.Vector3 } {
+  jarStage(): { stand: THREE.Vector3; view: THREE.Vector3; woods: THREE.Vector3 } {
     const g = this.jar.parent!;
     g.updateWorldMatrix(true, false);
     return {
       stand: g.localToWorld(new THREE.Vector3(ERRAND.jar.x, F, ERRAND.jar.z + 0.62)),
       view: g.localToWorld(new THREE.Vector3(-2.3, F + 1.45, Z1 + 1.55)),
+      woods: g.localToWorld(new THREE.Vector3(ERRAND.jar.x + 11, F, ERRAND.jar.z + 0.62 + 23.5)),
     };
   }
 

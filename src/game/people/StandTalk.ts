@@ -58,6 +58,9 @@ export class StandTalk {
   /** on their feet and turned to the listener */
   get ready(): boolean { return this.phase === 'talk' && this.t > 0.3; }
 
+  /** where their free hand is now (world) */
+  get freeHand(): THREE.Vector3 { return this.hand[1]; }
+
   /** sit back down */
   sitDown(): void { if (this.phase === 'up' || this.phase === 'talk') { this.phase = 'down'; this.t = 0; } }
 

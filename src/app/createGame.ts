@@ -161,6 +161,7 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   camp.voices = {
     play: (key: string, pos: THREE.Vector3, o?: { duck?: boolean; gain?: number; from?: number; length?: number }) =>
       sound.playVoice(key, pos, { duck: o?.duck ?? false, flat: true, gain: o?.gain ?? 1, from: o?.from ?? 0, length: o?.length ?? 0 }),
+    loop: (key, o) => sound.playLoop(key, o),
     ready: () => !!sound.engine.filesLoaded,
   };
 
@@ -195,30 +196,34 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
     container: document.body, trees: forest.trees, pathLine: terrain.pathLine,
     // what moves on the map, read-only
     source: {
-      people: () => camp.gathering.people.map((p) => p.seat),
+      // (once they have run for it, where they really are)
+      people: () => camp.gathering.people.map((p) => (errand?.chaseScene.caught ? p.h.root.position : p.seat)),
       dog: () => camp.dog?.root.position ?? null,
       deer: () => deer.agents,
-      target: () => errand?.mapTarget() ?? null,
+      targets: () => errand?.mapTargets() ?? [],
     },
     store: { ...store.mapShape(), path: terrain.storePath },
   });
-  const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement, errandDone: () => errand?.finished ?? true });
+  const session = new Session({ ui, events, player, camp, sound, quality, minimap, canvas: renderer.domElement });
   const questWorld = new THREE.Group(); // the jar's ghost flies in world coordinates
   scene.add(questWorld);
   // the player's own hands, and the bag (a flashlight in it from the start)
   const hands = new Hands({ scene, world: questWorld, ground: (x, z) => terrain.heightAt(x, z), model: (T as TextureSet).scenes?.fp_arms ?? null });
   const inventory = new Inventory({ hands, events, scene });
   events.on(EV.INVENTORY, (inv) => ui.setInventory(inv));
+  events.on(EV.BAG_CALL, (on) => ui.setBagCall(on));
   ui.on('equip', (id) => inventory.equip(id as ItemId | null));
   ui.on('enter', () => ui.showBag(true));
   inventory.add('flashlight');
   errand = new PartyErrand({
-    camp, store, player, picker, events, terrain, collision, world: questWorld,
+    camp, store, player, picker, events, terrain, world: questWorld,
     voices: () => camp.voices, touch: () => session.touch.enabled, camera,
     night: { day, weather, lighting },
-    // «روح ترسناک» in the menu: read when the walk back begins
+    // «روح ترسناک» in the menu: read as night falls (heavy rain or not)
     scary: () => ui.settings.scaryGhost !== false,
     hands, inventory,
+    shoo: (x, z, r) => deer.shoo(x, z, r),
+    cabin: cabin.group,
   });
   const theErrand = errand;
   const hud = new Hud({ ui, day });
@@ -280,6 +285,19 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   sys('camp', (f) => camp.update(f.dt, f.time, f.camera, f.env, wind.strength));
   sys('store', (f) => store.update(f.dt, f.camera, f.env));
   sys('errand', (f) => { if (session.entered) theErrand.update(f.dt); });
+  // ?stage=N (while developing): straight into stage N of the ghost's story
+  // once in (see PartyErrand.jumpTo and STATUS.md), to try a new stage
+  // without playing through everything before it
+  const stage = Number(new URLSearchParams(location.search).get('stage'));
+  if (import.meta.env.DEV && stage > 0) {
+    let jumped = false;
+    sys('stage', () => {
+      if (!session.entered || jumped) return;
+      jumped = true;
+      camp.intro.skip(true); // no welcome, no dip to black: straight into the scene
+      theErrand.jumpTo(stage);
+    });
+  }
   // ?lab=wraith: the ghost's true shape on its own, at night in front of the player,
   // over and over: it comes (a small knot spinning up into the whirlwind, which gathers into
   // the spectre), stays a while, goes the same way back, and after a moment comes again

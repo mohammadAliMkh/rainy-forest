@@ -37,7 +37,7 @@ export class Lighting {
   private flashes: { t: number; strength: number }[] = [];
   /** how bright the lightning is this frame (0 = none, ~1 = a strong flash) */
   flashLevel = 0;
-  /** the lantern's strength after dark (dimmer on the haunted walk back) */
+  /** the lantern's strength after dark (dimmer on a haunted night) */
   lanternMax = 5.5;
   private clock = 0;
   private _rot = new THREE.Matrix4();

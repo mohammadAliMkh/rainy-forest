@@ -1,68 +1,55 @@
-import type { FlightRoute } from '../people/Flight.ts';
+// Where the ghost comes from at the camp (world x / z around the cabin and
+// the fire, see config.js CABIN / FIRE / CAMP): out from its hiding place
+// behind the cabin, along its west wall to the front corner, and on toward
+// the fire.
 
-// Scenario 1, "the sheet ghost": where everything happens (world x / z
-// around the cabin and the fire, see config.js CABIN / FIRE / CAMP) and
-// when (seconds from the start). The ghost creeps out from behind the
-// cabin along its west wall, peeks round the corner, tiptoes up behind
-// the owner and Amin and says BOO; the four scream and scatter into the
-// trees (Amir hops back over his log, Amin over the tea crate); the ghost
-// giggles, finds itself alone, gets spooked itself and flees the way it
-// came, fading away; the friends walk back laughing and sit down.
-
-export const TITLE = 'سناریو ۱: روح پارچه‌ای';
-
-/** the ghost's way in: out from behind the cabin, along its west wall, the front corner, up behind the friends */
 export const GHOST_IN: [number, number][] = [[1.4, -25.3], [-2.0, -25.0], [-2.0, -18.6], [-0.8, -18.0], [0.4, -17.3]];
 /** index of the front corner in GHOST_IN (where it peeks) */
 export const CORNER = 2;
-
-export const T = {
-  sneak: 0.8, // leaves its hiding place behind the cabin
-  corner: 8.8, // reaches the front corner
-  peekEnd: 12.0, // done peeking, tiptoes over
-  arrive: 18.2, // right behind them, starts to rise
-  boo: 19.4,
-  giggle: 20.6, // happy little dance
-  lookAround: 22.6, // ...where did everyone go?
-  spooked: 23.7, // it scares itself
-  gone: 27.0, // fled and faded out
-  comeBack: 27.8, // the friends start walking back
+/** where it stops when it creeps up on the friends at the fire: behind Amin and the owner */
+export const CREEP_STOP = { x: 0.4, z: -17.9 };
+/**
+ * where the friends line up facing it once they have seen it: across the fire
+ * from it, side by side, left to right as the camera sees them (Amin, the
+ * owner, Alireza, Amir), with a gap between the first two where the camera
+ * sees it beyond them; the way each goes round the fire and the stumps;
+ * when each turns round to it (s into the scene) and how long they stare from
+ * their seat before getting up
+ */
+export const LINE_UP: Record<string, { spot: [number, number]; via?: [number, number][]; notice: number; stare: number }> = {
+  owner: { spot: [1.45, -12.0], via: [[0.0, -13.6]], notice: 0.1, stare: 0.45 },
+  amin: { spot: [0.15, -11.75], via: [[-0.75, -13.9]], notice: 0.2, stare: 0.75 },
+  alireza: { spot: [2.25, -12.2], via: [[1.95, -12.9]], notice: 0.35, stare: 0.6 },
+  amir: { spot: [3.05, -12.35], via: [[3.45, -13.5]], notice: 0.25, stare: 0.5 },
 };
-
-/** who runs where, and when after the BOO they jump (seconds) */
-export const FLEE: Record<string, FlightRoute & { delay: number }> = {
-  // west, past his stump, into the open trees
-  owner: { delay: 0.05, path: [[-0.75, -14.6], [-7.0, -14.9]] },
-  // over the tea crate, then east toward the carport
-  amin: { delay: 0.12, path: [[3.6, -16.0], [6.9, -15.5]], hops: [0] },
-  // back over his own log, then south-east
-  amir: { delay: 0.2, path: [[3.65, -14.95], [8.3, -11.4]], hops: [0] },
-  // round the end of his log and down the slope toward the trail
-  alireza: { delay: 0.28, path: [[1.6, -12.6], [1.0, -6.2]] },
+/**
+ * where each friend runs to once the ghost has torn into four, one after
+ * each of them, and is caught there: the way from their place in the line
+ * (x, z; the last point is where they are caught); how they are caught
+ * ('cower': backed up against something, 'fall': slipping in the water,
+ * 'climb': up the trunk of `tree`); where their ghost stops, over them; and
+ * the film camera for their shot (x, z, height above the ground); how long
+ * they stand staring at it before they bolt (s)
+ *   Amin: up a broadleaf tree west of the camp, the trunk between him and the
+ *     ghost, which goes slowly round it, and he round it too, on the far side
+ *   Amir: against his Patrol in the carport
+ *   Alireza: in the big puddle on the trail
+ *   the owner: round and round Farajpour's shop (`lap`), the ghost at his heels:
+ *     `ghost` is only where it is first headed
+ */
+export const CHASE: Record<string, {
+  path: [number, number][]; how: 'cower' | 'fall' | 'climb'; ghost: [number, number];
+  tree?: { x: number; z: number; r: number; taper: number; lean: [number, number] }; lap?: [number, number][]; shot: [number, number, number]; stare: number;
+}> = {
+  alireza: { path: [[2.6, -10.2], [2.6, -6.4], [1.5, -4.2], [1.0, -3.3]], how: 'fall', ghost: [1.55, -4.95], shot: [-0.6, -0.6, 1.5], stare: 0.45 },
+  amin: { path: [[-1.6, -11.2], [-5.0, -10.4], [-10.2, -10.2]], how: 'climb', ghost: [-12.42, -7.95], tree: { x: -10.74, z: -9.65, r: 0.42, taper: 0.03, lean: [-0.045, 0] }, shot: [-8.74, -2.85, 1.7], stare: 0.2 },
+  amir: { path: [[4.9, -12.2], [6.5, -14.4], [6.9, -17.0], [7.6, -19.4]], how: 'cower', ghost: [5.8, -18.3], shot: [5.4, -15.0, 1.7], stare: 0.3 },
+  owner: { path: [[0.9, -9.6], [-1.5, -2.0], [-6.0, 8.0], [-10.0, 18.0], [-13.2, 24.0], [-15.24, 25.1]], lap: [[-15.24, 25.1], [-20.03, 31.26], [-19.85, 32.66], [-12.03, 38.74], [-10.63, 38.56], [-5.84, 32.4], [-6.02, 31], [-13.83, 24.92]], how: 'cower', ghost: [-17.5, 27.9], shot: [-18.0, 25.3, 1.6], stare: 0.1 },
 };
+/** back from the film the player stands here (x, z), on the footpath, far enough off the shop for the ghost going round it not to notice yet; looking toward the shop (x, z) */
+export const RESCUE_START = { at: [-7.8, 12.4] as [number, number], facing: [-14, 31] as [number, number] };
+/** the order of their shots, and how long each lasts (s) */
+/** when all four are saved they come back to the fire: how far from their seat each comes into the film (m): the nearer, the sooner */
+export const RETURN_LEADS: Record<string, number> = { alireza: 8, amin: 10, amir: 12, owner: 14 };
 
-/** the film camera: one shot after another (hard cuts); y is above the ground under the camera */
-export interface Shot {
-  from: number;
-  pos: [number, number, number];
-  look: [number, number, number] | 'ghost';
-  fov: number;
-}
-export const SHOTS: Shot[] = [
-  // the camp in the foreground, the cabin's west wall behind: something moves along it
-  { from: 0, pos: [-3.4, 2.8, -10.4], look: [-1.4, 0.9, -20.0], fov: 50 },
-  // the corner: it peeks
-  { from: T.corner - 0.2, pos: [0.1, 1.45, -15.4], look: 'ghost', fov: 48 },
-  // over the fire: the friends chatting, the ghost tiptoeing up behind them
-  { from: T.peekEnd, pos: [1.0, 1.45, -11.0], look: [0.4, 1.15, -16.6], fov: 48 },
-  // closer as it rises behind them
-  { from: T.arrive, pos: [0.7, 1.3, -13.4], look: [0.5, 1.45, -16.6], fov: 42 },
-  // BOO! - its face and theirs, from the side (the owner flees right past the camera)
-  { from: T.boo, pos: [-1.9, 1.6, -13.4], look: [0.5, 1.3, -16.4], fov: 56 },
-  // wide: everyone scatters, the ghost giggles
-  { from: T.boo + 1.3, pos: [-3.4, 2.8, -9.4], look: [1.4, 0.9, -15.2], fov: 60 },
-  // it scares itself and flees back along the wall
-  { from: T.spooked - 0.1, pos: [-4.2, 1.7, -16.0], look: 'ghost', fov: 50 },
-  // the friends walk back laughing and sit down
-  { from: T.comeBack - 0.3, pos: [5.6, 3.2, -8.4], look: [1.2, 0.6, -14.8], fov: 54 },
-];
+export const CHASE_SHOTS: [string, number][] = [['alireza', 4.2], ['amin', 5.0], ['amir', 4.2], ['owner', 5.0]];
