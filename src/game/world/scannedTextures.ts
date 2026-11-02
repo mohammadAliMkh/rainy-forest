@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { shrinkTexture } from '../../engine/render/textureBudget.ts';
 
 // Scanned PBR materials (Poly Haven, CC0) prepared by pipeline/fetch_textures.py.
 // They replace the painted textures in the shared texture set before the world
@@ -50,7 +51,7 @@ const REPEAT: Record<string, [number, number]> = {
  * Loads the scanned textures and swaps them into `T`.
  * Returns false (keeping the painted textures) if anything is missing.
  */
-export async function loadScannedTextures(T: TextureSet, anisotropy: number): Promise<boolean> {
+export async function loadScannedTextures(T: TextureSet, anisotropy: number, texCap = 0): Promise<boolean> {
   const base = import.meta.env.BASE_URL;
   let manifest: Manifest;
   try {
@@ -61,9 +62,10 @@ export async function loadScannedTextures(T: TextureSet, anisotropy: number): Pr
     return false;
   }
   const loader = new THREE.TextureLoader();
-  const load = async (url: string | undefined, srgb: boolean, card = false) => {
+  const load = async (url: string | undefined, srgb: boolean, card = false, cap = texCap) => {
     if (!url) return undefined;
     const t = await loader.loadAsync(base + url);
+    await shrinkTexture(t, cap);
     t.wrapS = t.wrapT = card ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping;
     t.anisotropy = anisotropy;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
@@ -73,7 +75,7 @@ export async function loadScannedTextures(T: TextureSet, anisotropy: number): Pr
     const sets: Record<string, ScannedSet> = {};
     await Promise.all(
       Object.entries(manifest.textures).map(async ([role, e]) => {
-        const [map, normal, arm] = await Promise.all([load(e.maps.diff, true, e.card), load(e.maps.nor, false), load(e.maps.arm, false)]);
+        const [map, normal, arm] = await Promise.all([load(e.maps.diff, true, e.card, role === 'fire' ? 0 : texCap), load(e.maps.nor, false), load(e.maps.arm, false)]);
         if (!map) return;
         const rep = REPEAT[role];
         for (const t of [map, normal, arm]) if (t && rep) t.repeat.set(rep[0], rep[1]);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { shrinkTexture, shareTextures } from '../../engine/render/textureBudget.ts';
 
 // Real 3D models for the forest floor (Poly Haven, CC0), slimmed down in
 // Blender and compressed by pipeline/process_models.py. Every named part of
@@ -48,7 +49,19 @@ function toFloatGeometry(src: THREE.BufferGeometry, matrix: THREE.Matrix4): THRE
   return geo;
 }
 
-export async function loadEnvModels(anisotropy: number): Promise<{ parts: ModelParts; scenes: ModelScenes } | null> {
+/** every texture a model's materials use */
+function texturesOf(root: THREE.Object3D): THREE.Texture[] {
+  const out = new Set<THREE.Texture>();
+  root.traverse((o) => {
+    for (const m of [(o as THREE.Mesh).material ?? []].flat()) {
+      for (const v of Object.values(m)) if (v && (v as THREE.Texture).isTexture) out.add(v as THREE.Texture);
+    }
+  });
+  return [...out];
+}
+
+/** `texCap`: the long side pictures are shrunk to (0: as they are); people's skin (the faces) gets twice that */
+export async function loadEnvModels(anisotropy: number, texCap = 0): Promise<{ parts: ModelParts; scenes: ModelScenes } | null> {
   const base = import.meta.env.BASE_URL;
   let manifest: Manifest;
   try {
@@ -62,10 +75,16 @@ export async function loadEnvModels(anisotropy: number): Promise<{ parts: ModelP
   loader.setMeshoptDecoder(MeshoptDecoder);
   const parts: ModelParts = {};
   const scenes: ModelScenes = {};
+  const shrunk = new WeakSet<object>();
   try {
     await Promise.all(
       Object.entries(manifest.models).map(async ([name, m]) => {
         const gltf = await loader.loadAsync(base + m.file);
+        // made smaller as soon as each file arrives, so the full-size pictures never pile up
+        if (texCap) {
+          const person = /^(person_|fp_arms)/.test(name);
+          await Promise.all(texturesOf(gltf.scene).map((t) => shrinkTexture(t, person && /skin/i.test(t.name) ? texCap * 2 : texCap, shrunk)));
+        }
         if (m.scene) {
           gltf.scene.traverse((o) => {
             const mat = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -89,6 +108,10 @@ export async function loadEnvModels(anisotropy: number): Promise<{ parts: ModelP
     console.warn('Forest models unavailable, keeping procedural ones', err);
     return null;
   }
+  // the same picture in several files (the skin's normal map in every person) is kept once
+  const materials = new Set<THREE.Material>(Object.values(parts).map((p) => p.material));
+  for (const sc of Object.values(scenes)) sc.traverse((o) => { for (const m of [(o as THREE.Mesh).material ?? []].flat()) materials.add(m); });
+  shareTextures(materials);
   return { parts, scenes };
 }
 
