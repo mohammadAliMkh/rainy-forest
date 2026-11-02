@@ -140,7 +140,14 @@ export class UI {
       // a little flash when the goal changes
       el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     }
-    $('quest-hint').textContent = q.hint || '';
+    // a new hint shows for a while (on a phone it then folds away, to keep the box small)
+    const hint = $('quest-hint');
+    if (hint.textContent !== (q.hint || '')) {
+      hint.textContent = q.hint || '';
+      clearTimeout(this._hintT);
+      el.classList.toggle('hint-on', !!q.hint);
+      if (q.hint) this._hintT = setTimeout(() => el.classList.remove('hint-on'), 7000);
+    }
     const b = $('quest-basket');
     clearTimeout(this._basketT);
     if (!q.basket) {
