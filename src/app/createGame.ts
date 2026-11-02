@@ -8,6 +8,7 @@ import type { FrameBase } from '../engine/Game.ts';
 import { installFogChunks } from '../engine/render/shaderPatches.js';
 import { Renderer } from '../engine/render/Renderer.js';
 import { detectGpu } from '../engine/render/gpuTier.js';
+import { textureCap } from '../engine/render/textureBudget.ts';
 import { QualityManager } from '../engine/quality/QualityManager.ts';
 import { createTextures, setMaxAnisotropy } from '../game/world/textures.js';
 import { loadScannedTextures, upgradeScannedMaterials, type TextureSet } from '../game/world/scannedTextures.ts';
@@ -89,7 +90,9 @@ export async function createGame({ ui, debug = false }: { ui: UI; debug?: boolea
   const T = createTextures({ detail: quality.preset.texDetail });
   await step(0.12, 'بارگذاری بافت‌های اسکن‌شده از طبیعت…');
   const aniso = Math.min(8, renderer.renderer.capabilities.getMaxAnisotropy());
-  const [, models] = await Promise.all([loadScannedTextures(T, aniso), loadEnvModels(aniso)]);
+  // a phone runs out of memory long before a laptop: its pictures are loaded smaller
+  const texCap = textureCap(gpu.mobile);
+  const [, models] = await Promise.all([loadScannedTextures(T, aniso, texCap), loadEnvModels(aniso, texCap)]);
   (T as TextureSet).models = models ? models.parts : null;
   (T as TextureSet).scenes = models ? models.scenes : null;
 
