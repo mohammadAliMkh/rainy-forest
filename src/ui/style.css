@@ -626,8 +626,17 @@ body.touch .fps { top: auto; left: 50%; bottom: calc(env(safe-area-inset-bottom,
 }
 .dialog.show { opacity: 1; transform: translateX(-50%); }
 .dialog-name { display: block; color: var(--accent-2); font-size: 0.85rem; margin-bottom: 2px; }
-body.touch .quest { top: calc(8px + env(safe-area-inset-top, 0px)); max-width: calc(100vw - 230px); padding: 6px 12px 8px; }
-body.touch .quest-goal { font-size: 0.9rem; }
+/* phones: a small box that leaves the game in view. No scenario name, one line of goal,
+   the hint only for a few seconds after it changes, the names in one small row, a thin timer */
+body.touch .quest { top: calc(6px + env(safe-area-inset-top, 0px)); max-width: calc(100vw - 230px); padding: 4px 10px 5px; border-radius: 12px; background: rgba(10, 14, 16, 0.5); }
+body.touch .quest-title { display: none; }
+body.touch .quest-goal { font-size: 0.78rem; margin-top: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.touch .quest-hint { font-size: 0.68rem; line-height: 1.5; }
+body.touch .quest:not(.hint-on) .quest-hint { display: none; }
+body.touch .quest-basket { flex-wrap: nowrap; gap: 4px; margin-top: 4px; }
+body.touch .quest-item { font-size: 0.66rem; padding: 0 6px; white-space: nowrap; }
+body.touch .quest-timer { height: 11px; width: min(100%, 200px); margin: 1px auto 3px; }
+body.touch .quest-timer-text { font-size: 0.6rem; }
 body.touch .dialog { bottom: auto; top: 112px; font-size: 0.92rem; max-width: calc(100vw - 230px); }
 /* in a film scene the line sits just above the bottom letterbox bar, clear of the faces */
 body.in-cinema .dialog { bottom: calc(11vh + 12px + env(safe-area-inset-bottom, 0px)); top: auto; }
