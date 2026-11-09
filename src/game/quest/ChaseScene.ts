@@ -246,6 +246,13 @@ export class ChaseScene {
   }
 
   /** all of it off, the friends back on their seats and the ghosts away (to start over) */
+  /** from now on its light is the lamp's at `at`, `by` strong (the ghosts are gone) */
+  lamp(at: THREE.Vector3, by: number): void {
+    this.flood = at;
+    this.floodBy = by;
+    this._glow(null, 0);
+  }
+
   reset(): void {
     for (const c of this.chases.values()) c.finish();
     for (const w of this.wraiths) { w.still(); w.show(false); }

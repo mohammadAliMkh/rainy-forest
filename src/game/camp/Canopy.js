@@ -25,7 +25,13 @@ function sagPanel(a, b, c, d, sag, nu = 18, nv = 8) {
   return g;
 }
 
+/** how bright the lantern's glass is once it is lit */
+const LIT_GLOW = 5;
+
 export class Canopy {
+  /** the lantern is lit (set by the errand, from Amir's last words on) */
+  lit = false;
+
   constructor(T, terrain, collision, { cx, cz, halfX, halfZ, inset = 0.45, eave = 2.35, peak = 3.0, hole = 0.75, cap = 3.4 }) {
     const C = createCampTextures();
     this.group = new THREE.Group();
@@ -105,7 +111,8 @@ export class Canopy {
     });
     this.group.add(new THREE.Mesh(merge(ropes), rope));
 
-    // a hurricane lantern hanging from a rafter (glows; no extra light)
+    // a hurricane lantern hanging from a rafter (glows; no extra light;
+    // brighter once the canopy's lamp is lit for Amir's last words: `lit`)
     {
       const at = top[0].clone().lerp(inner[0], 0.45);
       const L = new THREE.Group();
@@ -133,7 +140,7 @@ export class Canopy {
 
   update(time) {
     const fl = 0.85 + 0.1 * Math.sin(time * 7.3) + 0.05 * Math.sin(time * 17.1);
-    this.lanternGlass.emissiveIntensity = 1.6 * fl;
+    this.lanternGlass.emissiveIntensity = (this.lit ? LIT_GLOW : 1.6) * fl;
     this.lantern.rotation.z = Math.sin(time * 0.9) * 0.03;
   }
 }

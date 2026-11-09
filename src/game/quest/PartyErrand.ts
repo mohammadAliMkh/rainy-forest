@@ -64,6 +64,8 @@ const AFTER_LAST = 1.7;
 const SKY_CLEARS = 2.5;
 /** back at the fire you stand by Amir: how far from his seat (m), how far round from straight in front of him (radians) */
 const BY_AMIR = { far: 1.9, round: 2.0 };
+/** the lamp under the canopy, lit for Amir's last words and after: how strong, and where (how far from him toward you, under the tarp) */
+const LAMP = { by: 6, toward: 0.55 };
 /** the shopping going from your hand to his: how long it takes (s), how high it arcs (m), how fast his arm comes out for it */
 const HANDING = { time: 0.7, arc: 0.12, arm: 5 };
 
@@ -383,6 +385,12 @@ export class PartyErrand {
     const cam = this.camera;
     cam.position.set(this.player.x, this.player.y, this.player.z);
     cam.lookAt(a.headPos);
+    // the lamp under the canopy is lit: up under the tarp, between him and you,
+    // so his face can be seen (the lantern on the rafter glows brighter too)
+    const canopy = this.camp.canopy;
+    canopy.lit = true;
+    const lx = a.seat.x + (at.x - a.seat.x) * LAMP.toward, lz = a.seat.z + (at.z - a.seat.z) * LAMP.toward;
+    this.chaseScene.lamp(new THREE.Vector3(lx, canopy.shelter.y, lz), LAMP.by);
     this.amirScene.start(LINES.last, null, cam, true);
     this._go('thanks');
   }
